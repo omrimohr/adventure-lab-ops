@@ -33,7 +33,7 @@ const TICKETS_FOLDER = 'Adventure Lab Ops – Tickets';
 function apiResponse_(p) {
   const map = { login: login, getData: getData, addCompra: addCompra, anularCompra: anularCompra, editCompra: editCompra,
     addAjuste: addAjuste, addConteo: addConteo, addComida: addComida, markPaid: markPaid, markRev: markRev,
-    saveProducto: saveProducto, saveTarifa: saveTarifa, savePerm: savePerm, saveTourBarco: saveTourBarco, setMapeo: setMapeo };
+    saveProducto: saveProducto, saveTarifa: saveTarifa, savePerm: savePerm, saveTourBarco: saveTourBarco, setMapeo: setMapeo, refreshFin: refreshFin };
   let out;
   try {
     const f = map[String(p.fn)];
@@ -167,9 +167,11 @@ function buildMoves_(ctx) {
     mv.push({ d: ymd_(a[0]), i: p.id, q: Number(a[2]) || 0, c: p.price, t: mot === 'Inventario completo' ? mot : 'Ajuste · ' + (mot || 'Ajuste'), ref: String(a[4] || mot), noStock: !p.controlStock });
   });
   ctx.salidas.forEach(s => {
+    const bits = ctx.bitBy[String(s[0])];
+    if (!bits || !bits.length) return; // no bitácora lines → no consumption (and no date formatting needed)
     const fecha = fmtDate_(s[6], 'yyyy-MM-dd');
     if (!fecha || fecha > ctx.today) return;
-    const cons = consumoSalida_(ctx.bitBy[String(s[0])] || [], ctx.productos, ctx.M);
+    const cons = consumoSalida_(bits, ctx.productos, ctx.M);
     Object.keys(cons).forEach(id => {
       const p = it[id]; if (!p || !p.controlStock) return;
       mv.push({ d: fecha, i: id, q: -cons[id], c: p.price, t: 'Bitácora', ref: fmtDate_(s[6], 'HH:mm') + ' ' + s[2], dep: String(s[0]) });
@@ -281,9 +283,25 @@ function extrasText_(bitRows, M) {
  * Departures of a date window, one object each. inp = all rows already read:
  * {desde,hasta, salidas, reservas, crew, bit, ev (Eventuales), ext (Externos), costos, revs {pk:{by,at}}, barcos {itemPk:barco}, productos}
  */
+/** Fast date-window test on a Salidas 'Inicio' value: ISO strings far outside the window are rejected without Utilities.formatDate (slow in Apps Script) */
+function windowTest_(desde, hasta) {
+  const lo = addDays_(desde, -1), hi = addDays_(hasta, 1);
+  return v => {
+    if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v)) { const p = v.slice(0, 10); if (p < lo || p > hi) return false; }
+    const f = fmtDate_(v, 'yyyy-MM-dd');
+    return f >= desde && f <= hasta;
+  };
+}
+/** Salidas rows 'Actualizado' newer than FIN_AT (ms) → the finance tabs (Eventuales, Costos…) are behind: the app asks refreshFin in the background */
+function staleFin_(salidas, finAt) {
+  let max = 0;
+  salidas.forEach(r => { const t = r[16] instanceof Date ? r[16].getTime() : Date.parse(r[16]); if (t > max) max = t; });
+  return max > Number(finAt || 0);
+}
 function buildDeps_(inp) {
   const group = (rows, col) => { const m = {}; rows.forEach(r => { const k = String(r[col]); (m[k] = m[k] || []).push(r); }); return m; };
-  const wins = inp.salidas.filter(s => { const f = fmtDate_(s[6], 'yyyy-MM-dd'); return f >= inp.desde && f <= inp.hasta; });
+  const inWin = windowTest_(inp.desde, inp.hasta);
+  const wins = inp.salidas.filter(s => inWin(s[6]));
   const pks = {}; wins.forEach(s => { pks[String(s[0])] = true; });
   const resBy = {}, disp = {};
   inp.reservas.forEach(r => {
@@ -307,12 +325,14 @@ function buildDeps_(inp) {
     });
     const bookings = (resBy[pk] || []).filter(r => r[3] === 'sí' && !r[13]).sort((a, b) => Number(a[0]) - Number(b[0])).map(r => ({
       id: String(r[1] || r[0]), name: String(r[17] || ''), pax: numOr_(r[14], 0), types: String(r[16] || ''),
+      gross: r2_(numOr_(r[22], 0)), // FareHarbor receipt total (Reservas 'Total (MXN)'); cancelled and OPS bookings are filtered out above
       net: r[30] === '' || r[30] === null ? null : Number(r[30]), est: r[31] === 'estimado', alert: String(r[28] || '')
     }));
     const k = costBy[pk];
     const barco = inp.barcos[String(s[1])] || '';
     return {
-      id: pk, date: fmtDate_(s[6], 'yyyy-MM-dd'), time: fmtDate_(s[6], 'HH:mm'), item: String(s[2]), label: '',
+      id: pk, date: fmtDate_(s[6], 'yyyy-MM-dd'), time: fmtDate_(s[6], 'HH:mm'), end: s[7] ? fmtDate_(s[7], 'yyyy-MM-dd HH:mm') : '', item: String(s[2]), label: '',
+      gross: r2_(bookings.reduce((a, x) => a + x.gross, 0)), res: resFromText_(s[20]),
       boat: BARCO_LABEL[barco] || '', barco: barco, tipo: String(s[3] || ''), crew: crew, bookings: bookings,
       out: hasOut ? bq.out : null, back: hasBack ? bq.back : null, extras: extrasText_(bits, inp.M), hx: hx,
       rev: inp.revs[pk] || null, bit: st, alerts: String(s[15] || ''), netSource: String(s[18] || ''),
@@ -432,16 +452,15 @@ function rebuildFin_() {
   try { PropertiesService.getScriptProperties().setProperty('FIN_AT', String(Date.now())); } catch (e) {}
   return r;
 }
-// Webhooks recompute Salidas but not Eventuales/Costos: rebuild when a departure changed after the last rebuild
-function ensureFresh_(salidas) {
-  const props = PropertiesService.getScriptProperties();
-  const at = Number(props.getProperty('FIN_AT') || 0);
-  let max = 0;
-  salidas.forEach(r => { const t = r[16] instanceof Date ? r[16].getTime() : Date.parse(r[16]); if (t > max) max = t; });
-  if (max <= at) return false;
+/**
+ * Webhooks recompute Salidas but not Eventuales/Costos. getData never rebuilds (it only says stale:true);
+ * the app then calls this in the background. tryLock: if a rebuild/webhook already holds the lock, return at once.
+ */
+function refreshFin(pin) {
+  auth_(pin);
   const lock = LockService.getScriptLock();
-  if (!lock.tryLock(15000)) return false;
-  try { rebuildFin_(); return true; } finally { try { lock.releaseLock(); } catch (e) {} }
+  if (!lock.tryLock(3000)) return { ran: false, busy: true };
+  try { rebuildFin_(); return { ran: true }; } finally { try { lock.releaseLock(); } catch (e) {} }
 }
 function ensureUsuarios_(ss) {
   let sh = ss.getSheetByName('Usuarios');
@@ -508,10 +527,12 @@ function getData(pin, desde, hasta) {
   if (hasta < desde) { const t = desde; desde = hasta; hasta = t; }
   if (hasta > addDays_(desde, 400)) hasta = addDays_(desde, 400);
 
-  loadTours_(ss); // creates + seeds Tours / Tarifas on first run, before any rebuild
+  if (!ss.getSheetByName('Tours')) loadTours_(ss); // creates + seeds Tours on first run (the rows are read once, below)
   seedTab_(ss, 'Tarifas', TAR_HEADERS, TAR_SEED);
   const salidas = readTab_(ss, 'Salidas', SAL_HEADERS).filter(r => r[0] !== '');
-  ensureFresh_(salidas);
+  let finAt = 0;
+  try { finAt = Number(PropertiesService.getScriptProperties().getProperty('FIN_AT') || 0); } catch (e) {}
+  const stale = staleFin_(salidas, finAt);
   const perms = loadPerms_(ss);
   const prodRows = readProdRows_(ss);
   const compras = groupCompras_(readTab_(ss, 'Compras', COMPRA_HEADERS));
@@ -526,17 +547,18 @@ function getData(pin, desde, hasta) {
   const moves = buildMoves_({ items: items, purchases: compras, ajustes: ajustes, salidas: salidas, bitBy: bitBy, productos: productos, today: today, M: M });
 
   const reservas = readTab_(ss, 'Reservas', RES_HEADERS);
+  const extRows = readTab_(ss, 'Externos', EXT_HEADERS); // read once: used by the departures and by the Eventuales list
   const deps = buildDeps_({
     desde: desde, hasta: hasta, salidas: salidas, bit: bit, barcos: barcos, productos: productos, M: M,
     reservas: reservas, crew: readTab_(ss, 'Tripulación', CREW_HEADERS),
-    ev: readTab_(ss, 'Eventuales', EV_HEADERS), ext: readTab_(ss, 'Externos', EXT_HEADERS), costos: readTab_(ss, 'Costos salida', COSTO_HEADERS),
+    ev: readTab_(ss, 'Eventuales', EV_HEADERS), ext: extRows, costos: readTab_(ss, 'Costos salida', COSTO_HEADERS),
     revs: latestRevs_(readTab_(ss, 'Revisiones', REV_HEADERS), today)
   });
 
   const paid = {};
   readTab_(ss, 'Pagos', PAGO_HEADERS).filter(r => r[1] !== '').forEach(r => { paid[ymd_(r[0]) + '|' + r[1]] = ymd_(r[3]); });
   const weekly = readTab_(ss, 'Resumen semanal', RESUMEN_HEADERS).map(r => ({ w: ymd_(r[0]), n: String(r[1]), s: Number(r[2]) || 0, t: Number(r[3]) || 0, paid: Number(r[4]) || 0, pend: Number(r[5]) || 0, alerts: String(r[6] || '') }));
-  const externos = readTab_(ss, 'Externos', EXT_HEADERS).map(r => ({ d: ymd_(r[0]), time: String(r[1]), item: String(r[2]), pk: String(r[3]), r: String(r[4]), n: String(r[5]), note: String(r[6] || ''), alert: String(r[7] || '') }));
+  const externos = extRows.map(r => ({ d: ymd_(r[0]), time: String(r[1]), item: String(r[2]), pk: String(r[3]), r: String(r[4]), n: String(r[5]), note: String(r[6] || ''), alert: String(r[7] || '') }));
   const control = readTab_(ss, 'Control días', CTRL_HEADERS).map(r => ({ d: ymd_(r[0]), dia: String(r[1]), sal: Number(r[2]) || 0, res: Number(r[3]) || 0, ex: Number(r[4]) || 0, est: Number(r[5]) || 0, estado: String(r[6]) }));
   const toursRows = readTab_(ss, 'Tours', TOURS_HEADERS.concat(['Barco', TOURS_ESTADO_HDR, TOURS_VISTO_HDR])).filter(r => r[0] !== '');
   const tours = toursRows.map(r => ({ pk: String(r[0]), name: String(r[1]), tipo: String(r[2]), barco: norm_(r[6]) || barcos[String(r[0])] || '' }));
@@ -544,12 +566,15 @@ function getData(pin, desde, hasta) {
     seen: seenFieldsFor_(ss, toursRows.filter(r => tourEstado_(r[7], r[5]) === ESTADO_NUEVO).map(r => String(r[0])), reservas) });
   const fh = fhInfo_(ss, today);
   const toursBit = {}; toursRows.forEach(r => { toursBit[String(r[0])] = yes_(r[4]); });
-  const salud = saludAlerts_({
+  const inRecent = windowTest_(addDays_(today, -8), '9999-12-30');
+  const saludAll = saludAlerts_({
     nowMs: Date.now(), today: today, hhmm: now, dow: new Date(today + 'T00:00:00Z').getUTCDay(), lastRawMs: lastRawMs_(ss),
-    salidas: salidas.filter(r => fmtDate_(r[6], 'yyyy-MM-dd') >= addDays_(today, -8)).map(r => ({ fecha: fmtDate_(r[6], 'yyyy-MM-dd'), hora: fmtDate_(r[6], 'HH:mm'), item: String(r[2]),
+    salidas: salidas.filter(r => inRecent(r[6])).map(r => ({ fecha: fmtDate_(r[6], 'yyyy-MM-dd'), hora: fmtDate_(r[6], 'HH:mm'), item: String(r[2]),
       activas: Number(r[8]) || 0, bitacora: String(r[11] || ''), lleva: !!toursBit[String(r[1])], hasOps: !!(r[12] || r[13]) })),
     control: control.map(c => ({ d: c.d, est: c.est })), pendMs: pend.map(x => x.ms), erroresHoy: fh.errores
-  }).filter(a => u.rol === 'admin' || a.rol === 'todos');
+  });
+  const fhOk = !saludAll.some(a => a.tipo === 'webhook'); // FareHarbor connection healthy (the app's green/orange dot)
+  const salud = saludAll.filter(a => u.rol === 'admin' || a.rol === 'todos');
   const comidas = readTab_(ss, 'Comida empleado', COMIDA_HEADERS).filter(r => r[1] !== '').slice(-15).reverse()
     .map(r => ({ d: ymd_(r[0]), n: String(r[1]), tipo: String(r[2]), q: Number(r[3]) || 0, nota: String(r[4] || ''), por: String(r[5] || '') }));
 
@@ -557,7 +582,7 @@ function getData(pin, desde, hasta) {
     ok: true, user: { nombre: u.nombre, rol: u.rol }, perms: perms, today: today, now: now, desde: desde, hasta: hasta,
     items: items, purchases: compras, moves: moves, priceLog: priceLogFrom_(compras), deps: deps,
     rates: buildRates_(readTab_(ss, 'Tarifas', TAR_HEADERS)), paid: paid, weekly: weekly, externos: externos, control: control,
-    tours: tours, comidas: comidas, fh: fh, pend: u.rol === 'admin' ? pend : [], salud: salud, rebuildPending: isRebuildPending_()
+    tours: tours, comidas: comidas, fh: fh, pend: u.rol === 'admin' ? pend : [], salud: salud, fhOk: fhOk, stale: stale, rebuildPending: isRebuildPending_()
   };
 }
 
@@ -906,5 +931,5 @@ function migrate20261124() {
 if (typeof module !== 'undefined') module.exports = {
   pinStr_, findUser_, permsFromRows_, permOk_, guessIcon_, buildItems_, groupCompras_, lastCostFrom_, priceLogFrom_, buildMoves_, stockMap_, countDiffs_,
   cleanLines_, slugId_, rateLabel_, buildRates_, latestRevs_, roleLabel_, bitQty_, extrasText_, buildDeps_, buildPend_, fieldsFromBookings_, saludAlerts_, setMapeo, planTarifasMigration_, pluralEs_, appendNote_,
-  login, getData, addCompra, anularCompra, editCompra, addAjuste, addConteo, addComida, markPaid, markRev, saveProducto, saveTarifa, savePerm, saveTourBarco, migrate20261124
+  login, getData, refreshFin, windowTest_, staleFin_, addCompra, anularCompra, editCompra, addAjuste, addConteo, addComida, markPaid, markRev, saveProducto, saveTarifa, savePerm, saveTourBarco, migrate20261124
 };

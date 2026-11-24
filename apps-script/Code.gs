@@ -33,7 +33,7 @@ const RES_HEADERS = ['Booking pk', 'Display ID', 'Estado', 'Cuenta', 'Reemplazad
   'Invoice (MXN)', 'Creada', 'Último evento', 'Booking uuid', 'Alerta pax', 'Fila Raw', 'Ingreso neto (MXN)', 'Fuente ingreso'];
 const SAL_HEADERS = ['Availability pk', 'Item pk', 'Item', 'Tipo tour', 'Fecha', 'Hora', 'Inicio', 'Fin',
   'Reservas activas', 'Pax', 'Unidades', 'Bitácora', 'Reserva salida', 'Reserva regreso', 'Tripulación',
-  'Alertas', 'Actualizado', 'Ingreso neto (MXN)', 'Fuente ingreso'];
+  'Alertas', 'Actualizado', 'Ingreso neto (MXN)', 'Fuente ingreso', 'Recursos', 'Recursos pk'];
 const ING_HEADERS = ['Booking pk', 'Ingreso neto (MXN)', 'Fecha tour', 'Archivo', 'Subido', 'Fila reporte'];
 const CARGA_HEADERS = ['Subido', 'Archivo', 'Hash', 'Duplicado', 'Filas', 'Reservas encontradas', 'No encontradas',
   'Fechas', 'Notas'];
@@ -344,6 +344,34 @@ function fmtDate_(iso, pattern) {
 }
 
 /**
+ * Resources used by a departure, from its active customer bookings (OPS bookings are not passed in):
+ * booking.resource_uses[{pk, resource:{pk,name,short_name}, use_count}] → unique by resource pk, use_count summed, first name kept.
+ * → [{pk, name, n}] in first-seen order. Names are stored without the ':' and '|' separators of the "Recursos pk" column.
+ */
+function resourcesFrom_(bookings) {
+  const by = {}, order = [];
+  (bookings || []).forEach(b => (b.resource_uses || []).forEach(u => {
+    const r = (u && u.resource) || {};
+    const pk = String(r.pk !== undefined && r.pk !== null ? r.pk : '');
+    const name = String(r.name || r.short_name || '').replace(/[:|]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!pk && !name) return;
+    const key = pk || 'n:' + name.toLowerCase();
+    const n = Number(u.use_count);
+    if (!by[key]) { by[key] = { pk: pk, name: name || ('Recurso ' + pk), n: 0 }; order.push(key); }
+    by[key].n += isFinite(n) && u.use_count !== '' && u.use_count !== null ? n : 1;
+  }));
+  return order.map(k => by[k]);
+}
+/** "pk:Name:n|pk:Name:n" (Salidas col "Recursos pk") → [{pk,name,n}] */
+function resFromText_(t) {
+  return String(t || '').split('|').filter(String).map(x => { const a = x.split(':'); return { pk: a[0], name: a.slice(1, -1).join(':'), n: Number(a[a.length - 1]) || 0 }; });
+}
+/** True when the Salidas header row is shorter than SAL_HEADERS (column added by a newer version) → history must be recomputed from Raw once */
+function salHeaderStale_(headerRow) {
+  return String((headerRow || [])[SAL_HEADERS.length - 1] || '') !== SAL_HEADERS[SAL_HEADERS.length - 1];
+}
+
+/**
  * One departure from its bookings (latest version of each).
  * list: [{b, status, row}] → {salida:[], bit:[[...]], crew:[[...]]}
  */
@@ -371,6 +399,7 @@ function computeSalida_(avPk, list, tours, now, ing, M) {
     if (p.alerta) alerts.push('#' + x.b.pk + ' ' + p.alerta);
   });
 
+  const resources = resourcesFrom_(custBk.map(x => x.b));
   const sal = opsBk.filter(x => /Salida/.test(opsType_(x.b, M)));
   const reg = opsBk.filter(x => /Regreso/.test(opsType_(x.b, M)));
   if (sal.length > 1) alerts.push('Más de una reserva de salida');
@@ -406,7 +435,8 @@ function computeSalida_(avPk, list, tours, now, ing, M) {
     custBk.length, paxPend ? (pax ? pax + ' + pendiente' : 'pendiente') : pax, unidades, bitacora,
     sal.map(x => x.b.pk).join(', '), reg.map(x => x.b.pk).join(', '),
     crew.map(c => (c[4] || 'sin rol') + ': ' + (c[5] || c[6])).join(' · '),
-    alerts.join(' | '), now, Math.round(ingreso * 100) / 100, estimados ? 'estimado' : ''];
+    alerts.join(' | '), now, Math.round(ingreso * 100) / 100, estimados ? 'estimado' : '',
+    resources.map(r => r.name + ' (' + r.n + ')').join(' · '), resources.map(r => r.pk + ':' + r.name + ':' + r.n).join('|')];
   return { salida: salida, bit: bit, crew: crew, hasCustomers: custBk.length > 0 };
 }
 
@@ -560,7 +590,10 @@ function recomputeSalidas_(ss, avPks, tours, ing, M) {
 function replaceRows_(ss, name, headers, key, newRows) {
   const sh = sheet_(ss, name, headers);
   const lastH = headers[headers.length - 1];
-  if (sh.getRange(1, headers.length).getValue() !== lastH) sh.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold'); // new column added
+  if (sh.getRange(1, headers.length).getValue() !== lastH) {
+    sh.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold'); // new column added
+    if (name === 'Salidas') setRebuildPending_(); // older departures lack the new column: recompute history from Raw once
+  }
   const last = sh.getLastRow();
   let keep = [];
   if (last >= 2) keep = sh.getRange(2, 1, last - 1, headers.length).getValues().filter(r => String(r[0]) !== String(key));
@@ -1009,6 +1042,10 @@ function loadProductos_(ss) {
 function rebuildFinanzas() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const seeded = ensureMapeos_(ss);
+  try { // Salidas created by an older version (fewer columns): recompute everything from Raw once
+    const sal = ss.getSheetByName('Salidas');
+    if (sal && sal.getLastRow() >= 1 && salHeaderStale_(sal.getRange(1, 1, 1, SAL_HEADERS.length).getValues()[0])) setRebuildPending_();
+  } catch (e) {}
   if (seeded || isRebuildPending_()) {
     const lock = LockService.getScriptLock();
     const had = lock.hasLock();
@@ -1122,6 +1159,7 @@ function rebuildFinanzas_() {
   writeTab_(ss, 'Costos salida', COSTO_HEADERS, costos);
   if (fruta.sinSalidas.length) logError_(ss, 'Fruta', 'Compra sin salidas para repartir: ' + fruta.sinSalidas.join(', '), '');
   rebuildControl();
+  try { PropertiesService.getScriptProperties().setProperty('FIN_AT', String(Date.now())); } catch (e) {} // getData compares Salidas 'Actualizado' with this (stale flag)
   return { eventuales: ev.length, costos: costos.length, stock: stock.length };
 }
 function r2_(n) { return Math.round((Number(n) || 0) * 100) / 100; }
@@ -1546,4 +1584,4 @@ function sheet_(ss, name, headers) {
 if (typeof module !== 'undefined') module.exports = { ctKey_, cfKey_, roleKey_, guessCtype_, guessFieldUso_, guessRolTarifa_, camposMap_, typeUso_, fieldUso_, bitUso_, crewTarifa_,
   mapeosFromRows_, observe_, collectUnknowns_, seedMapeos_, validateMapeo_, toursFromRows_, tourEstado_, TOURS_SEED_ROWS: TOURS_SEED, USOS_CT, USOS_CF,
   CT_HEADERS, CF_HEADERS, ROL_HEADERS, CREW_HEADERS, BIT_HEADERS, ESTADO_NUEVO, ESTADO_OK, rawRowFor_, doPost, rebuildFinanzas, rebuildAll, ensureMapeos_, loadMapeos_,
-  registerUnknowns_, prepararMapeos, reservaRow_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_ };
+  registerUnknowns_, prepararMapeos, reservaRow_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, SAL_HEADERS };

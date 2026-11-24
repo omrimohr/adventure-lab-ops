@@ -53,7 +53,7 @@ test('opsType_ / bookingPax_ / reservaRow_ identical for every booking', () => {
 test('computeSalida_ identical (salida row, bitácora lines, tripulación incl. role with no short_name)', () => {
   departures.forEach(d => {
     const n = N.ex.computeSalida_(d.av, d.list, tours, NOW, {}, M), o = O.ex.computeSalida_(d.av, d.list, tours, NOW, {});
-    same(n.salida, o.salida, 'salida ' + d.av); same(n.bit, o.bit, 'bit ' + d.av);
+    same(n.salida.slice(0, o.salida.length), o.salida, 'salida ' + d.av); same(n.bit, o.bit, 'bit ' + d.av);
     same(n.crew.map(r => r.slice(0, 8)), o.crew, 'crew ' + d.av); assert.strictEqual(n.hasCustomers, o.hasCustomers);
     n.crew.forEach(r => assert.strictEqual(r.length, 9)); // + Rol clave
   });
@@ -98,6 +98,6 @@ test('payForSalida_ identical (rates, hora extra, externos, role without short_n
 test('with M = null the old name rules still apply (safe defaults)', () => {
   departures.forEach(d => {
     const n = N.ex.computeSalida_(d.av, d.list, tours, NOW, {}), o = O.ex.computeSalida_(d.av, d.list, tours, NOW, {});
-    same(n.salida, o.salida); same(n.bit, o.bit);
+    same(n.salida.slice(0, o.salida.length), o.salida); same(n.bit, o.bit);
   });
 });
