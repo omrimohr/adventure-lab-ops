@@ -109,7 +109,7 @@ test('first run of the bitácora rule v2 sets REBUILD_PENDING and rebuilds once;
   F.DEPARTURES[9001].forEach(p => e.post(p)); e.G.ex.ensureMapeos_(e.ss); e.G.ex.rebuildAll();
   delete e.fe.props.BITACORA_RULE_V;
   assert.strictEqual(J(e.G.ex.rebuildFinanzas()).reconstruido, true);
-  assert.strictEqual(e.fe.props.BITACORA_RULE_V, '2');
+  assert.strictEqual(e.fe.props.BITACORA_RULE_V, e.G.ex.BITACORA_RULE_V);
   assert.strictEqual(J(e.G.ex.rebuildFinanzas()).reconstruido, undefined);
 });
 

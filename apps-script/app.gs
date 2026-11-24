@@ -407,7 +407,7 @@ function saludAlerts_(inp) {
   const from = addDays_(today, -7), miss = [];
   (inp.salidas || []).forEach(s => {
     const past = s.fecha < today || (s.fecha === today && hhmm >= '21:00');
-    if (!past || s.fecha < from || !(s.activas > 0) || !(!bitacoraNoAplica_(s.tipo) || s.hasOps) || s.bitacora === 'Completa') return;
+    if (!past || s.fecha < from || !(s.activas > 0) || (s.bitacora === 'No aplica' && !s.hasOps) || s.bitacora === 'Completa') return;
     miss.push(s);
   });
   miss.sort((a, b) => (b.fecha + b.hora).localeCompare(a.fecha + a.hora));

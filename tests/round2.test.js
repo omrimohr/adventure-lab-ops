@@ -199,3 +199,8 @@ test('round 4: bitácora applies to every tipo except renta; "Sin recurso asigna
   assert.strictEqual(E.bitacoraRuleStale_('1'), true);
   assert.strictEqual(E.bitacoraRuleStale_(E.BITACORA_RULE_V), false);
 });
+test('bitácora rule v3: rentals and day passes (barco otro) are No aplica', () => {
+  assert.strictEqual(E.bitacoraNoAplica_('compartido', 'otro'), true);
+  assert.strictEqual(E.bitacoraNoAplica_('compartido', 'sup'), false);
+  assert.strictEqual(E.bitacoraNoAplica_('renta', 'kayak'), true);
+});

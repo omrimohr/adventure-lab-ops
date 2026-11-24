@@ -232,6 +232,7 @@ function toursFromRows_(rows) {
       tipo: String(r[2] || '').toLowerCase().trim(),
       fields: String(r[3] || '').split(',').map(x => x.trim()).filter(String),
       bitacora: /^s/i.test(String(r[4] || '')),
+      barco: norm_(r[6]),
       estado: tourEstado_(r[7], r[5])
     };
   });
@@ -376,8 +377,18 @@ function resHeaderStale_(headerRow) {
 }
 
 /** Pure: rentals (Tours tipo 'renta') are the only items without bitácora; the Tours column 'Lleva bitácora' is no longer read. */
-function bitacoraNoAplica_(tipo) { return String(tipo || '').toLowerCase().trim() === 'renta'; }
-const BITACORA_RULE_V = '2';
+// Bitácora applies to every item except rentals and day passes (barco 'otro', e.g. 723914 Yak day pass, 721266 Carmelita Day Pass)
+function bitacoraNoAplica_(tipo, barco) { return String(tipo || '').toLowerCase().trim() === 'renta' || norm_(barco) === 'otro'; }
+const BITACORA_RULE_V = '3';
+// Items that got OPS · Salida/Regreso bitácora fields in FareHarbor on 24 Nov 2026 → Tours "Lleva bitácora" = sí (sheet record only)
+const BITACORA_SI_20261124 = [244134, 398421, 243654, 398153, 337343, 337931, 398154, 703654, 689738, 185852, 703536, 770935];
+function markBitacoraSi_(ss) {
+  const sh = ss.getSheetByName('Tours'); if (!sh || sh.getLastRow() < 2) return 0;
+  const n = sh.getLastRow() - 1, rng = sh.getRange(2, 1, n, 5), v = rng.getValues(); let c = 0;
+  v.forEach(r => { if (BITACORA_SI_20261124.indexOf(Number(r[0])) >= 0 && !/^s/i.test(String(r[4]))) { r[4] = 'sí'; c++; } });
+  if (c) sh.getRange(2, 5, n, 1).setValues(v.map(r => [r[4]]));
+  return c;
+}
 /** Pure: true when the stored rule version differs → Salidas must be recomputed once. */
 function bitacoraRuleStale_(stored) { return String(stored || '') !== BITACORA_RULE_V; }
 
@@ -420,7 +431,7 @@ function computeSalida_(avPk, list, tours, now, ing, M) {
   else if (sal.length) bitacora = 'Falta regreso';
   else if (reg.length) bitacora = 'Falta salida';
   // Bitácora applies to every item except rentals (Tours tab 'Lleva bitácora' is no longer read)
-  if (!opsBk.length && bitacoraNoAplica_(tour.tipo)) bitacora = 'No aplica';
+  if (!opsBk.length && bitacoraNoAplica_(tour.tipo, tour.barco)) bitacora = 'No aplica';
 
   // Bitácora lines
   const bit = [];
@@ -1082,7 +1093,7 @@ function rebuildFinanzas() {
   const seeded = ensureMapeos_(ss);
   try { // bitácora rule v2 (all items except rentals) + 'Sin recurso asignado': recompute Salidas once
     const props = PropertiesService.getScriptProperties();
-    if (bitacoraRuleStale_(props.getProperty('BITACORA_RULE_V'))) { setRebuildPending_(); props.setProperty('BITACORA_RULE_V', BITACORA_RULE_V); }
+    if (bitacoraRuleStale_(props.getProperty('BITACORA_RULE_V'))) { try { markBitacoraSi_(ss); } catch (e) { logError_(ss, 'markBitacoraSi', e, ''); } setRebuildPending_(); props.setProperty('BITACORA_RULE_V', BITACORA_RULE_V); }
   } catch (e) {}
   try { // Salidas created by an older version (fewer columns): recompute everything from Raw once
     const sal = ss.getSheetByName('Salidas');
@@ -1630,4 +1641,4 @@ function sheet_(ss, name, headers) {
 if (typeof module !== 'undefined') module.exports = { ctKey_, cfKey_, roleKey_, guessCtype_, guessFieldUso_, guessRolTarifa_, camposMap_, typeUso_, fieldUso_, bitUso_, crewTarifa_,
   mapeosFromRows_, observe_, collectUnknowns_, seedMapeos_, validateMapeo_, toursFromRows_, tourEstado_, TOURS_SEED_ROWS: TOURS_SEED, USOS_CT, USOS_CF,
   CT_HEADERS, CF_HEADERS, ROL_HEADERS, CREW_HEADERS, BIT_HEADERS, ESTADO_NUEVO, ESTADO_OK, rawRowFor_, doPost, rebuildFinanzas, rebuildAll, ensureMapeos_, loadMapeos_,
-  registerUnknowns_, prepararMapeos, bitacoraNoAplica_, bitacoraRuleStale_, BITACORA_RULE_V, reservaRow_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };
+  registerUnknowns_, prepararMapeos, bitacoraNoAplica_, bitacoraRuleStale_, markBitacoraSi_, BITACORA_RULE_V, reservaRow_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };
