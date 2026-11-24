@@ -306,10 +306,49 @@ button.live{display:flex;width:100%;background:none;border:0;font:inherit;font-s
 .bitrow .bpart>span{display:grid;line-height:1.2}
 .bitrow .bpart small{font-size:13px;color:var(--ink2)}
 .bitrow .chev{transition:transform .2s}
-.bitrow[aria-expanded="true"] .chev{transform:rotate(90deg)}
+.bitrow .bx[aria-expanded="true"] .chev{transform:rotate(90deg)}
 .trow.c{padding-block:6px;font-size:14px}
 .trow.c.th{font-size:12px}
 .cell.c{min-height:40px;padding-block:6px;font-size:15px}
+
+/* ===== round 3: departure card (fixed grid), FareHarbor links, Gasto / Compra sheet ===== */
+.dmain.r3{padding:0}
+.dg{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"hr chv" "tn mon" "rs mon" "cw cw" "ct ct";column-gap:12px;row-gap:2px;padding:12px 16px 10px}
+.dg .hr{grid-area:hr;font-variant-numeric:tabular-nums;font-size:17px;font-weight:700;color:var(--lagoon);line-height:22px;min-height:22px}
+.dg .chv{grid-area:chv;justify-self:end;align-self:center;color:var(--ink2);line-height:0}
+.dg .tn{grid-area:tn;min-width:0;font-weight:600;line-height:22px;min-height:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dg .mon{grid-area:mon;justify-self:end;align-self:start}
+.dg .rs{grid-area:rs;min-width:0;display:flex;align-items:center;gap:5px;font-size:14px;line-height:20px;min-height:20px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dg .rs svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.dg .cw{grid-area:cw;font-size:14px;line-height:20px;min-height:20px;color:var(--ink2);overflow-wrap:anywhere}
+.dg .ct{grid-area:ct;font-size:13px;line-height:18px;min-height:18px;color:var(--ink2);font-variant-numeric:tabular-nums}
+.dg .wq{color:var(--orange);font-weight:700}
+.dstrip{border-top:1px solid var(--sep);display:flex;align-items:center;gap:10px;min-height:44px;padding:0 16px}
+.dstrip .lb{font-size:12px;color:var(--ink2);flex:none}
+.dstrip .tgs{margin-left:auto;display:flex;gap:6px;flex:none}
+.tg{font-size:12px;font-weight:600;padding:2px 8px;border-radius:99px;white-space:nowrap;background:var(--fill);color:var(--ink2)}
+.tg.o{background:color-mix(in srgb,var(--orange) 16%,transparent);color:var(--orange)}
+.tg.ok{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}
+.tg.w{background:color-mix(in srgb,var(--orange) 16%,transparent);color:var(--ink)}
+.oprow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 4px}
+.oprow h1{margin:0}
+.gbtn{min-height:44px;padding:0 14px;border-radius:22px;border:0;background:var(--lagoon-soft);color:var(--lagoon);font:inherit;font-size:15px;font-weight:600;cursor:pointer;flex:none;white-space:nowrap}
+.gbtn:focus-visible{outline:3px solid var(--lagoon);outline-offset:2px}
+a.fhl{color:var(--lagoon);text-decoration:none;font-size:14px;white-space:nowrap;display:inline-flex;align-items:center;min-height:44px;padding:0 4px}
+a.fhl.gray{color:var(--ink2)}
+a.fhl:focus-visible{outline:3px solid var(--lagoon);outline-offset:-2px;border-radius:8px}
+.lede a.fhl{min-height:0;padding:0;font-size:inherit}
+.cell .fhx{flex:none;margin:-10px -6px -10px 0}
+.bitrow .fhl{margin-left:-4px}
+.bitrow .bpart{flex:1}
+.bitrow .bx{background:none;border:0;color:var(--ink2);min-width:44px;min-height:44px;display:grid;place-items:center;cursor:pointer;padding:0;margin:-10px -12px -10px 0}
+.supl{font-size:13px;color:var(--ink2)}
+.addnote{width:100%;min-height:44px;background:none;border:0;font:inherit;color:var(--lagoon);text-align:left;padding:0 16px;cursor:pointer}
+.tkrow{display:flex;justify-content:flex-start;margin:0 0 12px}
+.tkrow label{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 14px;border-radius:22px;background:var(--fill);font-size:15px;cursor:pointer}
+.tkrow label:focus-within{outline:3px solid var(--lagoon)}
+.sheet .tk{margin-bottom:12px}
+.stl{font-size:13px;color:var(--ink2);margin:0 0 6px 4px}
 </style>
 </head>
 <body>
@@ -331,7 +370,7 @@ window.addEventListener('unhandledrejection',function(e){try{var b=document.getE
 (()=>{
 // ===== Estado. Todo viene de la hoja de Google (getData). Aquí no hay datos de ejemplo. =====
 let TODAY='',NOW='';
-const PERMS=[['compras','Agregar compras'],['revisar','Marcar revisado'],['pagar','Pagar eventuales'],['inventario','Inventario completo'],['ajuste','Ajustar inventario'],['editar','Editar o anular compras'],['comida','Comida de empleado'],['config','Configuración (productos, tarifas y permisos)']];
+const PERMS=[['compras','Agregar compras'],['revisar','Marcar revisado'],['pagar','Pagar eventuales'],['inventario','Inventario completo'],['ajuste','Ajustar inventario'],['editar','Editar o anular compras'],['config','Configuración (productos, tarifas y permisos)']];
 const ROLES=[['admin','Admin'],['op','Operación']];
 const REASONS=['Merma','Pérdida','Rotura','Error de conteo','Otro'];
 const GI={'Bebidas':'🥤','Combustible':'⛽','Consumo directo':'🧊','Comida empleado':'🍽️'};
@@ -510,6 +549,17 @@ function money2(gross,net,est,big){
 const strHash=s=>{let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return (h>>>0).toString(36)};
 const cacheKey=(pin,from,to)=>'adv_ops_c:'+strHash(String(pin))+':'+(from||'')+'|'+(to||'');
 const CACHE_MAX=2000000;
+// Enlaces a FareHarbor. UN solo lugar para el formato de la URL de una disponibilidad (availability): si FareHarbor usa otro formato, se cambia aquí.
+// (Formato por verificar: https://fareharbor.com/thegaiaexperience/dashboard/?overlay=/items/<item pk>/availability/<availability pk>/ )
+const FH_DASH='https://fareharbor.com/thegaiaexperience/dashboard/';
+const fhAvailUrl=(itemPk,avPk)=>FH_DASH+'?overlay=/items/'+encodeURIComponent(itemPk)+'/availability/'+encodeURIComponent(avPk)+'/';
+// <a> que abre en pestaña nueva. text vacío → solo la flecha ↗. gray = enlace de reserva (no hay link del booking, se usa el de la disponibilidad)
+const fhA=(url,text,{gray,label}={})=>`<a class="fhl${gray?' gray':''}" href="${esc(url)}" target="_blank" rel="noopener"${label?` aria-label="${esc(label)}"`:''}>${text?esc(text)+' ':''}<span aria-hidden="true">↗</span></a>`;
+// Avisos de una salida (para el contador ⚠️ de la tarjeta): avisos del servidor + tripulación sin rol + alertas de pago
+const depAlertN=d=>(d.alerts?String(d.alerts).split(' | ').filter(Boolean).length:0)+(d.crew||[]).filter(c=>(!c.r&&!c.ext)||c.alert).length;
+// Proveedor recordado por producto (mapa {idProducto: proveedor}): el del primer producto del carrito que tenga uno; al guardar se recuerda para todos
+const supFor=(map,ids)=>{for(const i of ids){if(map&&map[i])return map[i]}return ''};
+const supRemember=(map,ids,name)=>{const m=Object.assign({},map);const n=String(name||'').trim();if(n&&n!=='Sin proveedor')ids.forEach(i=>{m[i]=n});return m};
 // ==PURE-END==
 
 const depsOn=d=>S.deps.filter(x=>x.date===d).sort((a,b)=>a.time<b.time?-1:1);
@@ -573,7 +623,7 @@ const TABS=[
 let tab='op',stackView=null; // stackView = {name, arg}
 $('tabs').innerHTML=TABS.map(([k,l,ic])=>`<button class="tab" data-tab="${k}"><svg viewBox="0 0 24 24">${ic}</svg>${l}</button>`).join('');
 
-const PLUS=pre=>can('compras')&&{k:'compra',l:'Nueva compra',s:'+',pre};
+const PLUS=pre=>can('compras')&&{k:'compra',l:'Gasto / Compra',s:'+',pre};
 const DOTS=pre=>menuOk()&&{k:'menu',l:'Más acciones',s:'⋯',pre};
 function topBar(title,{back,backTo,backView,acts=[],lede}={}){
   const a=acts.filter(Boolean).map(x=>`<button class="act" data-act="${x.k}" data-pre="${x.pre||''}" aria-label="${x.l}">${x.s}</button>`).join('');
@@ -631,7 +681,7 @@ function pendRow(p,i){
 const V={
 op(){
   const date=S.date,ds=depsOn(date),fut=date>TODAY;
-  let h=topBar('Operación')+saludBox()+`<div class="daterow"><button class="nx" data-day="-1" aria-label="Día anterior">‹</button><button class="dt" data-cal aria-label="Abrir calendario">${fd(date)}&nbsp;&nbsp;<span style="color:var(--lagoon);vertical-align:-2px">${svgI('cal',18)}</span></button><button class="nx" data-day="1" aria-label="Día siguiente">›</button></div>${date!==TODAY?'<div class="todayrow"><button class="sbtn" data-today>Hoy</button></div>':''}`;
+  let h=`<div class="oprow"><h1>Operación</h1>${can('compras')?'<button class="gbtn" data-act="compra" data-pre="">+ Gasto / Compra</button>':''}</div>`+saludBox()+`<div class="daterow"><button class="nx" data-day="-1" aria-label="Día anterior">‹</button><button class="dt" data-cal aria-label="Abrir calendario">${fd(date)}&nbsp;&nbsp;<span style="color:var(--lagoon);vertical-align:-2px">${svgI('cal',18)}</span></button><button class="nx" data-day="1" aria-label="Día siguiente">›</button></div>${date!==TODAY?'<div class="todayrow"><button class="sbtn" data-today>Hoy</button></div>':''}`;
   if(!ds.length)return h+`<div class="group"><div class="list"><div class="empty">${S.loadingRange?'Cargando…':'Sin salidas este día.'}${!S.loadingRange&&pd(date).getDay()===3?' Los miércoles no hay tours.':''}</div></div></div>`;
   const rev=ds.filter(d=>d.rev).length,falta=ds.filter(needBit).length,pend=ds.filter(d=>okish(d)&&!d.rev).length;
   const pills=`<div class="pills"><span class="pill">${ds.length} ${ds.length===1?'salida':'salidas'}</span>${fut?'<span class="pill">Programadas</span>':`<span class="pill g">${rev} ${rev===1?'revisada':'revisadas'}</span>${pend?`<span class="pill o">${pend} por revisar</span>`:''}${falta?`<span class="pill r">${falta} ${falta===1?'falta bitácora':'faltan bitácora'}</span>`:''}`}</div>`;
@@ -653,17 +703,17 @@ dep(id){
   const d=S.deps.find(x=>x.id===id);
   if(!d)return topBar('Salida',{back:'Operación',backTo:'op'})+'<div class="group"><div class="list"><div class="empty">No encontré esta salida.</div></div></div>';
   const st=status(d),c=cost(d),n=netOf(d),miss=missingRole(d),fut=st==='prog',est=d.netSource==='estimado';
-  let h=topBar(d.item,{back:'Operación',backTo:'op',lede:[d.time,d.boat?esc(d.boat):'',fd(d.date),d.label?esc(d.label):''].filter(Boolean).join(' · ')});
+  const avUrl=d.itemPk?fhAvailUrl(d.itemPk,d.id):'';
+  let h=topBar(d.item,{back:'Operación',backTo:'op',lede:[d.time,d.boat?esc(d.boat):'',fd(d.date),d.label?esc(d.label):'',avUrl?fhA(avUrl,'FareHarbor',{label:'Abrir la salida en FareHarbor'}):''].filter(Boolean).join(' · ')});
   if(d.alerts)h+=`<div class="group">${gh('alert','Avisos')}<div class="list">${d.alerts.split(' | ').map(a=>`<div class="cell w-orange"><span class="main"><span class="s" style="margin:0">${esc(a)}</span></span></div>`).join('')}</div></div>`;
   h+=`<div class="group">${gh('bookings','Bookings')}<div class="list">${d.bookings.map(b=>{const tl=typesLine(b.types);
-    return `<div class="cell"><span class="main"><span class="t">${esc(b.name||hid(b.id))}</span><div class="s">${esc(hid(b.id))} · ${personasTxt(b.pax)}${tl?' · '+esc(tl):''}</div></span><span class="v">${money2(b.gross,fut?undefined:b.net,b.est)}</span></div>`}).join('')||'<div class="empty">Sin reservas activas.</div>'}
-    ${d.bookings.length?`<div class="cell"><span class="main t"><b>Total</b></span><span class="v">${money2(d.gross,fut?undefined:n,est)}</span></div>`:''}</div>
-    <div class="gfoot">${personasTxt(paxOf(d))}${fut?'':'. Bruto: total del recibo de FareHarbor. Neto: Net Revenue Collected.'}</div></div>`;
+    return `<div class="cell"><span class="main"><span class="t">${esc(b.name||hid(b.id))}</span><div class="s">${esc(hid(b.id))} · ${personasTxt(b.pax)}${tl?' · '+esc(tl):''}</div></span>${avUrl||b.url?`<span class="fhx">${b.url?fhA(b.url,'',{label:'Abrir la reserva '+hid(b.id)+' en FareHarbor'}):fhA(avUrl,'',{gray:true,label:'Abrir la salida en FareHarbor (la reserva no tiene enlace)'})}</span>`:''}<span class="v">${money2(b.gross,fut?undefined:b.net,b.est)}</span></div>`}).join('')||'<div class="empty">Sin reservas activas.</div>'}
+    ${d.bookings.length?`<div class="cell"><span class="main t"><b>Total · ${personasTxt(paxOf(d))}</b></span><span class="v">${money2(d.gross,fut?undefined:n,est)}</span></div>`:''}</div></div>`;
   h+=`<div class="group">${gh('resources','Resources')}<div class="list">${(d.res||[]).map(r=>`<div class="cell c"><span class="main t">${esc(r.name)}</span><span class="v">${num(r.n)}</span></div>`).join('')||'<div class="empty">Sin resources asignados.</div>'}</div></div>`;
   h+=bitSection(d,fut);
   h+=`<div class="group">${gh('crew','Crew')}<div class="list">${d.crew.map(x=>{const p=payLine(d,x);
     return `<div class="cell"><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${x.ext?'<span class="rb">Ext.</span>Externo'+(x.note?' · '+esc(x.note):''):x.r?`<span class="rb">${esc(rb(x.r))}</span>${esc(x.r)}`:'⚠️ Falta rol'}${p.hx?` · hora extra ${fmt(p.hx)}`:''}</div>${x.alert?`<div class="s" style="color:var(--orange)">⚠️ ${esc(x.alert)}</div>`:''}</span>${x.ext||!x.r?'':`<span class="v">${fmt(p.tot)}</span>`}</div>`}).join('')||'<div class="empty">Sin tripulación asignada.</div>'}${miss.length?`<div class="cell"><span class="main"><span class="t" style="color:var(--orange)">⚠️ Falta rol en FareHarbor</span></span></div>`:''}</div>
-    ${miss.length?`<div class="gfoot">La app no edita datos: el rol se asigna en FareHarbor y llega solo.</div>`:''}<div class="gfoot">Pago por rol y tipo de barco${d.boat?` (${esc(d.boat)})`:''}.</div></div>`;
+</div>`;
   if(c)h+=`<div class="group">${gh('costos','Costos')}<div class="list">
     <div class="cell"><span class="main t">Bebidas</span><span class="v">${fmt(c.b)}</span></div>
     <div class="cell"><span class="main t">Gasolina</span><span class="v">${fmt(c.g)}</span></div>
@@ -672,7 +722,7 @@ dep(id){
     <div class="cell"><span class="main t">Eventuales</span><span class="v">${fmt(c.ev)}</span></div>
     <div class="cell"><span class="main t"><b>Costo total</b></span><span class="big" style="font-size:17px">${fmt(c.tot)}</span></div>
     <div class="cell"><span class="main t">Ingreso</span><span class="v">${money2(d.gross,n,est)}</span></div>
-    <div class="cell"><span class="main t">Costo %</span><span class="v">${n?Math.round(c.tot/n*100)+'%':'—'}</span></div></div><div class="gfoot">El Costo % es sobre el ingreso neto.</div></div>`;
+    <div class="cell"><span class="main t">Costo %</span><span class="v">${n?Math.round(c.tot/n*100)+'%':'—'}</span></div></div></div>`;
   else if(!fut)h+=`<div class="group">${gh('costos','Costos')}<div class="list"><div class="empty">El costo se calcula cuando la bitácora tiene salida y regreso.</div></div></div>`;
   if(!fut){
     if(d.rev)h+=`<div class="group"><div class="list"><div class="cell"><span class="main t" style="color:var(--green)">✅ Revisado · ${esc(d.rev.by)} ${esc(revAt(d.rev))}</span></div></div></div>`;
@@ -760,7 +810,6 @@ mas(){
     <button class="cell" data-view="permisos"><span class="ic">🔐</span><span class="main"><span class="t">Permisos</span><div class="s">${ROLES.length} roles</div></span>${chev}</button>
   </div></div>
   <div class="group"><div class="list">
-    ${can('comida')?`<button class="cell" data-act="comida"><span class="ic">🍽️</span><span class="main"><span class="t">Comida empleado</span><div class="s">Registrar desayuno o almuerzo</div></span>${chev}</button>`:''}
     <button class="cell" data-view="fh"><span class="ic">🔗</span><span class="main"><span class="t">Conexión FareHarbor</span><div class="s"><span class="dot ${S.fhOk===false?'mid':''}" style="display:inline-block;margin-right:6px"></span>${S.fh&&S.fh.ultimo?'Último evento '+esc(fdt(S.fh.ultimo)):'Webhook'}</div></span>${chev}</button>
   </div></div>
   <div class="group"><div class="ghead">Próximamente</div><div class="list">
@@ -858,10 +907,10 @@ const units=l=>l.i?(l.mode==='caja'?l.qty*l.pack:l.qty):0;
 function emptyLine(){return {i:null,mode:'unidad',pack:1,qty:0,price:0}}
 function newLine(id){const it=item(id),p=prefs[id]||{};const mode=it.pack>1?(p.mode||'caja'):'unidad';return {i:id,mode,pack:p.pack||it.pack,qty:0,price:it.price}}
 function lineHtml(l,k){
-  const it=l.i?item(l.i):null;
+  const it=l.i?item(l.i):null,multi=cart.lines.length>1;
   const chips=(!it||l.choosing)?`<div class="chips" role="group" aria-label="Elegir producto">${S.items.filter(i=>i.active).map(i=>`<button type="button" class="chip" data-chip="${k}:${i.id}" aria-pressed="${l.i===i.id}"><span>${i.icon}</span>${esc(i.name)}</button>`).join('')}</div>`:'';
-  const rm=`<button type="button" data-rm="${k}" aria-label="Quitar línea">✕</button>`;
-  if(!it)return `<div class="li" data-k="${k}"><div class="lhead"><span class="pl">Elige un producto</span>${rm}</div>${chips}</div>`;
+  const rm=multi?`<button type="button" data-rm="${k}" aria-label="Quitar producto">✕</button>`:'';
+  if(!it)return `<div class="li" data-k="${k}"><div class="lhead"><span class="pl">Producto</span>${rm}</div>${chips}</div>`;
   const pn=cap(it.packName||'caja');
   return `<div class="li" data-k="${k}">
     <div class="lhead"><button type="button" class="tn" data-chg="${k}" aria-expanded="${!!l.choosing}" aria-label="Cambiar producto: ${esc(it.name)}"><span class="ic">${it.icon}</span>${esc(it.name)}<span class="caret">▾</span></button>${rm}</div>
@@ -874,7 +923,7 @@ function lineHtml(l,k){
   </div>`;
 }
 function renderCart(){
-  $('cart').innerHTML=cart.lines.length?cart.lines.map(lineHtml).join(''):'<div class="empty">Aún no hay productos. Toca "+ Agregar producto".</div>';
+  $('cart').innerHTML=cart.lines.map(lineHtml).join('');
   updateTotals();
 }
 function updateTotals(){
@@ -884,7 +933,7 @@ function updateTotals(){
   const ok=$('sheetOk');if(ok)ok.disabled=!cart.lines.some(l=>units(l)>0);
 }
 function renderTicket(){
-  $('tkName').textContent=cart.ticket?'📷 Cambiar foto':'📷 Adjuntar foto';
+  $('tkName').textContent=cart.ticket?'Cambiar ticket':'Ticket (opcional)';
   $('tkBox').innerHTML=cart.ticket?`<div class="tk">${cart.ticketUrl?`<img class="thumb" src="${cart.ticketUrl}" alt="Foto del ticket">`:'<span class="thumb"></span>'}<span class="nm">${esc(cart.ticket)}</span><button type="button" data-tkrm>Quitar</button></div>`:'';
 }
 function setTicket(f){
@@ -893,24 +942,34 @@ function setTicket(f){
   if(f){try{cart.ticketUrl=URL.createObjectURL(f)}catch(e){}}
   renderTicket();
 }
+let supMap={};
+function supLoad(){try{supMap=JSON.parse(localStorage.getItem('adv_ops_sup')||'{}')||{}}catch(e){supMap={}}}
+function supSave(){try{localStorage.setItem('adv_ops_sup',JSON.stringify(supMap))}catch(e){}}
+// Proveedor: se rellena con el último usado para ese producto, mientras la persona no lo haya escrito
+function applySup(){
+  if(cart.supTouched)return;const el=$('sSup');if(!el)return;
+  const v=supFor(supMap,cart.lines.filter(l=>l.i).map(l=>l.i));if(v)el.value=v;
+}
+// --- Gasto / Compra: ticket · producto · cantidad · precio · fecha · proveedor · nota (una sola línea por defecto; "+ Agregar producto" para más)
 function openCompra(pre){
-  cart={lines:[pre&&item(pre)&&item(pre).active?newLine(pre):emptyLine()],ticket:'',ticketUrl:'',file:null};
-  sheet('Nueva compra',`<div class="group"><div class="list">
-      <div class="field"><label for="sSup">Proveedor</label><input id="sSup" placeholder="Ej. Depósito Bacalar"></div>
+  supLoad();
+  cart={lines:[pre&&item(pre)&&item(pre).active?newLine(pre):emptyLine()],ticket:'',ticketUrl:'',file:null,supTouched:false};
+  sheet('Gasto / Compra',`<div class="tkrow"><label>📷 <span id="tkName">Ticket (opcional)</span><input id="tkFile" type="file" accept="image/*" hidden></label></div><div id="tkBox"></div>
+    <div class="list" id="cart"></div>
+    <div class="stack" style="margin:8px 0 14px"><button class="btn plain" type="button" data-addp>+ Agregar producto</button></div>
+    <div class="group"><div class="list">
       <div class="field"><label for="sDate">Fecha</label><input id="sDate" type="date" value="${TODAY}"></div>
-      <div class="field" id="hastaF" hidden><label for="sHasta">Cubre hasta<div class="s">Fruta: último día que alcanza esta compra</div></label><input id="sHasta" type="date"></div>
-      <label class="field"><span class="lab">Ticket</span><span class="pick" id="tkName">📷 Adjuntar foto</span><input id="tkFile" type="file" accept="image/*" hidden></label>
-      <div id="tkBox"></div>
-      <div class="field"><label for="sNote">Nota</label><input id="sNote" placeholder="Opcional"></div></div>
-      <div class="gfoot">Puedes adjuntar la foto y además capturar los productos a mano.</div></div>
-    <div class="group"><div class="ghead">Carrito</div><div class="list" id="cart"></div></div>
-    <div class="stack"><button class="btn plain" type="button" data-addp>+ Agregar producto</button></div>
-    <div class="sticky"><span>Total</span><span id="sTot">$0</span></div>`,{ok:saveCompra,disabled:true,input:cartInput});
-  renderCart();
+      <div class="field" id="hastaF" hidden><label for="sHasta">Cubre hasta<div class="s">Fruta: último día que alcanza</div></label><input id="sHasta" type="date"></div>
+      <div class="field"><label for="sSup">Proveedor</label><input id="sSup" placeholder="Opcional" autocomplete="off"></div>
+      <div class="field" id="noteF" hidden><label for="sNote">Nota</label><input id="sNote" placeholder="Opcional"></div>
+      <button type="button" class="addnote" data-addnote>Agregar nota</button></div></div>
+    <div class="sticky"><span>Total</span><span id="sTot">$0</span></div>`,{ok:saveCompra,okLabel:'Registrar',disabled:true,input:cartInput});
+  renderCart();applySup();
 }
 function cartInput(e){
   const t=e.target;
   if(t.id==='tkFile'){const f=t.files&&t.files[0]||null;if(f!==cart.file)setTicket(f);return}
+  if(t.id==='sSup'){cart.supTouched=true;return}
   const l=cart.lines[+t.dataset.k];if(!l)return;
   if(t.classList.contains('cQ'))l.qty=Math.max(0,+t.value||0);
   else if(t.classList.contains('cK')){l.pack=Math.max(1,+t.value||1);setPref(l)}
@@ -932,7 +991,7 @@ async function saveCompra(){
   if(cart.file)payload.ticketData=await shrink(cart.file);
   ls.forEach(setPref);
   const r=await act('addCompra',[payload]);
-  if(r){closeSheet();render();toast('Compra registrada')}
+  if(r){supMap=supRemember(supMap,ls.map(l=>l.i),sup);supSave();closeSheet();render();toast('Registrado')}
 }
 
 // --- Inventario completo ---
@@ -1038,20 +1097,20 @@ async function saveProducto(){
   if(r){closeSheet();render();toast(it?'Producto guardado':'Producto agregado')}
 }
 
-function bkLine(d){return 'Salida: reserva '+(hids(d.salidaId)||'—')+' · Regreso: reserva '+(hids(d.regresoId)||'—')}
 const revAt=r=>r.day&&r.day!==TODAY?fdate(r.day)+' '+r.hm:(r.hm||r.at||'');
 const nowKey=()=>TODAY+' '+NOW;
 let bitOpen=null; // salida cuya tabla de bitácora está abierta
 const BIT_T={done:['ok','Hecha'],late:['late','Falta'],wait:['','Por hacer']};
 // Bitácora: UNA sola sección con Ida y Regreso lado a lado (punto + estado). Al tocar se abre la tabla de productos.
 function bitSection(d,fut){
-  const bp=bitParts(d,nowKey());
+  const bp=bitParts(d,nowKey()),avUrl=d.itemPk?fhAvailUrl(d.itemPk,d.id):'';
   if(bp.na)return `<div class="group">${gh('bitacora','Bitácora')}<div class="list"><div class="cell c"><span class="main t mut">No aplica</span></div></div></div>`;
-  const part=(l,k)=>`<span class="bpart"><i class="bdot ${BIT_T[k][0]}"></i><span><b>${l}</b><small>${BIT_T[k][1]}</small></span></span>`;
+  // ↗ junto a Ida y Regreso: abre esa reserva OPS en FareHarbor; si no existe, gris y lleva a la salida
+  const lnk=(url,l)=>url?fhA(url,'',{label:'Abrir la bitácora de '+l.toLowerCase()+' en FareHarbor'}):avUrl?fhA(avUrl,'',{gray:true,label:'Falta la reserva de '+l.toLowerCase()+': abrir la salida en FareHarbor'}):'';
+  const part=(l,k,url)=>`<span class="bpart"><i class="bdot ${BIT_T[k][0]}"></i><span><b>${l}</b><small>${BIT_T[k][1]}</small></span>${lnk(url,l)}</span>`;
   const has=!!(d.out||d.back),open=has&&bitOpen===d.id;
   let h=`<div class="group">${gh('bitacora','Bitácora')}<div class="list">`;
-  h+=has?`<button class="cell bitrow" data-bitx="${d.id}" aria-expanded="${open}">${part('Ida',bp.ida)}${part('Regreso',bp.reg)}${chev}</button>`
-        :`<div class="cell bitrow">${part('Ida',bp.ida)}${part('Regreso',bp.reg)}</div>`;
+  h+=`<div class="cell bitrow">${part('Ida',bp.ida,d.salidaUrl)}${part('Regreso',bp.reg,d.regresoUrl)}${has?`<button type="button" class="bx" data-bitx="${d.id}" aria-expanded="${open}" aria-label="Ver productos de la bitácora">${chev}</button>`:''}</div>`;
   if(open){
     const out=d.out||{},back=d.back||{},ids=S.items.filter(i=>out[i.id]!==undefined||back[i.id]!==undefined);
     const rows=ids.map(it=>{const i=it.id,o=out[i]||0,bev=it.group==='Bebidas',bk=bev?(d.back?(back[i]||0):null):0;
@@ -1061,31 +1120,33 @@ function bitSection(d,fut){
       <div class="cell c"><span class="main t">Extras a bordo</span><span class="v" style="white-space:normal;max-width:55%">${d.extras?esc(d.extras):'Ninguno'}</span></div>
       <div class="cell c"><span class="main t">Hora extra</span><span class="v">${d.hx} ${d.hx===1?'hora':'horas'}</span></div>`;
   }
-  h+=`</div>${fut?'':`<div class="gfoot">${bkLine(d)}</div>`}`;
-  if(open)h+=`<div class="gfoot">${bp.reg!=='done'&&bp.ida==='done'?'Falta el regreso: el stock se descuenta cuando llegue. ':''}Hielo y gasolina solo se anotan a la salida.</div>`;
-  return h+'</div>';
+  return h+'</div></div>';
 }
 const BOAT_I='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="M12 4.5l6 9.5h-6"/><path d="M12 8L7 14h5"/><path d="M4 17.5h16l-2.2 3.2H6.2z"/></svg>';
+// Tarjeta de salida: cuadrícula con áreas fijas (hora · nombre+bruto · recursos+neto · tripulación · conteo) y una franja de bitácora abajo.
+// Cada dato siempre en el mismo lugar: más tripulación o recursos solo hacen la tarjeta más alta.
 function depCard(d){
-  const st=status(d),c=cost(d),n=netOf(d),miss=missingRole(d),fut=st==='prog',est=d.netSource==='estimado',bp=bitParts(d,nowKey());
-  const crew=d.crew.map(x=>`<span class="rb ${x.r||x.ext?'':'w'}">${x.ext?'Ext.':x.r?esc(rb(x.r)):'?'}</span>${esc(x.n)}`).join(' · ');
-  const pct=c&&n?Math.round(c.tot/n*100):null;
-  const left=fut?`${d.bookings.length} ${d.bookings.length===1?'reserva':'reservas'} · ${personasTxt(paxOf(d))}`:c?`Costo ${fmt(c.tot)}${pct!==null?' · '+pct+'%':''}`:'Costo pendiente';
-  const right=money2(d.gross,fut?undefined:n,est);
+  const st=status(d),n=netOf(d),miss=missingRole(d),fut=st==='prog',est=d.netSource==='estimado',bp=bitParts(d,nowKey());
+  const first=x=>String(x||'').trim().split(/\s+/)[0];
+  const crew=d.crew.map(x=>`${x.ext?'Ext.':x.r?esc(rb(x.r)):'<span class="wq">?</span>'} ${esc(first(x.n))}`).join(' · ');
+  const res=(d.res||[]).map(r=>esc(r.name)).join(' · ');
   const dot=(l,k)=>`<span class="bd"><i class="bdot ${BIT_T[k][0]}"></i>${l}<span class="sr">${BIT_T[k][1]}</span></span>`;
-  const chips=(d.res||[]).map(r=>`<span class="rchip">${BOAT_I}${esc(r.name)}</span>`).join('');
   const bits=bp.na?'<span class="bd">No aplica</span>':`<span class="bds">${dot('Ida',bp.ida)}${dot('Regreso',bp.reg)}</span>`;
-  let foot='';
-  if(miss.length)foot+=`<div class="dfoot"><span>⚠️ Falta rol en FareHarbor · ${esc(miss.map(x=>x.n).join(', '))}</span></div>`;
-  const ra=d.crew.filter(rateAlert);
-  if(ra.length)foot+=`<div class="dfoot"><span style="color:var(--orange)">⚠️ ${ra.some(x=>/sin tarifa/i.test(x.alert))?'Sin tarifa':'Tarifa pendiente'} · ${esc(ra.map(x=>x.n).join(', '))}</span></div>`;
+  const an=depAlertN(d)+(d.crew.filter(rateAlert).length&&!d.crew.some(c=>c.alert)?1:0);
+  let tags='';
   if(!fut){
-    if(d.rev)foot+=`<div class="dfoot"><span class="ok">✅ Revisado · ${esc(d.rev.by)} ${esc(revAt(d.rev))}</span></div>`;
-    else if(okish(d)&&!miss.length&&can('revisar'))foot+=`<div class="dfoot"><span class="mut">Por revisar</span><button class="sbtn" data-rev="${d.id}">Marcar revisado</button></div>`;
-    else foot+=`<div class="dfoot"><span class="mut">${!okish(d)?'Revisión pendiente: falta bitácora':miss.length?'Revisión pendiente: falta rol':'Por revisar'}</span></div>`;
+    if(d.rev)tags+='<span class="tg ok">✅ Revisado</span>';
+    else tags+='<span class="tg o">Por revisar</span>';
   }
-  return `<div class="dcard"><button class="dmain" data-dep="${d.id}"><div class="d1"><span class="tm">${d.time}</span><span class="tn">${esc(d.item)}${d.label?` <span class="lbl">· ${esc(d.label)}</span>`:''}</span>${chev}</div>
-    <div class="crew">${crew||'Sin tripulación'}</div><div class="d3 d3r"><span class="rchips">${chips}</span>${bits}</div><div class="nums"><span>${left}</span>${right}</div></button>${foot}</div>`;
+  if(an)tags+=`<span class="tg w" aria-label="${an} ${an===1?'aviso':'avisos'}">⚠️ ${an}</span>`;
+  const nb=d.bookings.length;
+  return `<div class="dcard"><button class="dmain r3" data-dep="${d.id}"><div class="dg">
+    <span class="hr">${d.time}</span><span class="chv">${chev}</span>
+    <span class="tn">${esc(d.item)}${d.label?` <span class="lbl">· ${esc(d.label)}</span>`:''}</span><span class="mon">${money2(d.gross,fut?undefined:n,est)}</span>
+    <span class="rs">${res?BOAT_I+res:''}</span>
+    <span class="cw">${crew?'👥 '+crew:'Sin tripulación'}</span>
+    <span class="ct">${nb} ${nb===1?'booking':'bookings'} · ${personasTxt(paxOf(d))}</span></div>
+    <div class="dstrip"><span class="lb">Bitácora</span>${bits}<span class="tgs">${tags}</span></div></button></div>`;
 }
 
 // --- Calendario ---
@@ -1175,23 +1236,6 @@ async function savePend(){
   const r=await act('setMapeo',[p.kind,p.clave,val]);
   if(r){closeSheet();pc=null;render();toast('Guardado. Recalculando historial…')}
 }
-// --- Comida empleado ---
-let comidaTipo='desayuno';
-function openComida(){
-  comidaTipo='desayuno';
-  const names=[...new Set(S.deps.flatMap(d=>d.crew.filter(c=>!c.ext).map(c=>c.n)))].sort();
-  sheet('Comida empleado',`<div class="group"><div class="list">
-      <div class="field"><label for="cDate">Fecha</label><input id="cDate" type="date" value="${TODAY}"></div>
-      <div class="field"><label for="cName">Nombre</label><input id="cName" list="cNames" placeholder="Quién comió" autocomplete="off"><datalist id="cNames">${names.map(n=>`<option value="${esc(n)}">`).join('')}</datalist></div>
-      <div class="field"><span class="lab">Comida</span><div class="seg" style="width:62%" role="group" aria-label="Tipo de comida"><button type="button" data-ct="desayuno" aria-pressed="true">Desayuno</button><button type="button" data-ct="almuerzo" aria-pressed="false">Almuerzo</button></div></div>
-      <div class="field"><label for="cQty">Cantidad</label><input id="cQty" type="number" inputmode="numeric" min="1" step="1" value="1"></div>
-      <div class="field"><label for="cNote">Nota</label><input id="cNote" placeholder="Opcional"></div></div></div>
-    <div class="group"><div class="ghead">Últimos registros</div><div class="list">${S.comidas.slice(0,6).map(c=>`<div class="cell"><span class="main"><span class="t">${esc(c.n)}</span><div class="s">${short(c.d)} · ${esc(c.tipo)}${c.nota?' · '+esc(c.nota):''}</div></span><span class="v">${num(c.q)}</span></div>`).join('')||'<div class="empty">Sin registros.</div>'}</div></div>`,
-    {ok:async()=>{const nombre=$('cName').value.trim(),q=+$('cQty').value;if(!nombre||!(q>0))return;
-      const r=await act('addComida',[{d:$('cDate').value||TODAY,nombre,tipo:comidaTipo,cantidad:q,nota:$('cNote').value.trim()}]);
-      if(r){closeSheet();render();toast('Comida registrada')}},disabled:true,input:()=>{$('sheetOk').disabled=!($('cName').value.trim()&&+$('cQty').value>0)}});
-}
-
 // ===== PIN =====
 let pinBuf='';
 function paintPin(){document.querySelectorAll('#pDots i').forEach((x,k)=>x.classList.toggle('on',k<pinBuf.length))}
@@ -1281,6 +1325,7 @@ function autoRefresh(){
 document.addEventListener('visibilitychange',()=>{autoRefresh();paintStatus()});setInterval(autoRefresh,120000);setInterval(paintStatus,60000);
 document.addEventListener('click',e=>{
   const t=e.target,on=s=>t.closest(s);
+  if(on('a[href]'))return; // enlaces a FareHarbor: los abre el navegador (pestaña nueva)
   // PIN pad
   const pk=on('[data-pk]');if(pk){pinKey(pk.dataset.pk);return}
   // Sheet layer
@@ -1291,7 +1336,8 @@ document.addEventListener('click',e=>{
     if(on('[data-addp]')){cart.lines.push(emptyLine());renderCart();const li=document.querySelector(`.li[data-k="${cart.lines.length-1}"]`);if(li)li.scrollIntoView({block:'nearest'});return}
     const tr=on('[data-tkrm]');if(tr){setTicket(null);const f=$('tkFile');if(f)f.value='';return}
     const cg=on('[data-chg]');if(cg){const l=cart.lines[+cg.dataset.chg];l.choosing=!l.choosing;renderCart();return}
-    const ch=on('[data-chip]');if(ch){const[k,id]=ch.dataset.chip.split(':'),old=cart.lines[+k];if(old.i!==id)cart.lines[+k]=newLine(id);else old.choosing=false;renderCart();return}
+    const ch=on('[data-chip]');if(ch){const[k,id]=ch.dataset.chip.split(':'),old=cart.lines[+k];if(old.i!==id)cart.lines[+k]=newLine(id);else old.choosing=false;renderCart();applySup();return}
+    const an=on('[data-addnote]');if(an){an.hidden=true;$('noteF').hidden=false;$('sNote').focus();return}
     const ico=on('[data-ico]');if(ico&&!pe.ro){pe.icon=ico.dataset.ico;document.querySelectorAll('[data-ico]').forEach(b=>b.setAttribute('aria-pressed',b===ico));return}
     const asw=on('[data-actsw]');if(asw&&!pe.ro){pe.act=!pe.act;asw.setAttribute('aria-checked',pe.act);return}
     const rm=on('[data-rm]');if(rm){cart.lines.splice(+rm.dataset.rm,1);renderCart();return}
@@ -1304,7 +1350,6 @@ document.addEventListener('click',e=>{
       $('ctlHint').textContent=(pe.ctl?'Se guarda en bodega y se descuenta con la bitácora.':'Se paga al usarlo y no se guarda en bodega. Solo se registra el costo.')+(pe.id?' Los productos inactivos no aparecen en el stock ni en las compras.':'');return}
     const cn=on('[data-calnav]');if(cn){cal.m+=+cn.dataset.calnav;if(cal.m<0){cal.m=11;cal.y--}if(cal.m>11){cal.m=0;cal.y++}calMonth();return}
     const cd=on('[data-calday]');if(cd){S.date=cd.dataset.calday;stackView=null;tab='op';closeSheet();render();goTop();return}
-    const cty=on('[data-ct]');if(cty){comidaTipo=cty.dataset.ct;document.querySelectorAll('[data-ct]').forEach(b=>b.setAttribute('aria-pressed',b===cty));return}
     const pcb=on('[data-pc]');if(pcb&&pc){const x=pcb.dataset.pc,i=x.indexOf(':'),g=x.slice(0,i),val=x.slice(i+1);
       if(g==='fld'){const k=pc.v.fld.indexOf(val);if(k>=0)pc.v.fld.splice(k,1);else pc.v.fld.push(val)}else pc.v[g]=val;
       paintPc();return}
@@ -1343,7 +1388,6 @@ document.addEventListener('click',e=>{
   if(act2==='addprod'&&can('config'))openProducto();
   if(act2==='menu'&&menuOk())openMenu(pre);
   if(act2==='pmenu'&&can('editar'))openPMenu(pre);
-  if(act2==='comida'&&can('comida'))openComida();
 });
 start();
 })();

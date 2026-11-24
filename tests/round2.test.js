@@ -126,3 +126,56 @@ test('webhook on an old Salidas sheet: header gets the new columns and REBUILD_P
   assert.strictEqual(e.fe.props.REBUILD_PENDING, '1');
   assert.strictEqual(e.ss.getSheetByName('Salidas')._d.rows[0][H.length - 1], 'Recursos pk');
 });
+
+// ---------- round 3: FareHarbor links, staff meals ----------
+test('Reservas: "Link FareHarbor" is the LAST column, filled from booking.dashboard_url (blank when absent)', () => {
+  const H = E.RES_HEADERS;
+  assert.strictEqual(H[H.length - 1], 'Link FareHarbor');
+  const url = 'https://fareharbor.com/thegaiaexperience/dashboard/?overlay=/contacts/1/bookings/abc/';
+  const p = dep()[0]; p.booking.dashboard_url = url;
+  const row = J(E.reservaRow_(p.booking, NOW, 5, tours, {}, null));
+  assert.strictEqual(row.length, H.length);
+  assert.strictEqual(row[H.length - 1], url);
+  assert.strictEqual(J(E.reservaRow_(dep()[1].booking, NOW, 5, tours, {}, null))[H.length - 1], '');
+});
+
+test('old Reservas sheet (no link column): header fixed + REBUILD_PENDING; full rebuild refills links from Raw; getData exposes url, salidaUrl, regresoUrl, itemPk', () => {
+  const e = env(), U = id => 'https://fareharbor.com/thegaiaexperience/dashboard/?overlay=/contacts/9/bookings/' + id + '/';
+  const ps = dep(); ps.forEach(p => { p.booking.dashboard_url = U(p.booking.pk); });
+  ps.forEach(p => e.post(p)); e.G.ex.ensureMapeos_(e.ss); e.G.ex.rebuildAll();
+  const H = E.RES_HEADERS, rs = e.ss.getSheetByName('Reservas');
+  rs._d.rows[0] = H.slice(0, H.length - 1); rs._d.rows.slice(1).forEach(r => { r[H.length - 1] = ''; });
+  delete e.fe.props.REBUILD_PENDING;
+  e.G.ex.rebuildFinanzas();                               // trigger notices the short header → full rebuild
+  assert.strictEqual(e.fe.props.REBUILD_PENDING, undefined);
+  assert.strictEqual(e.ss.getSheetByName('Reservas')._d.rows[0][H.length - 1], 'Link FareHarbor');
+  const d = J(e.G.ex.getData('0000', '2026-11-20', '2026-11-30')), dd = d.deps.find(x => x.id === '9300');
+  assert.strictEqual(dd.itemPk, '258806');
+  assert.ok(dd.bookings.length && dd.bookings.every(b => b.url === U(b.id.replace('#', '')) || /^https:\/\/fareharbor\.com\//.test(b.url)));
+  assert.strictEqual(dd.salidaUrl, U(7004), 'OPS Salida booking link');
+  assert.strictEqual(dd.regresoUrl, '');
+  // webhook on an old sheet: header repaired, pending set
+  rs._d.rows[0] = H.slice(0, H.length - 1); delete e.fe.props.REBUILD_PENDING;
+  e.post(F.booking({ pk: 7012, av: 9300, item: 258806, itemName: 'x', start: '2026-11-25T14:00:00Z', end: '2026-11-25T17:00:00Z', customers: [F.cust(100, 'Adult')] }));
+  assert.strictEqual(e.fe.props.REBUILD_PENDING, '1');
+  assert.strictEqual(e.ss.getSheetByName('Reservas')._d.rows[0][H.length - 1], 'Link FareHarbor');
+});
+
+test('staff meals: cde/cda are reused and renamed only while they still carry the old seed name; missing ones are added; idempotent', () => {
+  const seed = id => E.PROD_SEED.filter(r => r[0] === id)[0];
+  assert.strictEqual(seed('cde')[1], 'Desayuno Staff'); assert.strictEqual(seed('cda')[1], 'Almuerzo Staff');
+  assert.strictEqual(seed('cde')[5], 'no'); assert.strictEqual(seed('cde')[8], 40); assert.strictEqual(seed('cda')[8], 50);
+  const old = [['cer', 'Cerveza'], ['cde', 'Comida empleado · desayuno'], ['cda', 'Almuerzo (editado por Omri)']];
+  const p = J(E.planStaffMeals_(old));
+  assert.deepStrictEqual(p.renames, [{ idx: 1, name: 'Desayuno Staff' }]);
+  assert.deepStrictEqual(p.appends, []);
+  assert.deepStrictEqual(J(E.planStaffMeals_([['cer', 'Cerveza']])).appends.map(r => r[0]), ['cde', 'cda']);
+  assert.deepStrictEqual(J(E.planStaffMeals_([['cde', 'Desayuno Staff'], ['cda', 'Almuerzo Staff']])), { renames: [], appends: [] });
+  // end to end on a sheet
+  const e = env(); const sh = e.ss.insertSheet('Productos');
+  sh.appendRow(['ID', 'Producto']);
+  sh.appendRow(['cde', 'Comida empleado · desayuno', 'Comida empleado', 'comida', 1, 'no', 0, '', 40, 'sí', '']);
+  e.G.ex.ensureStaffMeals_(e.ss); e.G.ex.ensureStaffMeals_(e.ss);
+  const r = e.rows('Productos');
+  assert.deepStrictEqual(r.map(x => [x[0], x[1]]), [['cde', 'Desayuno Staff'], ['cda', 'Almuerzo Staff']]);
+});

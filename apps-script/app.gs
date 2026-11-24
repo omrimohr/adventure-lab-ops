@@ -303,10 +303,10 @@ function buildDeps_(inp) {
   const inWin = windowTest_(inp.desde, inp.hasta);
   const wins = inp.salidas.filter(s => inWin(s[6]));
   const pks = {}; wins.forEach(s => { pks[String(s[0])] = true; });
-  const resBy = {}, disp = {};
+  const resBy = {}, disp = {}, urls = {};
   inp.reservas.forEach(r => {
     const k = String(r[6]); if (!pks[k]) return;
-    (resBy[k] = resBy[k] || []).push(r); disp[String(r[0])] = String(r[1] || r[0]);
+    (resBy[k] = resBy[k] || []).push(r); disp[String(r[0])] = String(r[1] || r[0]); urls[String(r[0])] = String(r[32] || '');
   });
   const crewBy = group(inp.crew, 0), bitBy = group(inp.bit, 0), evBy = {}, extBy = {};
   inp.ev.forEach(r => { evBy[String(r[4]) + '|' + String(r[5])] = r; });
@@ -326,18 +326,20 @@ function buildDeps_(inp) {
     const bookings = (resBy[pk] || []).filter(r => r[3] === 'sí' && !r[13]).sort((a, b) => Number(a[0]) - Number(b[0])).map(r => ({
       id: String(r[1] || r[0]), name: String(r[17] || ''), pax: numOr_(r[14], 0), types: String(r[16] || ''),
       gross: r2_(numOr_(r[22], 0)), // FareHarbor receipt total (Reservas 'Total (MXN)'); cancelled and OPS bookings are filtered out above
-      net: r[30] === '' || r[30] === null ? null : Number(r[30]), est: r[31] === 'estimado', alert: String(r[28] || '')
+      net: r[30] === '' || r[30] === null ? null : Number(r[30]), est: r[31] === 'estimado', alert: String(r[28] || ''),
+      url: String(r[32] || '') // FareHarbor dashboard link of the booking ('' until the Reservas rebuild fills it)
     }));
+    const firstUrl = list => { for (let i = 0; i < list.length; i++) if (urls[list[i]]) return urls[list[i]]; return ''; };
     const k = costBy[pk];
     const barco = inp.barcos[String(s[1])] || '';
     return {
-      id: pk, date: fmtDate_(s[6], 'yyyy-MM-dd'), time: fmtDate_(s[6], 'HH:mm'), end: s[7] ? fmtDate_(s[7], 'yyyy-MM-dd HH:mm') : '', item: String(s[2]), label: '',
+      id: pk, itemPk: String(s[1]), date: fmtDate_(s[6], 'yyyy-MM-dd'), time: fmtDate_(s[6], 'HH:mm'), end: s[7] ? fmtDate_(s[7], 'yyyy-MM-dd HH:mm') : '', item: String(s[2]), label: '',
       gross: r2_(bookings.reduce((a, x) => a + x.gross, 0)), res: resFromText_(s[20]),
       boat: BARCO_LABEL[barco] || '', barco: barco, tipo: String(s[3] || ''), crew: crew, bookings: bookings,
       out: hasOut ? bq.out : null, back: hasBack ? bq.back : null, extras: extrasText_(bits, inp.M), hx: hx,
       rev: inp.revs[pk] || null, bit: st, alerts: String(s[15] || ''), netSource: String(s[18] || ''),
       costs: k ? { b: r2_(k[8]), g: r2_(k[10]), h: r2_(k[9]), f: r2_(k[11]), des: r2_(k[12]), ev: r2_(k[13]), tot: r2_(k[14]), pct: k[15] === '' ? null : Number(k[15]) } : null,
-      paxTxt: String(s[9]), salidaPk: ids(s[12]).join(', '), regresoPk: ids(s[13]).join(', '),
+      paxTxt: String(s[9]), salidaUrl: firstUrl(ids(s[12])), regresoUrl: firstUrl(ids(s[13])), salidaPk: ids(s[12]).join(', '), regresoPk: ids(s[13]).join(', '),
       salidaId: ids(s[12]).map(x => disp[x] || x).join(', '), regresoId: ids(s[13]).map(x => disp[x] || x).join(', ')
     };
   }).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));

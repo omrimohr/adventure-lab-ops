@@ -30,7 +30,7 @@ const RAW_HEADERS = ['Recibido', 'Hash', 'Duplicado', 'Booking pk', 'Booking uui
 const RES_HEADERS = ['Booking pk', 'Display ID', 'Estado', 'Cuenta', 'Reemplazada por (uuid)', 'Reemplaza a (uuid)',
   'Availability pk', 'Item pk', 'Item', 'Fecha', 'Hora', 'Inicio', 'Fin', 'Tipo OPS', 'Pax', 'Unidades',
   'Customer types', 'Contacto', 'Afiliado', 'Origen', 'Creada por', 'Nota', 'Total (MXN)', 'Pagado (MXN)',
-  'Invoice (MXN)', 'Creada', 'Último evento', 'Booking uuid', 'Alerta pax', 'Fila Raw', 'Ingreso neto (MXN)', 'Fuente ingreso'];
+  'Invoice (MXN)', 'Creada', 'Último evento', 'Booking uuid', 'Alerta pax', 'Fila Raw', 'Ingreso neto (MXN)', 'Fuente ingreso', 'Link FareHarbor'];
 const SAL_HEADERS = ['Availability pk', 'Item pk', 'Item', 'Tipo tour', 'Fecha', 'Hora', 'Inicio', 'Fin',
   'Reservas activas', 'Pax', 'Unidades', 'Bitácora', 'Reserva salida', 'Reserva regreso', 'Tripulación',
   'Alertas', 'Actualizado', 'Ingreso neto (MXN)', 'Fuente ingreso', 'Recursos', 'Recursos pk'];
@@ -370,6 +370,10 @@ function resFromText_(t) {
 function salHeaderStale_(headerRow) {
   return String((headerRow || [])[SAL_HEADERS.length - 1] || '') !== SAL_HEADERS[SAL_HEADERS.length - 1];
 }
+/** Same for Reservas (column 'Link FareHarbor' added at the end) */
+function resHeaderStale_(headerRow) {
+  return String((headerRow || [])[RES_HEADERS.length - 1] || '') !== RES_HEADERS[RES_HEADERS.length - 1];
+}
 
 /**
  * One departure from its bookings (latest version of each).
@@ -464,7 +468,8 @@ function reservaRow_(b, eventTime, rawRow, tours, ing, M) {
     b.note || '',
     money_(b.receipt_total), money_(b.amount_paid), money_(b.invoice_price),
     b.created_at || '', eventTime, b.uuid || '', p.alerta, rawRow || '',
-    ...incomeCells_(b, status, ops, ing)
+    ...incomeCells_(b, status, ops, ing),
+    b.dashboard_url || '' // 'Link FareHarbor' (last column; older sheets get it on the next full rebuild)
   ];
 }
 
@@ -478,6 +483,11 @@ function incomeCells_(b, status, ops, ing) {
 function upsertReserva_(ss, b, eventTime, rawRow, tours, ing, M) {
   ensureTour_(ss, tours, b);
   const sh = sheet_(ss, 'Reservas', RES_HEADERS);
+  if (sh.getMaxColumns() < RES_HEADERS.length) sh.insertColumnsAfter(sh.getMaxColumns(), RES_HEADERS.length - sh.getMaxColumns());
+  if (sh.getRange(1, RES_HEADERS.length).getValue() !== RES_HEADERS[RES_HEADERS.length - 1]) { // column added by a newer version
+    sh.getRange(1, 1, 1, RES_HEADERS.length).setValues([RES_HEADERS]).setFontWeight('bold');
+    setRebuildPending_(); // older bookings lack 'Link FareHarbor': refill from Raw once (never in the webhook)
+  }
   const row = reservaRow_(b, eventTime, rawRow, tours, ing, M);
   const n = Math.max(sh.getLastRow() - 1, 1);
   const found = sh.getRange(2, 1, n, 1).createTextFinder(String(b.pk)).matchEntireCell(true).findNext();
@@ -831,9 +841,29 @@ const PROD_SEED = [
   ['hie', 'Hielo', 'Consumo directo', 'bolsa', 1, 'no', 0, 'Hielo (bolsas)', 20, 'sí', ''],
   ['fru', 'Fruta', 'Consumo directo', 'compra', 1, 'no', 0, 'Fruta (personas)', '', 'sí', 'Compra repartida entre salidas por personas'],
   ['des', 'Desayuno Yak (SUP)', 'Consumo directo', 'persona', 1, 'no', 0, '', 100, 'sí', 'Por persona en tours SUP'],
-  ['cde', 'Comida empleado · desayuno', 'Comida empleado', 'comida', 1, 'no', 0, '', 40, 'sí', ''],
-  ['cda', 'Comida empleado · almuerzo', 'Comida empleado', 'comida', 1, 'no', 0, '', 50, 'sí', '']
+  ['cde', 'Desayuno Staff', 'Comida empleado', 'comida', 1, 'no', 0, '', 40, 'sí', ''],
+  ['cda', 'Almuerzo Staff', 'Comida empleado', 'comida', 1, 'no', 0, '', 50, 'sí', '']
 ];
+// Staff meals are now ordinary no-stock products bought like Hielo (ids kept: cde / cda). Old display names → new ones ONLY while the live name is still the old seed name.
+const STAFF_OLD_NAMES = { cde: 'Comida empleado · desayuno', cda: 'Comida empleado · almuerzo' };
+/** Pure: Productos rows (as read) → {renames: [{idx, name}], appends: [seed rows]} (idempotent; never touches rows Omri edited) */
+function planStaffMeals_(rows) {
+  const out = { renames: [], appends: [] }, seen = {};
+  (rows || []).forEach((r, idx) => {
+    const id = String(r[0] || ''); if (!STAFF_OLD_NAMES[id]) return;
+    seen[id] = true;
+    if (String(r[1]) === STAFF_OLD_NAMES[id]) out.renames.push({ idx: idx, name: PROD_SEED.filter(x => x[0] === id)[0][1] });
+  });
+  Object.keys(STAFF_OLD_NAMES).forEach(id => { if (!seen[id]) out.appends.push(PROD_SEED.filter(x => x[0] === id)[0]); });
+  return out;
+}
+function ensureStaffMeals_(ss) {
+  const sh = ss.getSheetByName('Productos'); if (!sh || sh.getLastRow() < 1) return;
+  const n = sh.getLastRow() - 1, rows = n >= 1 ? sh.getRange(2, 1, n, 2).getValues() : [];
+  const plan = planStaffMeals_(rows);
+  plan.renames.forEach(x => sh.getRange(x.idx + 2, 2).setValue(x.name));
+  plan.appends.forEach(r => sh.getRange(sh.getLastRow() + 1, 1, 1, r.length).setValues([r]));
+}
 const TAR_HEADERS = ['Rol (FareHarbor)', 'Barco', 'Desde (h)', 'Hasta (h)', 'Item contiene', 'Persona', 'Monto (MXN)',
   'Unidad (salida/hora)', 'Notas'];
 // First matching row wins: put specific rows first.
@@ -1045,7 +1075,11 @@ function rebuildFinanzas() {
   try { // Salidas created by an older version (fewer columns): recompute everything from Raw once
     const sal = ss.getSheetByName('Salidas');
     if (sal && sal.getLastRow() >= 1 && salHeaderStale_(sal.getRange(1, 1, 1, SAL_HEADERS.length).getValues()[0])) setRebuildPending_();
+    const rsv = ss.getSheetByName('Reservas');
+    if (rsv && rsv.getLastRow() >= 1 && rsv.getMaxColumns() >= RES_HEADERS.length && resHeaderStale_(rsv.getRange(1, 1, 1, RES_HEADERS.length).getValues()[0])) setRebuildPending_();
+    else if (rsv && rsv.getMaxColumns() < RES_HEADERS.length) setRebuildPending_();
   } catch (e) {}
+  try { ensureStaffMeals_(ss); } catch (e) { logError_(ss, 'ensureStaffMeals_', e, ''); }
   if (seeded || isRebuildPending_()) {
     const lock = LockService.getScriptLock();
     const had = lock.hasLock();
@@ -1584,4 +1618,4 @@ function sheet_(ss, name, headers) {
 if (typeof module !== 'undefined') module.exports = { ctKey_, cfKey_, roleKey_, guessCtype_, guessFieldUso_, guessRolTarifa_, camposMap_, typeUso_, fieldUso_, bitUso_, crewTarifa_,
   mapeosFromRows_, observe_, collectUnknowns_, seedMapeos_, validateMapeo_, toursFromRows_, tourEstado_, TOURS_SEED_ROWS: TOURS_SEED, USOS_CT, USOS_CF,
   CT_HEADERS, CF_HEADERS, ROL_HEADERS, CREW_HEADERS, BIT_HEADERS, ESTADO_NUEVO, ESTADO_OK, rawRowFor_, doPost, rebuildFinanzas, rebuildAll, ensureMapeos_, loadMapeos_,
-  registerUnknowns_, prepararMapeos, reservaRow_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, SAL_HEADERS };
+  registerUnknowns_, prepararMapeos, reservaRow_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };

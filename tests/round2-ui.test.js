@@ -3,7 +3,7 @@ const assert = require('assert'), fs = require('fs'), path = require('path'), vm
 const { test } = require('./lib');
 const html = fs.readFileSync(path.join(__dirname, '..', 'docs', 'index.html'), 'utf8');
 const m = /\/\/ ==PURE-BEGIN==[^\n]*\n([\s\S]*?)\/\/ ==PURE-END==/.exec(html);
-const names = 'fdate fdt fixDates wkLabel hid hids personasTxt typesLine relAgo advanceClock bitParts money2 cacheKey strHash addD wkStart fmt esc CACHE_MAX'.split(' ');
+const names = 'fdate fdt fixDates wkLabel hid hids personasTxt typesLine relAgo advanceClock bitParts money2 cacheKey strHash addD wkStart fmt esc CACHE_MAX fhAvailUrl fhA depAlertN supFor supRemember'.split(' ');
 const U = vm.runInNewContext(m[1] + '\n({' + names.join(',') + '})', {});
 
 test('UI: dates always "dom. 15/nov 2026" (3-letter weekday + dot, day/month, year)', () => {
@@ -89,4 +89,30 @@ test('UI: cache keys are per user (hash of the PIN) and range; the PIN itself is
   assert.ok(k !== k2 && k !== k3 && !/1234/.test(k) && /^adv_ops_c:/.test(k));
   assert.strictEqual(k, U.cacheKey('1234', '', ''));
   assert.ok(U.CACHE_MAX === 2000000);
+});
+
+test('UI round 3: fhAvailUrl is the single URL builder; fhA opens a new tab safely and escapes', () => {
+  assert.strictEqual(U.fhAvailUrl(258806, 9300), 'https://fareharbor.com/thegaiaexperience/dashboard/?overlay=/items/258806/availability/9300/');
+  const a = U.fhA('https://fareharbor.com/x?a=1&b="2"', 'FareHarbor');
+  assert.ok(/href="https:\/\/fareharbor\.com\/x\?a=1&amp;b=&quot;2&quot;"/.test(a) && /target="_blank"/.test(a) && /rel="noopener"/.test(a) && />FareHarbor <span aria-hidden="true">↗<\/span><\/a>$/.test(a));
+  assert.ok(/class="fhl gray"/.test(U.fhA('u', '', { gray: true })) && !/class="fhl"[^>]*>\s*u/.test(U.fhA('u', '')));
+  assert.ok(/aria-label="Abrir"/.test(U.fhA('u', '', { label: 'Abrir' })));
+});
+
+test('UI round 3: warning count on the departure card (server alerts + crew without role + pay alerts); none → 0', () => {
+  assert.strictEqual(U.depAlertN({ alerts: '', crew: [{ r: 'Capitán' }, { r: '', ext: true }] }), 0);
+  assert.strictEqual(U.depAlertN({ alerts: 'a | b', crew: [{ r: '' }, { r: 'Guía', alert: 'Tarifa pendiente' }] }), 4);
+  assert.strictEqual(U.depAlertN({ crew: [] }), 0);
+});
+
+test('UI round 3: remembered proveedor per product (first product with one wins; blank / "Sin proveedor" never stored; map not mutated)', () => {
+  const m0 = { hie: 'Hielería Lago' };
+  assert.strictEqual(U.supFor(m0, ['gas', 'hie']), 'Hielería Lago');
+  assert.strictEqual(U.supFor(m0, ['gas']), '');
+  assert.strictEqual(U.supFor(null, ['gas']), '');
+  const m1 = U.supRemember(m0, ['cde', 'cda'], ' Cocina Doña Mari ');
+  assert.deepStrictEqual({ ...m1 }, { hie: 'Hielería Lago', cde: 'Cocina Doña Mari', cda: 'Cocina Doña Mari' });
+  assert.deepStrictEqual({ ...m0 }, { hie: 'Hielería Lago' });
+  assert.deepStrictEqual({ ...U.supRemember(m0, ['gas'], '') }, { hie: 'Hielería Lago' });
+  assert.deepStrictEqual({ ...U.supRemember(m0, ['gas'], 'Sin proveedor') }, { hie: 'Hielería Lago' });
 });

@@ -19,7 +19,9 @@ const ITEMS=[
  {id:'vin',name:'Vino',icon:'🍷',unitIcon:'🍶',controlStock:true,group:'Bebidas',unit:'botella',units:'botellas',pack:6,packName:'caja',price:185,min:6,field:'Vino',active:true},
  {id:'gas',name:'Gasolina',icon:'⛽',unitIcon:'',controlStock:true,group:'Combustible',unit:'litro',units:'litros',pack:1,packName:'litro',price:24.8,min:80,field:'Gasolina',active:true},
  {id:'hie',name:'Hielo',icon:'🧊',unitIcon:'',controlStock:false,group:'Consumo directo',unit:'bolsa',units:'bolsas',pack:1,packName:'bolsa',price:45,min:0,field:'Hielo',active:true},
- {id:'fru',name:'Fruta',icon:'🍉',unitIcon:'',controlStock:false,group:'Consumo directo',unit:'persona',units:'personas',pack:1,packName:'persona',price:18,min:0,field:'Fruta',active:true}];
+ {id:'fru',name:'Fruta',icon:'🍉',unitIcon:'',controlStock:false,group:'Consumo directo',unit:'persona',units:'personas',pack:1,packName:'persona',price:18,min:0,field:'Fruta',active:true},
+ {id:'cde',name:'Desayuno Staff',icon:'🍳',unitIcon:'',controlStock:false,group:'Comida empleado',unit:'comida',units:'comidas',pack:1,packName:'comida',price:40,min:0,field:'',active:true},
+ {id:'cda',name:'Almuerzo Staff',icon:'🍽️',unitIcon:'',controlStock:false,group:'Comida empleado',unit:'comida',units:'comidas',pack:1,packName:'comida',price:50,min:0,field:'',active:true}];
 const TOURS=[
  {pk:'258806',name:'Bacalar Lagoon Boat Tour',tipo:'compartido',barco:'ponton'},
  {pk:'274513',name:'Shared Sailing Tour',tipo:'compartido',barco:'catamaran'},
@@ -33,13 +35,15 @@ const PAY={cap:{ponton:450,catamaran:550},mar:{ponton:300,catamaran:350},guia:{p
 const NAMES=['Emma Johnson','Carlos Ramírez','Sophie Martin','Lucía Fernández','Daniel Kim','Hannah Müller','Mateo Rossi','Valeria Gómez','Tom Becker','Camila Torres','Andrés Soto','Julie Dubois','Ricardo Herrera','Olivia Brown','Marco Bianchi','Fernanda Ruiz'];
 
 // ---------- departures ----------
-const SCHED=[ // [dayOffset, time, itemIdx, resource, crew roles]
+const SCHED=[ // [dayOffset, time, itemIdx, resources, crew roles]
  [-1,'09:00',0,['Barracuda'],'cap,mar,guia'],[-1,'10:30',1,['Cormorán'],'cap,mar'],[-1,'14:00',2,['Ramona'],'cap,mar'],[-1,'16:00',0,['Barracuda'],'cap,mar,guia'],
- [0,'07:00',3,['Paddleboards'],'inst,guia'],[0,'08:30',4,['Kayaks'],'guia'],[0,'09:00',0,['Barracuda'],'cap,mar,guia'],[0,'10:00',1,['Cormorán','Catamarán'],'cap,mar'],
- [0,'10:30',2,['Ramona'],'cap,mar'],[0,'11:30',0,['Barracuda','Ramona'],'cap,mar,guia'],[0,'13:00',1,['Catamarán'],'cap,mar'],[0,'14:00',2,['Ramona'],'cap,mar'],
+ [0,'07:00',3,['SUP Yak'],'inst,guia'],[0,'08:30',4,['Kayaks Yak'],'guia'],[0,'09:00',0,['Barracuda'],'cap,mar,guia'],[0,'10:00',1,['Cormorán','La Flaca'],'cap,mar'],
+ [0,'10:30',2,['Ramona'],'cap,mar'],[0,'11:30',0,['Barracuda','Ramona'],'cap,mar,mar,guia,inst'],[0,'13:00',1,['La Flaca'],'cap,mar'],[0,'14:00',2,['Ramona'],'cap,mar'],
  [0,'15:30',0,['Barracuda'],'cap,mar,guia'],[0,'17:00',1,['Cormorán'],'cap,mar'],
- [1,'09:00',0,['Barracuda'],'cap,mar,guia'],[1,'10:00',1,['Cormorán'],'cap,mar'],[1,'11:00',2,['Ramona'],'cap,mar'],[1,'07:00',3,['Paddleboards'],'inst,guia']];
-const RPK={Barracuda:309946,Ramona:309950,'Cormorán':309951,'Catamarán':309952,Paddleboards:309960,Kayaks:309961};
+ [1,'09:00',0,['Barracuda'],'cap,mar,guia'],[1,'10:00',1,['Cormorán'],'cap,mar'],[1,'11:00',2,['Ramona'],'cap,mar'],[1,'07:00',3,['SUP Yak'],'inst,guia']];
+const RPK={Barracuda:309946,Ramona:309950,'Cormorán':309951,'La Flaca':309952,'SUP Yak':309960,'Kayaks Yak':309961};
+const LONGNAME='Private Healing Boat Tour (La Ramona) · Atardecer con cena';
+const FHB='https://fareharbor.com/thegaiaexperience/dashboard/?overlay=/contacts/';
 const PRICE={0:650,1:1200,2:4200,3:850,4:450};
 let seed=7;const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647};
 const pick=(a)=>a[Math.floor(rnd()*a.length)];
@@ -57,7 +61,7 @@ function makeDeps(){
       const affiliate=rnd()<.25;
       const net=Math.round(gross*(affiliate?.78:.93));
       const kids=pax>3&&ti!==2&&rnd()<.5;
-      bookings.push({id:'#'+(++bkId),name:pick(NAMES),pax:pax,types:ti===2?'1× Private Group':kids?(pax-1)+'× Adult, 1× Child':pax+'× Adult',gross:gross,net:net,est:!exact,alert:''});
+      bookings.push({id:'#'+(++bkId),url:(i===6&&k===0)?'':FHB+(364756000+bkId)+'/bookings/'+(10000+bkId)+'-demo/',name:pick(NAMES),pax:pax,types:ti===2?'1× Private Group':kids?(pax-1)+'× Adult, 1× Child':pax+'× Adult',gross:gross,net:net,est:!exact,alert:''});
     }
     const crew=crewS.split(',').map((r,j)=>{
       const nm=CREW_NAMES[r][(i+j)%CREW_NAMES[r].length];const base=(PAY[r]||{})[tour.barco]||250;
@@ -83,10 +87,10 @@ function makeDeps(){
     const resObjs=res.map(n=>({pk:String(RPK[n]),name:n,n:ti===2?pax:ti>=3?pax:Math.min(pax,10)}));
     // second resource gets the overflow
     if(resObjs.length>1){resObjs[1].n=Math.max(1,Math.floor(pax/3));resObjs[0].n=pax-resObjs[1].n}
-    return {id:String(9000+i),date:date,time:time,end:endKey,item:tour.name,label:'',boat:BARCO[tour.barco]||'',barco:tour.barco,tipo:tour.tipo,
+    return {id:String(9000+i),itemPk:tour.pk,date:date,time:time,end:endKey,item:(off===0&&time==='14:00')?LONGNAME:tour.name,label:'',boat:BARCO[tour.barco]||'',barco:tour.barco,tipo:tour.tipo,
       crew:crew,bookings:bookings,out:out,back:back,extras:idaDone&&i%3===0?'Jugo y botanas':'',hx:0,rev:(off<0&&i%2===0)?{by:'Jesús',at:'16:20',day:date,hm:'16:20'}:null,
       bit:bit,alerts:'',netSource:bookings.some(b=>b.est)?'estimado':'',costs:costs,paxTxt:String(pax),
-      salidaPk:'',regresoPk:'',salidaId:idaDone?'#'+(60100+i):'',regresoId:regDone?'#'+(60300+i):'',
+      salidaPk:'',regresoPk:'',salidaId:idaDone?'#'+(60100+i):'',regresoId:regDone?'#'+(60300+i):'',salidaUrl:idaDone?FHB+(364800000+i)+'/bookings/ops-ida-'+i+'/':'',regresoUrl:regDone?FHB+(364900000+i)+'/bookings/ops-reg-'+i+'/':'',
       gross:bookings.reduce((a,b)=>a+b.gross,0),res:resObjs};
   });
 }
@@ -153,7 +157,7 @@ const API={
  refreshFin:()=>({ran:true}),
  addCompra:(pin,p)=>{const id='c'+(D.purchases.length+1)+Date.now()%1000;
    D.purchases.push({id:id,d:p.d,sup:p.sup,lines:p.lines,ticket:p.ticket||'',note:p.note||'',annulled:false,hasta:p.hasta||'',history:[{d:addDays(0),a:'Registrada · Omri',r:''}]});
-   p.lines.forEach(l=>D.moves.push({d:p.d,i:l.i,q:l.q,c:l.p,t:'Compra',ref:p.sup,cid:id,noStock:!D.items.find(x=>x.id===l.i).controlStock}));return {ok:true,id:id}},
+   p.lines.forEach(l=>{const it=D.items.find(x=>x.id===l.i);if(it)it.price=l.p;D.moves.push({d:p.d,i:l.i,q:l.q,c:l.p,t:'Compra',ref:p.sup,cid:id,noStock:!it.controlStock})});return {ok:true,id:id}},
  anularCompra:(pin,id,reason)=>{const c=D.purchases.find(x=>x.id===id);if(c){c.annulled=true;c.history.push({d:addDays(0),a:'Anulada',r:reason||''});
    c.lines.forEach(l=>D.moves.push({d:addDays(0),i:l.i,q:-l.q,c:l.p,t:'Compra anulada',ref:reason||'',cid:id}))}return {ok:true}},
  editCompra:(pin,id,p,reason)=>{const c=D.purchases.find(x=>x.id===id);if(c){Object.assign(c,{d:p.d,sup:p.sup,note:p.note,hasta:p.hasta,lines:p.lines});c.history.push({d:addDays(0),a:'Editada',r:reason||''})}return {ok:true}},

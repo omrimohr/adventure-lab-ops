@@ -41,7 +41,8 @@ test('opsType_ / bookingPax_ / reservaRow_ identical for every booking', () => {
     const b = p.booking, tour = tours[String(b.availability.item.pk)];
     same(N.ex.opsType_(b, M), O.ex.opsType_(b), 'opsType ' + b.pk);
     same(N.ex.bookingPax_(b, tour, M), O.ex.bookingPax_(b, tour), 'pax ' + b.pk);
-    same(N.get('reservaRow_')(b, NOW, 7, tours, {}, M), O.get('reservaRow_')(b, NOW, 7, tours, {}), 'reservaRow ' + b.pk);
+    const nr = N.get('reservaRow_')(b, NOW, 7, tours, {}, M), or = O.get('reservaRow_')(b, NOW, 7, tours, {});
+    same(nr.slice(0, or.length), or, 'reservaRow ' + b.pk); // new columns (Link FareHarbor) are appended at the end
     n++;
   });
   assert.strictEqual(n, F.ALL.length);

@@ -60,6 +60,8 @@ function fakeSpreadsheet() {
       getName: () => name,
       getLastRow: () => { let l = 0; d.rows.forEach((r, i) => { if (r.some(v => v !== '' && v !== null && v !== undefined)) l = i + 1; }); return l; },
       getLastColumn: () => Math.max(26, ...d.rows.map(r => r.length)),
+      getMaxColumns: () => Math.max(26, ...d.rows.map(r => r.length)),
+      insertColumnsAfter: () => {},
       setFrozenRows: n => { d.frozen = n; },
       appendRow: vals => { const r = sh.getLastRow() + 1; grow(r, vals.length); d.rows[r - 1] = vals.slice(); },
       insertRowBefore: () => {},
