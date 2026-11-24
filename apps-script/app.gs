@@ -245,10 +245,10 @@ function latestRevs_(rows, today) {
     const t = isNaN(d) ? 0 : d.getTime(), k = String(r[0]);
     if (!out[k] || t >= out[k].t) {
       const day = isNaN(d) ? '' : fmtDate_(d, 'yyyy-MM-dd'), hm = isNaN(d) ? '' : fmtDate_(d, 'HH:mm');
-      out[k] = { t: t, by: String(r[1] || ''), at: day === today ? hm : (day ? day.slice(8) + '/' + day.slice(5, 7) + ' ' + hm : '') };
+      out[k] = { t: t, by: String(r[1] || ''), at: day === today ? hm : (day ? day.slice(8) + '/' + day.slice(5, 7) + ' ' + hm : ''), day: day, hm: hm };
     }
   });
-  Object.keys(out).forEach(k => { out[k] = { by: out[k].by, at: out[k].at }; });
+  Object.keys(out).forEach(k => { out[k] = { by: out[k].by, at: out[k].at, day: out[k].day, hm: out[k].hm }; }); // day/hm: the app formats the date itself
   return out;
 }
 function roleLabel_(rol) {
