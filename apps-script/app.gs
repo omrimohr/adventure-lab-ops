@@ -389,7 +389,7 @@ function fieldsFromBookings_(bookings) {
 
 /**
  * Health warnings (shown in the app only). inp: {nowMs, today, hhmm 'HH:mm', dow 0-6 (3 = Wednesday), lastRawMs|null,
- * salidas: [{fecha, hora, item, activas, bitacora (Salidas "Bitácora" col), lleva (Tours "Lleva bitácora"), hasOps}],
+ * salidas: [{fecha, hora, item, activas, bitacora (Salidas "Bitácora" col), tipo (Tours tipo; rentals don't need bitácora unless they have an OPS booking), hasOps}],
  * control: [{d, est}] (Control días), pendMs: [ms first seen of every "Nuevo – revisar"], erroresHoy, ctrlFrom}
  * → [{nivel:'warn', tipo, texto, rol:'admin'|'todos'}]
  */
@@ -407,7 +407,7 @@ function saludAlerts_(inp) {
   const from = addDays_(today, -7), miss = [];
   (inp.salidas || []).forEach(s => {
     const past = s.fecha < today || (s.fecha === today && hhmm >= '21:00');
-    if (!past || s.fecha < from || !(s.activas > 0) || !(s.lleva || s.hasOps) || s.bitacora === 'Completa') return;
+    if (!past || s.fecha < from || !(s.activas > 0) || !(!bitacoraNoAplica_(s.tipo) || s.hasOps) || s.bitacora === 'Completa') return;
     miss.push(s);
   });
   miss.sort((a, b) => (b.fecha + b.hora).localeCompare(a.fecha + a.hora));
@@ -567,12 +567,11 @@ function getData(pin, desde, hasta) {
   const pend = buildPend_({ M: M, toursRows: toursRows, barcos: barcos,
     seen: seenFieldsFor_(ss, toursRows.filter(r => tourEstado_(r[7], r[5]) === ESTADO_NUEVO).map(r => String(r[0])), reservas) });
   const fh = fhInfo_(ss, today);
-  const toursBit = {}; toursRows.forEach(r => { toursBit[String(r[0])] = yes_(r[4]); });
   const inRecent = windowTest_(addDays_(today, -8), '9999-12-30');
   const saludAll = saludAlerts_({
     nowMs: Date.now(), today: today, hhmm: now, dow: new Date(today + 'T00:00:00Z').getUTCDay(), lastRawMs: lastRawMs_(ss),
     salidas: salidas.filter(r => inRecent(r[6])).map(r => ({ fecha: fmtDate_(r[6], 'yyyy-MM-dd'), hora: fmtDate_(r[6], 'HH:mm'), item: String(r[2]),
-      activas: Number(r[8]) || 0, bitacora: String(r[11] || ''), lleva: !!toursBit[String(r[1])], hasOps: !!(r[12] || r[13]) })),
+      activas: Number(r[8]) || 0, bitacora: String(r[11] || ''), tipo: String(r[3] || ''), hasOps: !!(r[12] || r[13]) })),
     control: control.map(c => ({ d: c.d, est: c.est })), pendMs: pend.map(x => x.ms), erroresHoy: fh.errores
   });
   const fhOk = !saludAll.some(a => a.tipo === 'webhook'); // FareHarbor connection healthy (the app's green/orange dot)

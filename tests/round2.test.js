@@ -179,3 +179,23 @@ test('staff meals: cde/cda are reused and renamed only while they still carry th
   const r = e.rows('Productos');
   assert.deepStrictEqual(r.map(x => [x[0], x[1]]), [['cde', 'Desayuno Staff'], ['cda', 'Almuerzo Staff']]);
 });
+
+test('round 4: bitácora applies to every tipo except renta; "Sin recurso asignado" alert; rule-version flag', () => {
+  const list = dep().slice(0, 1).map((p, i) => ({ b: J(p).booking, row: i + 2 }));
+  const run = (tipo, l) => J(E.computeSalida_('9300', l || list, { '258806': { tipo: tipo, fields: [], bitacora: false } }, NOW, {}, null)).salida;
+  const H = E.SAL_HEADERS, iB = H.indexOf('Bitácora'), iA = H.indexOf('Alertas');
+  assert.strictEqual(run('compartido')[iB], 'Sin bitácora');     // Tours "Lleva bitácora" = no, still applies
+  assert.strictEqual(run('privado')[iB], 'Sin bitácora');
+  assert.strictEqual(run('?')[iB], 'Sin bitácora');
+  assert.strictEqual(run('renta')[iB], 'No aplica');
+  assert.strictEqual(E.bitacoraNoAplica_(' Renta '), true);
+  assert.strictEqual(E.bitacoraNoAplica_('compartido'), false);
+  assert.ok(!/Sin recurso/.test(run('compartido')[iA]));
+  const nores = J(list); nores[0].b.resource_uses = [];
+  assert.ok(/Sin recurso asignado/.test(run('compartido', nores)[iA]));
+  const cancelled = J(nores); cancelled[0].b.status = 'cancelled';
+  assert.ok(!/Sin recurso/.test(run('compartido', cancelled)[iA]), 'no active customer bookings → no warning');
+  assert.strictEqual(E.bitacoraRuleStale_(undefined), true);
+  assert.strictEqual(E.bitacoraRuleStale_('1'), true);
+  assert.strictEqual(E.bitacoraRuleStale_(E.BITACORA_RULE_V), false);
+});

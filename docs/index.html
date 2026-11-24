@@ -20,7 +20,7 @@ img{max-width:100%}
 :root{
   --ground:#f2f2f7; --row:#ffffff; --ink:#111418; --ink2:#6b7076; --sep:#d8d8de; --fill:#e9e9ee;
   --lagoon:#00939c; --lagoon-ink:#ffffff; --lagoon-soft:#d6eff0;
-  --red:#d93a2f; --orange:#d27a00; --green:#2a9d4b;
+  --red:#d93a2f; --orange:#d27a00; --yellow:#c79500; --green:#2a9d4b;
   --bar:rgba(249,249,251,.92); --scrim:rgba(0,0,0,.32);
   --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --font-d:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
@@ -28,11 +28,11 @@ img{max-width:100%}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --ground:#000000; --row:#1c1c1e; --ink:#f2f2f5; --ink2:#9a9aa1; --sep:#38383c; --fill:#2c2c2e;
   --lagoon:#2cc4cc; --lagoon-ink:#00262a; --lagoon-soft:#0f3a3d;
-  --red:#ff5a4f; --orange:#ff9f0a; --green:#32d164; --bar:rgba(22,22,24,.92); --scrim:rgba(0,0,0,.55); color-scheme:dark}}
+  --red:#ff5a4f; --orange:#ff9f0a; --yellow:#ffd60a; --green:#32d164; --bar:rgba(22,22,24,.92); --scrim:rgba(0,0,0,.55); color-scheme:dark}}
 :root[data-theme="dark"]{
   --ground:#000000; --row:#1c1c1e; --ink:#f2f2f5; --ink2:#9a9aa1; --sep:#38383c; --fill:#2c2c2e;
   --lagoon:#2cc4cc; --lagoon-ink:#00262a; --lagoon-soft:#0f3a3d;
-  --red:#ff5a4f; --orange:#ff9f0a; --green:#32d164; --bar:rgba(22,22,24,.92); --scrim:rgba(0,0,0,.55); color-scheme:dark}
+  --red:#ff5a4f; --orange:#ff9f0a; --yellow:#ffd60a; --green:#32d164; --bar:rgba(22,22,24,.92); --scrim:rgba(0,0,0,.55); color-scheme:dark}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 [hidden]{display:none!important}
 html,body{background:var(--ground)}
@@ -330,6 +330,24 @@ button.live{display:flex;width:100%;background:none;border:0;font:inherit;font-s
 .tg.o{background:color-mix(in srgb,var(--orange) 16%,transparent);color:var(--orange)}
 .tg.ok{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}
 .tg.w{background:color-mix(in srgb,var(--orange) 16%,transparent);color:var(--ink)}
+.fbtn{position:relative;width:44px;flex:none;display:flex;align-items:center;justify-content:center}
+.fbtn .fdot{position:absolute;top:9px;right:9px;width:9px;height:9px;border-radius:50%;background:var(--orange);box-shadow:0 0 0 2px var(--ground)}
+.fchips{margin:2px 0 6px}
+.fline{font-size:14px;color:var(--ink2);text-align:center;margin:0 0 8px}
+.fline .link{padding:0 4px;min-height:32px;font-size:14px}
+.dsum{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;margin-top:12px;font-size:14px;color:var(--ink);font-variant-numeric:tabular-nums}
+.dsum b{font-weight:600;color:var(--ink2)}.dsum .sp{color:var(--sep)}
+.sech{display:flex;align-items:center;gap:10px;margin:18px 0 8px;font-size:13px;font-weight:600;color:var(--ink2)}
+.sech::after{content:"";flex:1;height:1px;background:var(--sep)}
+.sech.live{color:var(--lagoon)}
+.dcard.done{background:color-mix(in srgb,var(--row) 90%,var(--ink2) 10%)}
+.dcard.live{background:color-mix(in srgb,var(--row) 82%,var(--lagoon-soft))}
+.dg .cw{display:flex;align-items:flex-start;gap:5px}
+.dg .cw svg{margin-top:3px}
+.dg .cw svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.dg .nores{color:var(--orange);font-weight:600}
+.ri{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;color:var(--yellow)}
+.ri.ok{color:var(--green)}
 .oprow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 4px}
 .oprow h1{margin:0}
 .gbtn{min-height:44px;padding:0 14px;border-radius:22px;border:0;background:var(--lagoon-soft);color:var(--lagoon);font:inherit;font-size:15px;font-weight:600;cursor:pointer;flex:none;white-space:nowrap}
@@ -379,7 +397,7 @@ const RB={'Capitán':'Cap.','Marinero':'Mar.','Instructor':'Inst.','Auxiliar':'A
 const rb=r=>RB[r]||(r.length>5?r.slice(0,4)+'.':r);
 const S={role:'op',realRole:'op',user:'',date:'',wk:'',
   perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},pend:[],salud:[],rebuildPending:false,fhOk:true,offline:false,dataAt:0,
-  win:{from:'',to:''},fetchedAt:'',q:''};
+  win:{from:'',to:''},fetchedAt:'',q:'',filter:'todas',fopen:false};
 let PIN='';
 
 // ===== Servidor =====
@@ -400,6 +418,14 @@ function softRender(){
   if($('sheetRoot').innerHTML||(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName)&&$('app').contains(a))){pendingRender=true;return}
   const y=window.scrollY;pendingRender=false;render();window.scrollTo(0,y);
 }
+// Reloj de la app: avanza la hora del servidor cada minuto para que Terminadas / En curso / Próximas se actualicen solas
+function tickClock(){
+  if(!S.clk||!PIN||document.hidden)return;
+  const a=advanceClock(S.clk.today,S.clk.now,Date.now()-S.clk.at);
+  if(a.today===TODAY&&a.now===NOW)return;
+  TODAY=a.today;NOW=a.now;
+  if(tab==='op'&&!stackView)softRender();
+}
 function flushRender(){if(pendingRender)softRender()}
 let lastLoad=Date.now(),finBusy=false,finLast=0;
 function applyData(d,at){lastLoad=Date.now();S.dataAt=at||Date.now();S.fhOk=d.fhOk!==false;
@@ -407,7 +433,7 @@ function applyData(d,at){lastLoad=Date.now();S.dataAt=at||Date.now();S.fhOk=d.fh
   S.pend=d.pend||[];S.salud=d.salud||[];S.rebuildPending=!!d.rebuildPending;
   S.perms=d.perms;S.realRole=d.user.rol;S.user=d.user.nombre;
   if(S.realRole!=='admin'||!S.date)S.role=S.realRole;
-  TODAY=d.today;NOW=d.now;S.fetchedAt=d.now;S.win={from:d.desde,to:d.hasta};
+  TODAY=d.today;NOW=d.now;S.clk={today:d.today,now:d.now,at:Date.now()};S.fetchedAt=d.now;S.win={from:d.desde,to:d.hasta};
   if(!S.date)S.date=TODAY;if(!S.wk)S.wk=wkStart(TODAY);
 }
 // Caché local de la última respuesta (por usuario y rango): se pinta al instante y luego se pide lo nuevo
@@ -482,6 +508,9 @@ const IC={
  sliders:'<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
  item:'<path d="M3 7.5L12 3l9 4.5-9 4.5z"/><path d="M3 7.5V17l9 4.5 9-4.5V7.5"/>',
  cal:'<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+ filter:'<path d="M4 6h16M7 12h10M10 18h4"/>',
+ clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+ check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
  refresh:'<path d="M20 11a8 8 0 10-2.3 5.7"/><path d="M20 5v6h-6"/>'};
 const svgI=(k,sz)=>`<svg class="gi" viewBox="0 0 24 24" width="${sz||16}" height="${sz||16}" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg>`;
 const gh=(k,t)=>`<div class="ghead gh">${svgI(k)}<span>${t}</span></div>`;   // encabezado de sección: ícono (mismo color que el texto) + palabra
@@ -559,11 +588,39 @@ const fhBookUrl=(url,date)=>!url?'':(date?String(url).replace(/\/dashboard\/\?ov
 // <a> que abre en pestaña nueva. text vacío → solo la flecha ↗. gray = enlace de reserva (no hay link del booking, se usa el de la disponibilidad)
 const fhA=(url,text,{gray,label}={})=>`<a class="fhl${gray?' gray':''}" href="${esc(url)}" target="_blank" rel="noopener"${label?` aria-label="${esc(label)}"`:''}>${text?esc(text)+' ':''}<span aria-hidden="true">↗</span></a>`;
 // Avisos de una salida (para el contador ⚠️ de la tarjeta): avisos del servidor + tripulación sin rol + alertas de pago
-const depAlertN=d=>(d.alerts?String(d.alerts).split(' | ').filter(Boolean).length:0)+(d.crew||[]).filter(c=>(!c.r&&!c.ext)||c.alert).length;
+const isRenta=d=>String((d&&d.tipo)||'').toLowerCase().trim()==='renta';
+// "Sin recurso": salida con reservas activas de clientes y ningún recurso (se calcula aquí también, así no espera al recálculo del servidor)
+const noRes=d=>!!(((d&&d.bookings)||[]).length&&!((d&&d.res)||[]).length);
+const depAlerts=d=>String((d&&d.alerts)||'').split(' | ').filter(a=>a&&!/^Sin recurso asignado/.test(a)).concat(noRes(d)?['Sin recurso asignado']:[]);
+const depAlertN=d=>depAlerts(d).length+(d.crew||[]).filter(c=>(!c.r&&!c.ext)||c.alert).length;
+// Por revisar: solo si el día ya terminó (fecha anterior a hoy) y nadie la marcó revisada
+const needsReview=(d,today)=>d.date<today&&!d.rev;
+// Sección de la lista: done (terminada) · live (en curso) · next (próxima). Sin hora de fin se supone 3 h.
+function depSection(d,today,now){
+  if(d.date<today)return 'done';if(d.date>today)return 'next';
+  const k=today+' '+now,start=d.date+' '+d.time;if(start>k)return 'next';
+  let end=d.end;if(!end){const a=advanceClock(d.date,d.time,180*60000);end=a.today+' '+a.now}
+  return end<=k?'done':'live';
+}
+// Filtros de la lista de Operación: para agregar uno basta sumar {key,label,test(d,{today})}
+const DEP_FILTERS=[
+  {key:'todas',label:'Todas',test:()=>true},
+  {key:'revisar',label:'Por revisar',test:(d,c)=>needsReview(d,c.today)},
+  {key:'avisos',label:'Con advertencias',test:d=>depAlertN(d)>0},
+  {key:'tours',label:'Tours',test:d=>!isRenta(d)},
+  {key:'rentas',label:'Rentas',test:d=>isRenta(d)}];
+const depFilter=k=>DEP_FILTERS.find(f=>f.key===k)||DEP_FILTERS[0];
+// Resumen del día: solo salidas con reservas activas. Tours = todo lo que no es renta.
+function dayCounts(ds){
+  const o={t:{n:0,pax:0},r:{n:0,pax:0}};
+  (ds||[]).forEach(d=>{const bk=d.bookings||[];if(!bk.length)return;const c=isRenta(d)?o.r:o.t;c.n++;c.pax+=bk.reduce((a,b)=>a+(Number(b.pax)||0),0)});
+  return o;
+}
 // Proveedor recordado por producto (mapa {idProducto: proveedor}): el del primer producto del carrito que tenga uno; al guardar se recuerda para todos
 const supFor=(map,ids)=>{for(const i of ids){if(map&&map[i])return map[i]}return ''};
 const supRemember=(map,ids,name)=>{const m=Object.assign({},map);const n=String(name||'').trim();if(n&&n!=='Sin proveedor')ids.forEach(i=>{m[i]=n});return m};
 // ==PURE-END==
+try{S.filter=depFilter(localStorage.getItem('adv_ops_depfilter')||'todas').key}catch(e){} // último filtro usado
 
 const depsOn=d=>S.deps.filter(x=>x.date===d).sort((a,b)=>a.time<b.time?-1:1);
 // Estado de la bitácora (viene de la columna "Bitácora" de Salidas)
@@ -684,11 +741,13 @@ function pendRow(p,i){
 const V={
 op(){
   const date=S.date,ds=depsOn(date),fut=date>TODAY;
-  let h=`<div class="oprow"><h1>Operación</h1>${can('compras')?'<button class="gbtn" data-act="compra" data-pre="">+ Gasto / Compra</button>':''}</div>`+saludBox()+`<div class="daterow"><button class="nx" data-day="-1" aria-label="Día anterior">‹</button><button class="dt" data-cal aria-label="Abrir calendario">${fd(date)}&nbsp;&nbsp;<span style="color:var(--lagoon);vertical-align:-2px">${svgI('cal',18)}</span></button><button class="nx" data-day="1" aria-label="Día siguiente">›</button></div>${date!==TODAY?'<div class="todayrow"><button class="sbtn" data-today>Hoy</button></div>':''}`;
+  let h=`<div class="oprow"><h1>Operación</h1>${can('compras')?'<button class="gbtn" data-act="compra" data-pre="">+ Gasto / Compra</button>':''}</div>`+saludBox()+`<div class="daterow"><button class="nx" data-day="-1" aria-label="Día anterior">‹</button><button class="dt" data-cal aria-label="Abrir calendario">${fd(date)}&nbsp;&nbsp;<span style="color:var(--lagoon);vertical-align:-2px">${svgI('cal',18)}</span></button><button class="nx" data-day="1" aria-label="Día siguiente">›</button><button class="fbtn${S.filter!=='todas'?' on':''}" data-fopen aria-label="Filtrar salidas" aria-expanded="${S.fopen}">${svgI('filter',22)}${S.filter!=='todas'?'<i class="fdot"></i>':''}</button></div>${S.fopen?`<div class="chips fchips" role="group" aria-label="Filtro de salidas">${DEP_FILTERS.map(f=>`<button type="button" class="chip" data-filter="${f.key}" aria-pressed="${S.filter===f.key}">${f.label}</button>`).join('')}</div>`:''}${S.filter!=='todas'?`<div class="fline">Filtro: <b>${esc(depFilter(S.filter).label)}</b> · <button type="button" class="link" data-filter="todas">quitar</button></div>`:''}${date!==TODAY?'<div class="todayrow"><button class="sbtn" data-today>Hoy</button></div>':''}`;
   if(!ds.length)return h+`<div class="group"><div class="list"><div class="empty">${S.loadingRange?'Cargando…':'Sin salidas este día.'}${!S.loadingRange&&pd(date).getDay()===3?' Los miércoles no hay tours.':''}</div></div></div>`;
+  const dc=dayCounts(ds),sal=n=>n+' '+(n===1?'salida':'salidas');
+  const dsum=`<div class="dsum"><span><b>Tours:</b> ${sal(dc.t.n)} · ${dc.t.pax} pax</span><span class="sp" aria-hidden="true">│</span><span><b>Rentas:</b> ${dc.r.n} · ${dc.r.pax} pax</span></div>`;
   const rev=ds.filter(d=>d.rev).length,falta=ds.filter(needBit).length,pend=ds.filter(d=>okish(d)&&!d.rev).length;
   const pills=`<div class="pills"><span class="pill">${ds.length} ${ds.length===1?'salida':'salidas'}</span>${fut?'<span class="pill">Programadas</span>':`<span class="pill g">${rev} ${rev===1?'revisada':'revisadas'}</span>${pend?`<span class="pill o">${pend} por revisar</span>`:''}${falta?`<span class="pill r">${falta} ${falta===1?'falta bitácora':'faltan bitácora'}</span>`:''}`}</div>`;
-  if(fut)h+=`<section class="today"><div class="state">Todavía no hay costos ni ingreso neto</div><div class="head" style="margin-bottom:6px">${personasTxt(ds.reduce((a,d)=>a+paxOf(d),0))} reservados</div>${money2(ds.reduce((a,d)=>a+(d.gross||0),0),undefined,false,true)}${pills}</section>`;
+  if(fut)h+=`<section class="today"><div class="state">Todavía no hay costos ni ingreso neto</div><div class="head" style="margin-bottom:6px">${personasTxt(ds.reduce((a,d)=>a+paxOf(d),0))} reservados</div>${money2(ds.reduce((a,d)=>a+(d.gross||0),0),undefined,false,true)}${dsum}${pills}</section>`;
   else{
     let netSum=0,netMiss=0,costSum=0,a=0,b=0,both=0,costMiss=0,est=false,grossSum=0;
     ds.forEach(d=>{grossSum+=d.gross||0;const n=netOf(d),c=cost(d);if(n===null)netMiss++;else{netSum+=n;if(d.netSource==='estimado')est=true}if(c)costSum+=c.tot;else if(status(d)!=='prog')costMiss++;if(n!==null&&n>0&&c){a+=c.tot;b+=n;both++}});
@@ -698,9 +757,14 @@ op(){
       <div class="kpi"><div class="k">Costo</div><div class="n">${fmt(costSum)}</div>${costMiss?'<div class="sub">Parcial</div>':''}</div>
       <div class="kpi"><div class="k">Costo %</div><div class="n">${pct===null?'—':pct+'%'}</div></div></div>
       ${netMiss||costMiss?`<div class="fn">${netMiss?`Neto pendiente en ${netMiss} ${netMiss===1?'salida':'salidas'}. El Costo % se calcula sobre el neto, solo con las ${both} que ya tienen neto y bitácora completa.`:''}${costMiss?` El costo suma solo salidas con bitácora completa.`:''}</div>`:''}
-      ${pills}</section>`;
+      ${dsum}${pills}</section>`;
   }
-  return h+ds.map(depCard).join('');
+  const f=depFilter(S.filter),list=ds.filter(d=>f.test(d,{today:TODAY}));
+  if(!list.length)return h+`<div class="group"><div class="list"><div class="empty">Ninguna salida con este filtro.</div></div></div>`;
+  const SEC=[['done','Terminadas'],['live','En curso'],['next','Próximas']],by={done:[],live:[],next:[]};
+  list.forEach(d=>by[depSection(d,TODAY,NOW)].push(d));
+  const used=SEC.filter(x=>by[x[0]].length);
+  return h+used.map(([k,l])=>(used.length>1?`<div class="sech ${k}"><span>${l}</span></div>`:'')+by[k].map(d=>depCard(d,k)).join('')).join('');
 },
 dep(id){
   const d=S.deps.find(x=>x.id===id);
@@ -708,7 +772,7 @@ dep(id){
   const st=status(d),c=cost(d),n=netOf(d),miss=missingRole(d),fut=st==='prog',est=d.netSource==='estimado';
   const avUrl=d.itemPk?fhAvailUrl(d.itemPk,d.id,d.date):'';
   let h=topBar(d.item,{back:'Operación',backTo:'op',lede:[d.time,d.boat?esc(d.boat):'',fd(d.date),d.label?esc(d.label):'',avUrl?fhA(avUrl,'#'+d.id,{label:'Abrir la salida '+d.id+' en FareHarbor'}):''].filter(Boolean).join(' · ')});
-  if(d.alerts)h+=`<div class="group">${gh('alert','Avisos')}<div class="list">${d.alerts.split(' | ').map(a=>`<div class="cell w-orange"><span class="main"><span class="s" style="margin:0">${esc(a)}</span></span></div>`).join('')}</div></div>`;
+  if(depAlerts(d).length)h+=`<div class="group">${gh('alert','Avisos')}<div class="list">${depAlerts(d).map(a=>`<div class="cell w-orange"><span class="main"><span class="s" style="margin:0">${esc(a)}</span></span></div>`).join('')}</div></div>`;
   h+=`<div class="group">${gh('bookings','Bookings')}<div class="list">${d.bookings.map(b=>{const tl=typesLine(b.types);
     return `<div class="cell"><span class="main"><span class="t">${esc(b.name||hid(b.id))}</span><div class="s">${b.url?fhA(fhBookUrl(b.url,d.date),hid(b.id),{label:'Abrir la reserva '+hid(b.id)+' en FareHarbor'}):avUrl?fhA(avUrl,hid(b.id),{gray:true,label:'Abrir la salida en FareHarbor (la reserva no tiene enlace)'}):esc(hid(b.id))} · ${personasTxt(b.pax)}${tl?' · '+esc(tl):''}</div></span><span class="v">${money2(b.gross,fut?undefined:b.net,b.est)}</span></div>`}).join('')||'<div class="empty">Sin reservas activas.</div>'}
     ${d.bookings.length?`<div class="cell"><span class="main t"><b>Total · ${personasTxt(paxOf(d))}</b></span><span class="v">${money2(d.gross,fut?undefined:n,est)}</span></div>`:''}</div></div>`;
@@ -1128,26 +1192,26 @@ function bitSection(d,fut){
 const BOAT_I='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="M12 4.5l6 9.5h-6"/><path d="M12 8L7 14h5"/><path d="M4 17.5h16l-2.2 3.2H6.2z"/></svg>';
 // Tarjeta de salida: cuadrícula con áreas fijas (hora · nombre+bruto · recursos+neto · tripulación · conteo) y una franja de bitácora abajo.
 // Cada dato siempre en el mismo lugar: más tripulación o recursos solo hacen la tarjeta más alta.
-function depCard(d){
+function depCard(d,sec){
   const st=status(d),n=netOf(d),miss=missingRole(d),fut=st==='prog',est=d.netSource==='estimado',bp=bitParts(d,nowKey());
   const first=x=>String(x||'').trim().split(/\s+/)[0];
   const crew=d.crew.map(x=>`${x.ext?'Ext.':x.r?esc(rb(x.r)):'<span class="wq">?</span>'} ${esc(first(x.n))}`).join(' · ');
   const res=(d.res||[]).map(r=>esc(r.name)).join(' · ');
+  const rent=isRenta(d);
   const dot=(l,k)=>`<span class="bd"><i class="bdot ${BIT_T[k][0]}"></i>${l}<span class="sr">${BIT_T[k][1]}</span></span>`;
   const bits=bp.na?'<span class="bd">No aplica</span>':`<span class="bds">${dot('Ida',bp.ida)}${dot('Regreso',bp.reg)}</span>`;
-  const an=depAlertN(d)+(d.crew.filter(rateAlert).length&&!d.crew.some(c=>c.alert)?1:0);
+  const an=depAlertN(d),nores=noRes(d);
   let tags='';
-  if(!fut){
-    if(d.rev)tags+='<span class="tg ok">✅ Revisado</span>';
-    else tags+='<span class="tg o">Por revisar</span>';
-  }
   if(an)tags+=`<span class="tg w" aria-label="${an} ${an===1?'aviso':'avisos'}">⚠️ ${an}</span>`;
+  // Revisión: solo un ícono. Amarillo = el día ya terminó y nadie la marcó; verde = revisada. Hoy y días futuros: nada.
+  if(d.rev)tags+=`<span class="ri ok" role="img" aria-label="Revisado">${svgI('check',18)}</span>`;
+  else if(needsReview(d,TODAY))tags+=`<span class="ri" role="img" aria-label="Por revisar">${svgI('clock',18)}</span>`;
   const nb=d.bookings.length;
-  return `<div class="dcard"><button class="dmain r3" data-dep="${d.id}"><div class="dg">
+  return `<div class="dcard${sec?' '+sec:''}"><button class="dmain r3" data-dep="${d.id}"><div class="dg">
     <span class="hr">${d.time}</span><span class="chv">${chev}</span>
     <span class="tn">${esc(d.item)}${d.label?` <span class="lbl">· ${esc(d.label)}</span>`:''}</span><span class="mon">${money2(d.gross,fut?undefined:n,est)}</span>
-    <span class="rs">${res?BOAT_I+res:''}</span>
-    <span class="cw">${crew?'👥 '+crew:'Sin tripulación'}</span>
+    <span class="rs">${res?BOAT_I+res:nores?'<span class="nores">⚠️ Sin recurso</span>':''}</span>
+    <span class="cw">${crew?svgI('crew',14)+'<span>'+crew+'</span>':rent?'–':'Sin tripulación'}</span>
     <span class="ct">${nb} ${nb===1?'booking':'bookings'} · ${personasTxt(paxOf(d))}</span></div>
     <div class="dstrip"><span class="lb">Bitácora</span>${bits}<span class="tgs">${tags}</span></div></button></div>`;
 }
@@ -1325,7 +1389,7 @@ function autoRefresh(){
   const a=document.activeElement;if(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName))return;
   lastLoad=Date.now();refresh(true);
 }
-document.addEventListener('visibilitychange',()=>{autoRefresh();paintStatus()});setInterval(autoRefresh,120000);setInterval(paintStatus,60000);
+document.addEventListener('visibilitychange',()=>{autoRefresh();paintStatus()});setInterval(autoRefresh,120000);setInterval(paintStatus,60000);setInterval(tickClock,60000);
 document.addEventListener('click',e=>{
   const t=e.target,on=s=>t.closest(s);
   if(on('a[href]'))return; // enlaces a FareHarbor: los abre el navegador (pestaña nueva)
@@ -1374,6 +1438,8 @@ document.addEventListener('click',e=>{
       srv('savePerm',r,p,!cur).catch(er=>{S.perms[r][p]=cur;render();toast(errMsg(er),'err')})}return}
   if(on('[data-logout]')){logout();return}
   if(on('[data-refresh]')){refresh();return}
+  if(on('[data-fopen]')){S.fopen=!S.fopen;render();return}
+  const fl=on('[data-filter]');if(fl){S.filter=depFilter(fl.dataset.filter).key;S.fopen=false;try{localStorage.setItem('adv_ops_depfilter',S.filter)}catch(e){}render();return}
   if(on('[data-today]')){setDate(TODAY);return}
   const bx=on('[data-bitx]');if(bx){bitOpen=bitOpen===bx.dataset.bitx?null:bx.dataset.bitx;render();return}
   const dy=on('[data-day]');if(dy){setDate(addD(S.date,+dy.dataset.day));return}

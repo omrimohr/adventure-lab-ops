@@ -3,7 +3,7 @@ const assert = require('assert'), fs = require('fs'), path = require('path'), vm
 const { test } = require('./lib');
 const html = fs.readFileSync(path.join(__dirname, '..', 'docs', 'index.html'), 'utf8');
 const m = /\/\/ ==PURE-BEGIN==[^\n]*\n([\s\S]*?)\/\/ ==PURE-END==/.exec(html);
-const names = 'fdate fdt fixDates wkLabel hid hids personasTxt typesLine relAgo advanceClock bitParts money2 cacheKey strHash addD wkStart fmt esc CACHE_MAX fhAvailUrl fhBookUrl fhA depAlertN supFor supRemember'.split(' ');
+const names = 'fdate fdt fixDates wkLabel hid hids personasTxt typesLine relAgo advanceClock bitParts money2 cacheKey strHash addD wkStart fmt esc CACHE_MAX fhAvailUrl fhBookUrl fhA depAlertN supFor supRemember isRenta noRes depAlerts needsReview depSection DEP_FILTERS depFilter dayCounts'.split(' ');
 const U = vm.runInNewContext(m[1] + '\n({' + names.join(',') + '})', {});
 
 test('UI: dates always "dom. 15/nov 2026" (3-letter weekday + dot, day/month, year)', () => {
@@ -116,4 +116,45 @@ test('UI round 3: remembered proveedor per product (first product with one wins;
   assert.deepStrictEqual({ ...m0 }, { hie: 'Hielería Lago' });
   assert.deepStrictEqual({ ...U.supRemember(m0, ['gas'], '') }, { hie: 'Hielería Lago' });
   assert.deepStrictEqual({ ...U.supRemember(m0, ['gas'], 'Sin proveedor') }, { hie: 'Hielería Lago' });
+});
+
+test('round 4 UI: sin recurso, por revisar only for finished days, sections by time, filters, day counts', () => {
+  const b = (pax) => ({ pax });
+  const dep = (o) => Object.assign({ date: '2026-11-24', time: '10:00', end: '2026-11-24 13:00', tipo: 'compartido', bookings: [b(2)], res: [{ name: 'Barracuda' }], crew: [], alerts: '', rev: null }, o || {});
+  assert.strictEqual(U.noRes(dep({ res: [] })), true);
+  assert.strictEqual(U.noRes(dep({ res: [], bookings: [] })), false);
+  assert.strictEqual(U.noRes(dep()), false);
+  // server alert + client rule never double count
+  assert.deepStrictEqual(Array.from(U.depAlerts(dep({ res: [], alerts: 'Sin recurso asignado | x' }))), ['x', 'Sin recurso asignado']);
+  assert.strictEqual(U.depAlertN(dep({ res: [], alerts: 'Sin recurso asignado' })), 1);
+  assert.strictEqual(U.depAlertN(dep({ alerts: 'Sin recurso asignado' })), 0, 'no bookings or has resource client side wins');
+  // por revisar: only date < today and not revisado
+  assert.strictEqual(U.needsReview(dep({ date: '2026-11-23' }), '2026-11-24'), true);
+  assert.strictEqual(U.needsReview(dep({ date: '2026-11-23', rev: { by: 'x' } }), '2026-11-24'), false);
+  assert.strictEqual(U.needsReview(dep(), '2026-11-24'), false);
+  assert.strictEqual(U.needsReview(dep({ date: '2026-11-25' }), '2026-11-24'), false);
+  // sections
+  const T = '2026-11-24';
+  assert.strictEqual(U.depSection(dep(), T, '09:59'), 'next');
+  assert.strictEqual(U.depSection(dep(), T, '10:00'), 'live');
+  assert.strictEqual(U.depSection(dep(), T, '12:59'), 'live');
+  assert.strictEqual(U.depSection(dep(), T, '13:00'), 'done');
+  assert.strictEqual(U.depSection(dep({ end: '' }), T, '12:59'), 'live', 'no end → 3 h');
+  assert.strictEqual(U.depSection(dep({ end: '' }), T, '13:00'), 'done');
+  assert.strictEqual(U.depSection(dep({ date: '2026-11-23' }), T, '00:01'), 'done');
+  assert.strictEqual(U.depSection(dep({ date: '2026-11-25', time: '07:00' }), T, '23:59'), 'next');
+  // filters
+  const k = key => U.depFilter(key).test;
+  const ds = [dep({ date: '2026-11-23' }), dep({ tipo: 'renta' }), dep({ res: [] }), dep({ date: '2026-11-23', rev: { by: 'x' } })];
+  const pick = key => ds.map((d, i) => k(key)(d, { today: T }) ? i : -1).filter(i => i >= 0);
+  assert.deepStrictEqual(pick('todas'), [0, 1, 2, 3]);
+  assert.deepStrictEqual(pick('revisar'), [0]);
+  assert.deepStrictEqual(pick('avisos'), [2]);
+  assert.deepStrictEqual(pick('tours'), [0, 2, 3]);
+  assert.deepStrictEqual(pick('rentas'), [1]);
+  assert.deepStrictEqual(Array.from(U.DEP_FILTERS.map(f => f.label)), ['Todas', 'Por revisar', 'Con advertencias', 'Tours', 'Rentas']);
+  assert.strictEqual(U.depFilter('nope').key, 'todas');
+  // counts: only departures with active bookings
+  const c = JSON.parse(JSON.stringify(U.dayCounts([dep({ bookings: [b(3), b(2)] }), dep({ bookings: [] }), dep({ tipo: 'renta', bookings: [b(4)] }), dep({ tipo: 'renta', bookings: [] }), dep({ bookings: [b(1)] })])));
+  assert.deepStrictEqual(c, { t: { n: 2, pax: 6 }, r: { n: 1, pax: 4 } });
 });

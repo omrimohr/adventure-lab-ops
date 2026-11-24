@@ -12,6 +12,12 @@ const entries = F.ALL.map((x, i) => ({ b: x.booking, t: new Date(Date.UTC(2026, 
 const seed = J(N.ex.seedMapeos_(entries, PROD_SEED, TAR_SEED, tours, NOW));
 const M = N.ex.mapeosFromRows_(seed.ctype, seed.field, seed.role);
 const same = (a, b, msg) => assert.deepStrictEqual(J(a), J(b), msg);
+// Round 4 changed two things on purpose (not an equivalence break): bitácora applies to every tipo except renta, and
+// departures with customers but no resource carry the alert 'Sin recurso asignado'. Normalise those two before comparing.
+const legacy = (n, o) => { const r = J(n.salida).slice(0, o.salida.length);
+  r[15] = String(r[15]).split(' | ').filter(a => a !== 'Sin recurso asignado').join(' | ');
+  if (r[11] === 'Sin bitácora' && o.salida[11] === 'No aplica' && r[3] !== 'renta') r[11] = 'No aplica';
+  return r; };
 const departures = Object.keys(F.DEPARTURES).map(av => ({ av: av, list: F.DEPARTURES[av].map((p, i) => ({ b: p.booking, row: i + 2 })) }));
 
 test('seed: every key in the payloads is mapped, all Estado OK, with today\'s name-rule uso', () => {
@@ -54,7 +60,7 @@ test('opsType_ / bookingPax_ / reservaRow_ identical for every booking', () => {
 test('computeSalida_ identical (salida row, bitácora lines, tripulación incl. role with no short_name)', () => {
   departures.forEach(d => {
     const n = N.ex.computeSalida_(d.av, d.list, tours, NOW, {}, M), o = O.ex.computeSalida_(d.av, d.list, tours, NOW, {});
-    same(n.salida.slice(0, o.salida.length), o.salida, 'salida ' + d.av); same(n.bit, o.bit, 'bit ' + d.av);
+    same(legacy(n, o), o.salida, 'salida ' + d.av); same(n.bit, o.bit, 'bit ' + d.av);
     same(n.crew.map(r => r.slice(0, 8)), o.crew, 'crew ' + d.av); assert.strictEqual(n.hasCustomers, o.hasCustomers);
     n.crew.forEach(r => assert.strictEqual(r.length, 9)); // + Rol clave
   });
@@ -99,6 +105,6 @@ test('payForSalida_ identical (rates, hora extra, externos, role without short_n
 test('with M = null the old name rules still apply (safe defaults)', () => {
   departures.forEach(d => {
     const n = N.ex.computeSalida_(d.av, d.list, tours, NOW, {}), o = O.ex.computeSalida_(d.av, d.list, tours, NOW, {});
-    same(n.salida.slice(0, o.salida.length), o.salida); same(n.bit, o.bit);
+    same(legacy(n, o), o.salida); same(n.bit, o.bit);
   });
 });

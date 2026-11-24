@@ -176,10 +176,10 @@ test('health 1: webhook silence > 4 h, 07:00–21:00 only, not on Wednesday, ove
   assert.deepStrictEqual(types(H({ lastRawMs: Date.parse('2026-11-24T03:00:00Z'), hhmm: '11:30', nowMs: Date.parse('2026-11-24T16:30:00Z') })), ['webhook']);
   assert.deepStrictEqual(H({ lastRawMs: null }), []);
 });
-const sal = (fecha, hora, o) => Object.assign({ fecha, hora, item: 'Tour', activas: 2, bitacora: 'Falta regreso', lleva: true, hasOps: false }, o || {});
-test('health 2: bitácora missing — last 7 days, today only after 21:00, needs active bookings and (lleva bitácora or an OPS booking)', () => {
+const sal = (fecha, hora, o) => Object.assign({ fecha, hora, item: 'Tour', activas: 2, bitacora: 'Falta regreso', tipo: 'compartido', hasOps: false }, o || {});
+test('health 2: bitácora missing — last 7 days, today only after 21:00, needs active bookings and (tipo != renta, or a rental with an OPS booking)', () => {
   const a = H({ salidas: [sal('2026-11-23', '09:00'), sal('2026-11-17', '09:00'), sal('2026-11-16', '09:00'), sal('2026-11-22', '10:00', { bitacora: 'Completa' }),
-    sal('2026-11-22', '11:00', { activas: 0 }), sal('2026-11-21', '09:00', { lleva: false, hasOps: false }), sal('2026-11-21', '10:00', { lleva: false, hasOps: true, bitacora: 'Falta salida' }),
+    sal('2026-11-22', '11:00', { activas: 0 }), sal('2026-11-21', '09:00', { tipo: 'renta', hasOps: false }), sal('2026-11-21', '10:00', { tipo: 'renta', hasOps: true, bitacora: 'Falta salida' }),
     sal('2026-11-24', '09:00')] });
   assert.deepStrictEqual(a.map(x => x.texto), ['Falta bitácora: 2026-11-23 09:00 Tour', 'Falta bitácora: 2026-11-21 10:00 Tour', 'Falta bitácora: 2026-11-17 09:00 Tour']);
   assert.ok(a.every(x => x.rol === 'todos' && x.tipo === 'bitacora'));

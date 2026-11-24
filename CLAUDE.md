@@ -18,6 +18,7 @@ Owner: Omri (Adventure Lab, Bacalar). FareHarbor company `thegaiaexperience`. Sp
 - Pax: shared tours = customer-type count; private = "Number of people" custom field (Tours tab, field pks); rentals = people field or 1.
 - Income: webhook estimate (label "estimado") until Comercial's report gives "Net Revenue Collected" (no label).
 - Departures keyed by FareHarbor availability pk. Salida/Regreso are separate OPS bookings. Crew role/name come from FareHarbor.
+- Bitácora applies to EVERY item except rentals (Tours tipo = `renta`; "No aplica" only then, and only without OPS bookings). The Tours column "Lleva bitácora" is still in the sheet but is **no longer read** (computeSalida_, saludAlerts_). Departures with customer bookings but no resource get the alert "Sin recurso asignado". Script property `BITACORA_RULE_V` ('2'): the first `rebuildFinanzas` of this version sets REBUILD_PENDING once so Salidas are recomputed.
 - Rates live in tab Tarifas (first matching row wins). Pay week Thursday→Wednesday.
 - Ask Omri before risky/irreversible actions; concise answers; always give FareHarbor IDs with their names.
 - FareHarbor configuration changes are logged in the Claude Docs "Adventure Lab — FareHarbor Setup Definition" (Change log tab), not here.

@@ -375,6 +375,12 @@ function resHeaderStale_(headerRow) {
   return String((headerRow || [])[RES_HEADERS.length - 1] || '') !== RES_HEADERS[RES_HEADERS.length - 1];
 }
 
+/** Pure: rentals (Tours tipo 'renta') are the only items without bitácora; the Tours column 'Lleva bitácora' is no longer read. */
+function bitacoraNoAplica_(tipo) { return String(tipo || '').toLowerCase().trim() === 'renta'; }
+const BITACORA_RULE_V = '2';
+/** Pure: true when the stored rule version differs → Salidas must be recomputed once. */
+function bitacoraRuleStale_(stored) { return String(stored || '') !== BITACORA_RULE_V; }
+
 /**
  * One departure from its bookings (latest version of each).
  * list: [{b, status, row}] → {salida:[], bit:[[...]], crew:[[...]]}
@@ -404,6 +410,7 @@ function computeSalida_(avPk, list, tours, now, ing, M) {
   });
 
   const resources = resourcesFrom_(custBk.map(x => x.b));
+  if (custBk.length && !resources.length) alerts.push('Sin recurso asignado');
   const sal = opsBk.filter(x => /Salida/.test(opsType_(x.b, M)));
   const reg = opsBk.filter(x => /Regreso/.test(opsType_(x.b, M)));
   if (sal.length > 1) alerts.push('Más de una reserva de salida');
@@ -412,7 +419,8 @@ function computeSalida_(avPk, list, tours, now, ing, M) {
   if (sal.length && reg.length) bitacora = 'Completa';
   else if (sal.length) bitacora = 'Falta regreso';
   else if (reg.length) bitacora = 'Falta salida';
-  if (!opsBk.length && !tour.bitacora) bitacora = 'No aplica';
+  // Bitácora applies to every item except rentals (Tours tab 'Lleva bitácora' is no longer read)
+  if (!opsBk.length && bitacoraNoAplica_(tour.tipo)) bitacora = 'No aplica';
 
   // Bitácora lines
   const bit = [];
@@ -1072,6 +1080,10 @@ function loadProductos_(ss) {
 function rebuildFinanzas() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const seeded = ensureMapeos_(ss);
+  try { // bitácora rule v2 (all items except rentals) + 'Sin recurso asignado': recompute Salidas once
+    const props = PropertiesService.getScriptProperties();
+    if (bitacoraRuleStale_(props.getProperty('BITACORA_RULE_V'))) { setRebuildPending_(); props.setProperty('BITACORA_RULE_V', BITACORA_RULE_V); }
+  } catch (e) {}
   try { // Salidas created by an older version (fewer columns): recompute everything from Raw once
     const sal = ss.getSheetByName('Salidas');
     if (sal && sal.getLastRow() >= 1 && salHeaderStale_(sal.getRange(1, 1, 1, SAL_HEADERS.length).getValues()[0])) setRebuildPending_();
@@ -1618,4 +1630,4 @@ function sheet_(ss, name, headers) {
 if (typeof module !== 'undefined') module.exports = { ctKey_, cfKey_, roleKey_, guessCtype_, guessFieldUso_, guessRolTarifa_, camposMap_, typeUso_, fieldUso_, bitUso_, crewTarifa_,
   mapeosFromRows_, observe_, collectUnknowns_, seedMapeos_, validateMapeo_, toursFromRows_, tourEstado_, TOURS_SEED_ROWS: TOURS_SEED, USOS_CT, USOS_CF,
   CT_HEADERS, CF_HEADERS, ROL_HEADERS, CREW_HEADERS, BIT_HEADERS, ESTADO_NUEVO, ESTADO_OK, rawRowFor_, doPost, rebuildFinanzas, rebuildAll, ensureMapeos_, loadMapeos_,
-  registerUnknowns_, prepararMapeos, reservaRow_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };
+  registerUnknowns_, prepararMapeos, bitacoraNoAplica_, bitacoraRuleStale_, BITACORA_RULE_V, reservaRow_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };

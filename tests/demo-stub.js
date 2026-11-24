@@ -6,7 +6,8 @@ try{localStorage.setItem('adv_ops_pin','0000')}catch(e){}   // auto-login as adm
 const p2=n=>String(n).padStart(2,'0');
 const ymd=d=>d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());
 const addDays=(n)=>{const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()+n);return ymd(d)};
-const hm=()=>{const d=new Date();return p2(d.getHours())+':'+p2(d.getMinutes())};
+// Demo clock: starts at 12:20 on the real date and advances in real time, so the "Terminadas / En curso / Próximas" sections always show all three states.
+const CLK0=Date.now(),hm=()=>{const t=12*60+20+Math.floor((Date.now()-CLK0)/60000);return p2(Math.floor(t/60)%24)+':'+p2(t%60)};
 const wkStartOf=(s)=>{const d=new Date(s+'T12:00:00');d.setDate(d.getDate()-((d.getDay()-4+7)%7));return ymd(d)};
 const mins=t=>Number(t.slice(0,2))*60+Number(t.slice(3,5));
 const tstr=m=>p2(Math.floor(m/60))+':'+p2(m%60);
@@ -38,8 +39,8 @@ const NAMES=['Emma Johnson','Carlos Ramírez','Sophie Martin','Lucía Fernández
 const SCHED=[ // [dayOffset, time, itemIdx, resources, crew roles]
  [-1,'09:00',0,['Barracuda'],'cap,mar,guia'],[-1,'10:30',1,['Cormorán'],'cap,mar'],[-1,'14:00',2,['Ramona'],'cap,mar'],[-1,'16:00',0,['Barracuda'],'cap,mar,guia'],
  [0,'07:00',3,['SUP Yak'],'inst,guia'],[0,'08:30',4,['Kayaks Yak'],'guia'],[0,'09:00',0,['Barracuda'],'cap,mar,guia'],[0,'10:00',1,['Cormorán','La Flaca'],'cap,mar'],
- [0,'10:30',2,['Ramona'],'cap,mar'],[0,'11:30',0,['Barracuda','Ramona'],'cap,mar,mar,guia,inst'],[0,'13:00',1,['La Flaca'],'cap,mar'],[0,'14:00',2,['Ramona'],'cap,mar'],
- [0,'15:30',0,['Barracuda'],'cap,mar,guia'],[0,'17:00',1,['Cormorán'],'cap,mar'],
+ [0,'10:30',2,['Ramona'],'cap,mar'],[0,'11:30',0,['Barracuda','Ramona'],'cap,mar,mar,guia,inst'],[0,'13:00',1,[],'cap,mar'],[0,'14:00',2,['Ramona'],'cap,mar'],
+ [0,'15:30',0,['Barracuda'],'cap,mar,guia'],[0,'15:00',4,['Kayaks Yak'],''],[0,'17:00',1,['Cormorán'],'cap,mar'],
  [1,'09:00',0,['Barracuda'],'cap,mar,guia'],[1,'10:00',1,['Cormorán'],'cap,mar'],[1,'11:00',2,['Ramona'],'cap,mar'],[1,'07:00',3,['SUP Yak'],'inst,guia']];
 const RPK={Barracuda:309946,Ramona:309950,'Cormorán':309951,'La Flaca':309952,'SUP Yak':309960,'Kayaks Yak':309961};
 const LONGNAME='Private Healing Boat Tour (La Ramona) · Atardecer con cena';
@@ -63,13 +64,13 @@ function makeDeps(){
       const kids=pax>3&&ti!==2&&rnd()<.5;
       bookings.push({id:'#'+(++bkId),url:(i===6&&k===0)?'':FHB+(364756000+bkId)+'/bookings/'+(10000+bkId)+'-demo/',name:pick(NAMES),pax:pax,types:ti===2?'1× Private Group':kids?(pax-1)+'× Adult, 1× Child':pax+'× Adult',gross:gross,net:net,est:!exact,alert:''});
     }
-    const crew=crewS.split(',').map((r,j)=>{
+    const crew=crewS.split(',').filter(Boolean).map((r,j)=>{
       const nm=CREW_NAMES[r][(i+j)%CREW_NAMES[r].length];const base=(PAY[r]||{})[tour.barco]||250;
       return {n:nm,r:ROLE_LABEL[r],pay:{base:base,hx:0,tot:base},alert:''};
     });
     if(off===0&&time==='13:00')crew.push({n:'Beto (externo)',r:'',ext:true,note:'Pagar a Carmelita',pay:{base:0,hx:0,tot:0},alert:''});
     if(off===0&&time==='14:00')crew.push({n:'Ana Rosado',r:'',pay:{base:0,hx:0,tot:0},alert:''});
-    const carries=ti<3;                      // paddle and kayak: no bitácora
+    const carries=ti!==4;                   // bitácora applies to every item except rentals (round 4 rule)
     const started=(date<T)||(date===T&&mins(time)<=now),ended=(date<T)||(date===T&&mins(end)<now);
     let bit='No aplica';
     if(carries){

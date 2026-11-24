@@ -97,10 +97,20 @@ test('setMapeo → REBUILD_PENDING → rebuildFinanzas (15-min trigger) rebuilds
 test('rebuildFinanzas without a pending flag only refreshes finanzas; with the lock busy the flag stays', () => {
   const e = env();
   F.DEPARTURES[9001].forEach(p => e.post(p)); e.G.ex.ensureMapeos_(e.ss); e.G.ex.rebuildAll();
+  e.fe.props.BITACORA_RULE_V = e.G.ex.BITACORA_RULE_V; // rule v2 already applied
   assert.strictEqual(J(e.G.ex.rebuildFinanzas()).reconstruido, undefined);
   e.fe.props.REBUILD_PENDING = '1'; e.fe.setLockBusy(true);
   e.G.ex.rebuildFinanzas();
   assert.strictEqual(e.fe.props.REBUILD_PENDING, '1');
+});
+
+test('first run of the bitácora rule v2 sets REBUILD_PENDING and rebuilds once; the flag is stored', () => {
+  const e = env();
+  F.DEPARTURES[9001].forEach(p => e.post(p)); e.G.ex.ensureMapeos_(e.ss); e.G.ex.rebuildAll();
+  delete e.fe.props.BITACORA_RULE_V;
+  assert.strictEqual(J(e.G.ex.rebuildFinanzas()).reconstruido, true);
+  assert.strictEqual(e.fe.props.BITACORA_RULE_V, '2');
+  assert.strictEqual(J(e.G.ex.rebuildFinanzas()).reconstruido, undefined);
 });
 
 test('getData returns pend (admin only), salud and rebuildPending', () => {
