@@ -34,7 +34,9 @@ FareHarbor work is done in the claude.ai chat (browser + change log); app/DB cod
 - Crew role short names (Capitan, Marinero, Guia, Instructor Lider, Instructor asistente) are matched in `Tarifas`.
 
 ## Open items (24 Nov 2026)
-- Rates pending: festivo, traslado (needs a FareHarbor field). Hobie marinero 400 is an assumption.
+- Pay adjustments (decided 24 Nov): no automatic festivo. Jesús adds manual extra/deduction lines per person/week from pre-made concepts (e.g. "Día festivo +150") with a reason. Needs an app feature + config tab of concepts.
+- Traslado (decided 24 Nov): FareHarbor bitácora will get fields "Traslado ida" / "Traslado regreso" (cost; default ON on HBTS tours). Pay per way: 100 sailing, 50 pontón. DB must read them once the fields exist (chat side creates them, then posts the field pks here).
+- Hobie has no marinero: remove the 'marinero · hobie' row from Tarifas (capitán hobie 600 stays).
 - 696746 Private Healing Boat Tour (La Ramona) → barco catamarán applies when it first appears in Tours.
 - Need one real Comercial export to confirm the report columns (`#`, "Net Revenue Collected").
 - `rebuildFinanzas` sometimes takes 1–2 min (normally ~15 s) — watch Executions.
