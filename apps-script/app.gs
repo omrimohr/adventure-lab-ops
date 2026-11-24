@@ -33,7 +33,7 @@ const TICKETS_FOLDER = 'Adventure Lab Ops – Tickets';
 function apiResponse_(p) {
   const map = { login: login, getData: getData, addCompra: addCompra, anularCompra: anularCompra, editCompra: editCompra,
     addAjuste: addAjuste, addConteo: addConteo, addComida: addComida, markPaid: markPaid, markRev: markRev,
-    saveProducto: saveProducto, saveTarifa: saveTarifa, savePerm: savePerm, saveTourBarco: saveTourBarco };
+    saveProducto: saveProducto, saveTarifa: saveTarifa, savePerm: savePerm, saveTourBarco: saveTourBarco, setMapeo: setMapeo };
   let out;
   try {
     const f = map[String(p.fn)];
@@ -148,7 +148,7 @@ function priceLogFrom_(purchases) {
  * Stock ledger. Purchases +q (annulled ones also get an opposite 'Compra anulada' move so the net is 0),
  * Ajustes ±q, and consumption −q per departure (bitácora salida − regreso, only departures up to today —
  * same rule as the Stock tab). Cost-only products (controlStock = no) are flagged noStock.
- * ctx: {items, purchases, ajustes (rows), salidas (rows), bitBy {pk:[rows]}, productos [{id,campo}], today}
+ * ctx: {items, purchases, ajustes (rows), salidas (rows), bitBy {pk:[rows]}, productos [{id,campo}], today, M (field mapping, optional)}
  */
 function buildMoves_(ctx) {
   const it = {}; ctx.items.forEach(i => { it[i.id] = i; });
@@ -169,7 +169,7 @@ function buildMoves_(ctx) {
   ctx.salidas.forEach(s => {
     const fecha = fmtDate_(s[6], 'yyyy-MM-dd');
     if (!fecha || fecha > ctx.today) return;
-    const cons = consumoSalida_(ctx.bitBy[String(s[0])] || [], ctx.productos);
+    const cons = consumoSalida_(ctx.bitBy[String(s[0])] || [], ctx.productos, ctx.M);
     Object.keys(cons).forEach(id => {
       const p = it[id]; if (!p || !p.controlStock) return;
       mv.push({ d: fecha, i: id, q: -cons[id], c: p.price, t: 'Bitácora', ref: fmtDate_(s[6], 'HH:mm') + ' ' + s[2], dep: String(s[0]) });
@@ -253,25 +253,27 @@ function roleLabel_(rol) {
   const n = norm_(rol);
   return ROL_LABEL[n] || (n ? String(rol).trim() : '');
 }
-/** Bitácora rows of ONE departure → {out:{prodId:q}, back:{…}} (fruit counts people, not stock: skipped like consumoSalida_) */
-function bitQty_(bitRows, productos) {
-  const byCampo = {}; productos.forEach(p => { const k = norm_(p.campo); if (k && p.id !== 'fru') byCampo[k] = p.id; });
+/** Bitácora rows of ONE departure → {out:{prodId:q}, back:{…}} (fruit counts people, not stock: skipped like consumoSalida_). Matched by field pk (Campos tab). */
+function bitQty_(bitRows, productos, M) {
+  const active = {}; productos.forEach(p => { active[p.id] = true; });
   const out = {}, back = {};
   bitRows.forEach(b => {
     if (b[8] === '' || isNaN(Number(b[8]))) return;
-    const id = byCampo[norm_(b[6])]; if (!id) return;
+    const u = bitUso_(b, M, productos);
+    const id = u.uso === 'producto' ? u.prod : ''; if (!id || id === 'fru' || !active[id]) return;
     const t = b[5] === 'Salida' ? out : back;
     t[id] = (t[id] || 0) + Number(b[8]);
   });
   return { out: out, back: back };
 }
-function extrasText_(bitRows) {
+function extrasText_(bitRows, M) {
   const parts = [];
   bitRows.forEach(b => {
-    const c = String(b[6] || '');
-    if (!/extra|adicional/i.test(c) || /hora extra/i.test(c)) return;
-    if (b[9] !== '' && b[9] !== null) parts.push(/adicional/i.test(c) ? c + ': ' + b[9] : String(b[9]));
-    else if (b[8] !== '' && Number(b[8])) parts.push(c + ': ' + (/costo|adicional/i.test(c) ? '$' : '') + b[8]);
+    const c = String(b[6] || ''), uso = bitUso_(b, M).uso;
+    if (uso !== 'extras' && uso !== 'costo adicional') return;
+    const adic = uso === 'costo adicional';
+    if (b[9] !== '' && b[9] !== null) parts.push(adic ? c + ': ' + b[9] : String(b[9]));
+    else if (b[8] !== '' && Number(b[8])) parts.push(c + ': ' + (adic || /costo/i.test(c) ? '$' : '') + b[8]);
   });
   return parts.join(' · ');
 }
@@ -294,9 +296,9 @@ function buildDeps_(inp) {
   const costBy = {}; inp.costos.forEach(r => { costBy[String(r[0])] = r; });
   const ids = list => String(list || '').split(',').map(x => x.trim()).filter(String);
   return wins.map(s => {
-    const pk = String(s[0]), bits = bitBy[pk] || [], bq = bitQty_(bits, inp.productos), st = String(s[11] || '');
+    const pk = String(s[0]), bits = bitBy[pk] || [], bq = bitQty_(bits, inp.productos, inp.M), st = String(s[11] || '');
     const hasOut = /^(Completa|Falta regreso)$/.test(st), hasBack = /^(Completa|Falta salida)$/.test(st);
-    let hx = 0; bits.forEach(b => { if (/hora extra/i.test(String(b[6])) && b[8] !== '') hx += Number(b[8]) || 0; });
+    let hx = 0; bits.forEach(b => { if (bitUso_(b, inp.M).uso === 'hora extra' && b[8] !== '') hx += Number(b[8]) || 0; });
     const crew = (crewBy[pk] || []).map(c => {
       const n = String(c[5] || c[6] || ''), e = evBy[pk + '|' + String(c[5])], x = extBy[pk + '|' + String(c[5])];
       if (e) return { n: n, r: roleLabel_(c[4]), pay: { base: r2_(Number(e[10]) * Number(e[11])), hx: r2_(e[13]), tot: r2_(e[14]) }, alert: String(e[16] || '') };
@@ -312,13 +314,98 @@ function buildDeps_(inp) {
     return {
       id: pk, date: fmtDate_(s[6], 'yyyy-MM-dd'), time: fmtDate_(s[6], 'HH:mm'), item: String(s[2]), label: '',
       boat: BARCO_LABEL[barco] || '', barco: barco, tipo: String(s[3] || ''), crew: crew, bookings: bookings,
-      out: hasOut ? bq.out : null, back: hasBack ? bq.back : null, extras: extrasText_(bits), hx: hx,
+      out: hasOut ? bq.out : null, back: hasBack ? bq.back : null, extras: extrasText_(bits, inp.M), hx: hx,
       rev: inp.revs[pk] || null, bit: st, alerts: String(s[15] || ''), netSource: String(s[18] || ''),
       costs: k ? { b: r2_(k[8]), g: r2_(k[10]), h: r2_(k[9]), f: r2_(k[11]), des: r2_(k[12]), ev: r2_(k[13]), tot: r2_(k[14]), pct: k[15] === '' ? null : Number(k[15]) } : null,
       paxTxt: String(s[9]), salidaPk: ids(s[12]).join(', '), regresoPk: ids(s[13]).join(', '),
       salidaId: ids(s[12]).map(x => disp[x] || x).join(', '), regresoId: ids(s[13]).map(x => disp[x] || x).join(', ')
     };
   }).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+}
+// ---------------- "Por configurar" and health (pure, unit-tested in node) ----------------
+const ROL_OPCIONES_ = ['capitan', 'marinero', 'guia', 'instructor lider', 'instructor asistente', 'externo', 'ignorar'];
+/**
+ * Everything with Estado "Nuevo – revisar", for the app's inbox.
+ * inp: {M, toursRows (Tours rows, 9 cols), barcos {itemPk: barco}, seen {itemPk: [{pk, name, ejemplo}]}}
+ * → [{kind: tipo|campo|rol|item, clave, name, pk, visto, ms, en, ejemplo, actual, opciones}]
+ */
+function buildPend_(inp) {
+  const M = inp.M || { ctype: {}, field: {}, role: {} }, out = [];
+  const when = v => { if (!v) return { visto: '', ms: 0 }; const d = v instanceof Date ? v : new Date(v); return isNaN(d) ? { visto: '', ms: 0 } : { visto: fmtDate_(d, 'yyyy-MM-dd HH:mm'), ms: d.getTime() }; };
+  const pkOf = k => k.indexOf('n:') === 0 ? '' : k;
+  Object.keys(M.ctype).forEach(k => {
+    const e = M.ctype[k]; if (e.estado !== ESTADO_NUEVO) return;
+    out.push(Object.assign({ kind: 'tipo', clave: k, name: e.nombre, pk: pkOf(k), en: e.en, ejemplo: '', actual: { uso: e.uso }, opciones: USOS_CT }, when(e.visto)));
+  });
+  Object.keys(M.field).forEach(k => {
+    const e = M.field[k]; if (e.estado !== ESTADO_NUEVO) return;
+    out.push(Object.assign({ kind: 'campo', clave: k, name: e.nombre, pk: pkOf(k), en: e.en, ejemplo: e.ejemplo, actual: { uso: e.uso, prod: e.prod }, opciones: USOS_CF }, when(e.visto)));
+  });
+  Object.keys(M.role).forEach(k => {
+    const e = M.role[k]; if (e.estado !== ESTADO_NUEVO) return;
+    out.push(Object.assign({ kind: 'rol', clave: k, name: e.nombre, pk: pkOf(k), en: e.en, ejemplo: '', actual: { tarifa: e.tarifa }, opciones: ROL_OPCIONES_ }, when(e.visto)));
+  });
+  (inp.toursRows || []).forEach(r => {
+    if (r[0] === '' || tourEstado_(r[7], r[5]) !== ESTADO_NUEVO) return;
+    const pk = String(r[0]);
+    out.push(Object.assign({ kind: 'item', clave: pk, name: String(r[1] || ''), pk: pk, en: '', ejemplo: '',
+      actual: { tipo: String(r[2] || '').toLowerCase().trim(), barco: norm_(r[6]) || (inp.barcos || {})[pk] || '', bitacora: yes_(r[4]) ? 'sí' : 'no',
+        fields: String(r[3] || '').split(',').map(x => x.trim()).filter(String) },
+      opciones: { tipos: ITEM_TIPOS_, barcos: Object.keys(BARCO_LABEL), campos: (inp.seen || {})[pk] || [] } }, when(r[8])));
+  });
+  return out;
+}
+/** Pure: fields (any level) of a few bookings → [{pk, name, ejemplo}] (for the people-field chips of a new tour) */
+function fieldsFromBookings_(bookings) {
+  const seen = {}, out = [];
+  bookings.forEach(b => allCfvs_(b, null).forEach(x => {
+    const pk = cfPk_(x.v); if (!pk || seen[pk]) return;
+    seen[pk] = true; out.push({ pk: pk, name: cfName_(x.v), ejemplo: sampleValue_(x.v) });
+  }));
+  return out.slice(0, 14);
+}
+
+/**
+ * Health warnings (shown in the app only). inp: {nowMs, today, hhmm 'HH:mm', dow 0-6 (3 = Wednesday), lastRawMs|null,
+ * salidas: [{fecha, hora, item, activas, bitacora (Salidas "Bitácora" col), lleva (Tours "Lleva bitácora"), hasOps}],
+ * control: [{d, est}] (Control días), pendMs: [ms first seen of every "Nuevo – revisar"], erroresHoy, ctrlFrom}
+ * → [{nivel:'warn', tipo, texto, rol:'admin'|'todos'}]
+ */
+function saludAlerts_(inp) {
+  const out = [], today = inp.today, hhmm = inp.hhmm || '00:00';
+  const warn = (tipo, texto, rol) => out.push({ nivel: 'warn', tipo: tipo, texto: texto, rol: rol });
+  const mins = Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+  // 1. webhook silence: only 07:00–21:00, never on Wednesday. The overnight gap doesn't count (silence is measured from 07:00 at the earliest).
+  if (inp.lastRawMs && inp.dow !== 3 && mins >= 420 && mins < 1260) {
+    const windowStart = inp.nowMs - (mins - 420) * 60000;
+    const quiet = (inp.nowMs - Math.max(inp.lastRawMs, windowStart)) / 3600000;
+    if (quiet > 4) warn('webhook', 'Sin eventos de FareHarbor hace ' + Math.floor((inp.nowMs - inp.lastRawMs) / 3600000) + ' h', 'admin');
+  }
+  // 2. bitácora missing (last 7 days; today only after 21:00)
+  const from = addDays_(today, -7), miss = [];
+  (inp.salidas || []).forEach(s => {
+    const past = s.fecha < today || (s.fecha === today && hhmm >= '21:00');
+    if (!past || s.fecha < from || !(s.activas > 0) || !(s.lleva || s.hasOps) || s.bitacora === 'Completa') return;
+    miss.push(s);
+  });
+  miss.sort((a, b) => (b.fecha + b.hora).localeCompare(a.fecha + a.hora));
+  miss.slice(0, 8).forEach(s => warn('bitacora', 'Falta bitácora: ' + s.fecha + ' ' + s.hora + ' ' + s.item, 'todos'));
+  if (miss.length > 8) warn('bitacora', 'Faltan ' + (miss.length - 8) + ' bitácoras más', 'todos');
+  // 3. Comercial's report missing (day D still "estimado", checked from 12:00 of D+1; D ≥ control start, last 14 days)
+  const ctrlFrom = inp.ctrlFrom || CTRL_FROM, y1 = addDays_(today, -1), lim = addDays_(today, -14), days = [];
+  (inp.control || []).forEach(c => {
+    if (!(c.est > 0) || c.d < ctrlFrom || c.d < lim) return;
+    if (c.d < y1 || (c.d === y1 && hhmm >= '12:00')) days.push(c.d);
+  });
+  days.sort().reverse();
+  days.slice(0, 6).forEach(d => warn('reporte', 'Falta reporte de Comercial del ' + d, 'admin'));
+  if (days.length > 6) warn('reporte', 'Faltan reportes de ' + (days.length - 6) + ' días más', 'admin');
+  // 4. things to configure for more than 2 days
+  const old = (inp.pendMs || []).filter(ms => ms && inp.nowMs - ms > 48 * 3600000).length;
+  if (old) warn('config', old + (old === 1 ? ' cosa por configurar' : ' cosas por configurar') + ' desde hace más de 2 días', 'admin');
+  // 5. connection errors today
+  if (inp.erroresHoy > 0) warn('errores', inp.erroresHoy + (inp.erroresHoy === 1 ? ' error hoy en la conexión' : ' errores hoy en la conexión'), 'admin');
+  return out;
 }
 /** Plan for migrate20261124 on Tarifas rows (pure): which rows to set / insert */
 function planTarifasMigration_(vals) {
@@ -341,7 +428,7 @@ function withLock_(fn) {
   try { return fn(); } finally { try { lock.releaseLock(); } catch (e) {} }
 }
 function rebuildFin_() {
-  const r = rebuildFinanzas();
+  const r = rebuildFinanzas_(); // not rebuildFinanzas(): a pending full rebuild is left to the 15-min trigger
   try { PropertiesService.getScriptProperties().setProperty('FIN_AT', String(Date.now())); } catch (e) {}
   return r;
 }
@@ -434,12 +521,14 @@ function getData(pin, desde, hasta) {
 
   const items = buildItems_(prodRows, lastCostFrom_(compras));
   const productos = prodRows.filter(r => r[0] !== '' && notNo_(r[9])).map(r => ({ id: String(r[0]), campo: r[7] }));
+  const M = loadMapeos_(ss); // null until the 15-min rebuild creates the mapping tabs (defaults apply meanwhile)
   const bitBy = {}; bit.forEach(r => { const k = String(r[0]); (bitBy[k] = bitBy[k] || []).push(r); });
-  const moves = buildMoves_({ items: items, purchases: compras, ajustes: ajustes, salidas: salidas, bitBy: bitBy, productos: productos, today: today });
+  const moves = buildMoves_({ items: items, purchases: compras, ajustes: ajustes, salidas: salidas, bitBy: bitBy, productos: productos, today: today, M: M });
 
+  const reservas = readTab_(ss, 'Reservas', RES_HEADERS);
   const deps = buildDeps_({
-    desde: desde, hasta: hasta, salidas: salidas, bit: bit, barcos: barcos, productos: productos,
-    reservas: readTab_(ss, 'Reservas', RES_HEADERS), crew: readTab_(ss, 'Tripulación', CREW_HEADERS),
+    desde: desde, hasta: hasta, salidas: salidas, bit: bit, barcos: barcos, productos: productos, M: M,
+    reservas: reservas, crew: readTab_(ss, 'Tripulación', CREW_HEADERS),
     ev: readTab_(ss, 'Eventuales', EV_HEADERS), ext: readTab_(ss, 'Externos', EXT_HEADERS), costos: readTab_(ss, 'Costos salida', COSTO_HEADERS),
     revs: latestRevs_(readTab_(ss, 'Revisiones', REV_HEADERS), today)
   });
@@ -449,7 +538,18 @@ function getData(pin, desde, hasta) {
   const weekly = readTab_(ss, 'Resumen semanal', RESUMEN_HEADERS).map(r => ({ w: ymd_(r[0]), n: String(r[1]), s: Number(r[2]) || 0, t: Number(r[3]) || 0, paid: Number(r[4]) || 0, pend: Number(r[5]) || 0, alerts: String(r[6] || '') }));
   const externos = readTab_(ss, 'Externos', EXT_HEADERS).map(r => ({ d: ymd_(r[0]), time: String(r[1]), item: String(r[2]), pk: String(r[3]), r: String(r[4]), n: String(r[5]), note: String(r[6] || ''), alert: String(r[7] || '') }));
   const control = readTab_(ss, 'Control días', CTRL_HEADERS).map(r => ({ d: ymd_(r[0]), dia: String(r[1]), sal: Number(r[2]) || 0, res: Number(r[3]) || 0, ex: Number(r[4]) || 0, est: Number(r[5]) || 0, estado: String(r[6]) }));
-  const tours = readTab_(ss, 'Tours', TOURS_HEADERS.concat(['Barco'])).filter(r => r[0] !== '').map(r => ({ pk: String(r[0]), name: String(r[1]), tipo: String(r[2]), barco: norm_(r[6]) || barcos[String(r[0])] || '' }));
+  const toursRows = readTab_(ss, 'Tours', TOURS_HEADERS.concat(['Barco', TOURS_ESTADO_HDR, TOURS_VISTO_HDR])).filter(r => r[0] !== '');
+  const tours = toursRows.map(r => ({ pk: String(r[0]), name: String(r[1]), tipo: String(r[2]), barco: norm_(r[6]) || barcos[String(r[0])] || '' }));
+  const pend = buildPend_({ M: M, toursRows: toursRows, barcos: barcos,
+    seen: seenFieldsFor_(ss, toursRows.filter(r => tourEstado_(r[7], r[5]) === ESTADO_NUEVO).map(r => String(r[0])), reservas) });
+  const fh = fhInfo_(ss, today);
+  const toursBit = {}; toursRows.forEach(r => { toursBit[String(r[0])] = yes_(r[4]); });
+  const salud = saludAlerts_({
+    nowMs: Date.now(), today: today, hhmm: now, dow: new Date(today + 'T00:00:00Z').getUTCDay(), lastRawMs: lastRawMs_(ss),
+    salidas: salidas.filter(r => fmtDate_(r[6], 'yyyy-MM-dd') >= addDays_(today, -8)).map(r => ({ fecha: fmtDate_(r[6], 'yyyy-MM-dd'), hora: fmtDate_(r[6], 'HH:mm'), item: String(r[2]),
+      activas: Number(r[8]) || 0, bitacora: String(r[11] || ''), lleva: !!toursBit[String(r[1])], hasOps: !!(r[12] || r[13]) })),
+    control: control.map(c => ({ d: c.d, est: c.est })), pendMs: pend.map(x => x.ms), erroresHoy: fh.errores
+  }).filter(a => u.rol === 'admin' || a.rol === 'todos');
   const comidas = readTab_(ss, 'Comida empleado', COMIDA_HEADERS).filter(r => r[1] !== '').slice(-15).reverse()
     .map(r => ({ d: ymd_(r[0]), n: String(r[1]), tipo: String(r[2]), q: Number(r[3]) || 0, nota: String(r[4] || ''), por: String(r[5] || '') }));
 
@@ -457,7 +557,7 @@ function getData(pin, desde, hasta) {
     ok: true, user: { nombre: u.nombre, rol: u.rol }, perms: perms, today: today, now: now, desde: desde, hasta: hasta,
     items: items, purchases: compras, moves: moves, priceLog: priceLogFrom_(compras), deps: deps,
     rates: buildRates_(readTab_(ss, 'Tarifas', TAR_HEADERS)), paid: paid, weekly: weekly, externos: externos, control: control,
-    tours: tours, comidas: comidas, fh: fhInfo_(ss, today)
+    tours: tours, comidas: comidas, fh: fh, pend: u.rol === 'admin' ? pend : [], salud: salud, rebuildPending: isRebuildPending_()
   };
 }
 
@@ -483,6 +583,36 @@ function fhInfo_(ss, today) {
       er.getRange(f, 1, er.getLastRow() - f + 1, 1).getValues().forEach(r => { if (r[0] && fmtDate_(r[0], 'yyyy-MM-dd') === today) out.errores++; });
     }
   } catch (e) {}
+  return out;
+}
+
+/** 'Recibido' of the last Raw row (ms) or null */
+function lastRawMs_(ss) {
+  try {
+    const raw = ss.getSheetByName('Raw'), last = raw ? raw.getLastRow() : 0;
+    if (last < 2) return null;
+    const v = raw.getRange(last, 1).getValue();
+    const t = v instanceof Date ? v.getTime() : Date.parse(v);
+    return isNaN(t) ? null : t;
+  } catch (e) { return null; }
+}
+/** Fields seen on the latest bookings of each given (new) item → {itemPk: [{pk, name, ejemplo}]}. Reads at most 3 Raw rows per item. */
+function seenFieldsFor_(ss, itemPks, reservas) {
+  const out = {};
+  if (!itemPks.length) return out;
+  const raw = ss.getSheetByName('Raw');
+  if (!raw) return out;
+  itemPks.forEach(pk => {
+    const rows = reservas.filter(r => String(r[7]) === pk && r[29]).slice(-3), bs = [];
+    rows.forEach(r => {
+      try {
+        const json = String(raw.getRange(Number(r[29]), 12).getValue() || '');
+        if (json.indexOf('DRIVE:') === 0) return;
+        const b = (JSON.parse(json) || {}).booking; if (b) bs.push(b);
+      } catch (e) {}
+    });
+    out[pk] = fieldsFromBookings_(bs);
+  });
   return out;
 }
 
@@ -587,7 +717,7 @@ function addConteo(pin, p) {
     const salidas = readTab_(ss, 'Salidas', SAL_HEADERS).filter(r => r[0] !== ''), bit = readTab_(ss, 'Bitácora', BIT_HEADERS), bitBy = {};
     bit.forEach(r => { const k = String(r[0]); (bitBy[k] = bitBy[k] || []).push(r); });
     const moves = buildMoves_({ items: items, purchases: compras, ajustes: readTab_(ss, 'Ajustes', AJUSTE_HEADERS).filter(r => r[1] !== ''), salidas: salidas, bitBy: bitBy,
-      productos: prodRows.filter(r => r[0] !== '' && notNo_(r[9])).map(r => ({ id: String(r[0]), campo: r[7] })), today: today_() });
+      productos: prodRows.filter(r => r[0] !== '' && notNo_(r[9])).map(r => ({ id: String(r[0]), campo: r[7] })), today: today_(), M: loadMapeos_(ss) });
     const diffs = countDiffs_(p.counts || {}, items, stockMap_(moves));
     if (diffs.length) {
       const d = validYmd_(p.d) || today_(), now = new Date(), nota = clean_(p.nota, 300) || 'Conteo de inventario';
@@ -700,6 +830,44 @@ function saveTourBarco(pin, itemPk, barco) {
   });
 }
 
+/**
+ * Admin sets what a FareHarbor thing means. kind: tipo | campo | rol | item; clave = its pk (or 'n:name').
+ * valores: tipo {uso} · campo {uso, prod} · rol {tarifa} · item {tipo, barco, fields, bitacora}.
+ * Writes Estado OK + who/when, then sets REBUILD_PENDING: the next 15-min trigger rebuilds everything from Raw.
+ */
+function setMapeo(pin, kind, clave, valores) {
+  const u = auth_(pin, 'config');
+  return withLock_(() => {
+    const ss = ss_(), key = String(clave === null || clave === undefined ? '' : clave).trim();
+    if (!key) throw new Error('Falta la clave');
+    const val = validateMapeo_(kind, valores, { prodIds: prodIds_(ss), barcos: Object.keys(BARCO_LABEL) });
+    const now = new Date();
+    const find = (sh) => { const n = sh.getLastRow() - 1; return n >= 1 ? sh.getRange(2, 1, n, 1).getValues().findIndex(r => String(r[0]) === key) + 2 : 0; };
+    const miss = () => { throw new Error('No encontré esto en la lista (¿ya cambió?). Actualiza la app.'); };
+    if (kind === 'item') {
+      ensureBarco_(ss); ensureTourCols_(ss);
+      const sh = ss.getSheetByName('Tours'); if (!sh) miss();
+      const r = find(sh); if (r < 2) miss();
+      const row = sh.getRange(r, 1, 1, TOURS_COLS).getValues()[0];
+      row[2] = val.tipo; row[3] = val.fields; row[4] = val.bitacora; row[6] = val.barco; row[7] = ESTADO_OK;
+      row[5] = appendNote_(String(row[5] || ''), 'Configurado por ' + u.nombre + ' ' + today_());
+      sh.getRange(r, 1, 1, TOURS_COLS).setValues([row]);
+    } else {
+      const d = { tipo: { tab: CT_TAB, h: CT_HEADERS, cols: [[3, 'uso']], estado: 4, por: 8 },
+        campo: { tab: CF_TAB, h: CF_HEADERS, cols: [[3, 'uso'], [4, 'prod']], estado: 5, por: 10 },
+        rol: { tab: ROL_TAB, h: ROL_HEADERS, cols: [[4, 'tarifa']], estado: 5, por: 9 } }[kind];
+      const sh = ss.getSheetByName(d.tab); if (!sh) miss();
+      const r = find(sh); if (r < 2) miss();
+      const row = sh.getRange(r, 1, 1, d.h.length).getValues()[0];
+      d.cols.forEach(c => { row[c[0] - 1] = val[c[1]]; });
+      row[d.estado - 1] = ESTADO_OK; row[d.por - 1] = u.nombre; row[d.por] = now;
+      sh.getRange(r, 1, 1, d.h.length).setValues([row]);
+    }
+    setRebuildPending_();
+    return { ok: true, rebuildPending: true };
+  });
+}
+
 // ---------------- One-off migration (owner runs it once from the editor) ----------------
 function migrate20261124() {
   return withLock_(() => {
@@ -737,6 +905,6 @@ function migrate20261124() {
 
 if (typeof module !== 'undefined') module.exports = {
   pinStr_, findUser_, permsFromRows_, permOk_, guessIcon_, buildItems_, groupCompras_, lastCostFrom_, priceLogFrom_, buildMoves_, stockMap_, countDiffs_,
-  cleanLines_, slugId_, rateLabel_, buildRates_, latestRevs_, roleLabel_, bitQty_, extrasText_, buildDeps_, planTarifasMigration_, pluralEs_, appendNote_,
+  cleanLines_, slugId_, rateLabel_, buildRates_, latestRevs_, roleLabel_, bitQty_, extrasText_, buildDeps_, buildPend_, fieldsFromBookings_, saludAlerts_, setMapeo, planTarifasMigration_, pluralEs_, appendNote_,
   login, getData, addCompra, anularCompra, editCompra, addAjuste, addConteo, addComida, markPaid, markRev, saveProducto, saveTarifa, savePerm, saveTourBarco, migrate20261124
 };

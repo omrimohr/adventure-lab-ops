@@ -42,9 +42,27 @@ const CTRL_FROM = '2026-11-16';
 const REPORTS_FOLDER = 'Adventure Lab Ops – Reportes';
 const BIT_HEADERS = ['Availability pk', 'Fecha', 'Hora', 'Item', 'Booking pk', 'Tipo', 'Campo', 'Field pk',
   'Cantidad', 'Texto'];
-const CREW_HEADERS = ['Availability pk', 'Fecha', 'Hora', 'Item', 'Rol', 'Nombre', 'Usuario', 'Nota'];
+const CREW_HEADERS = ['Availability pk', 'Fecha', 'Hora', 'Item', 'Rol', 'Nombre', 'Usuario', 'Nota', 'Rol clave'];
 const TOURS_HEADERS = ['Item pk', 'Item', 'Tipo (compartido/privado/renta/otro)', 'Campo personas (field pks, coma)',
   'Lleva bitácora (sí/no)', 'Notas'];
+// Tours extra columns: G Barco (ensureBarco_), H Estado, I Visto primero (added with the pk-mapping work)
+const TOURS_ESTADO_HDR = 'Estado';
+const TOURS_VISTO_HDR = 'Visto primero';
+const TOURS_COLS = 9;
+
+// ---- Mapping tabs (match FareHarbor things by pk, never by name) ----
+const ESTADO_OK = 'OK';
+const ESTADO_NUEVO = 'Nuevo – revisar';
+const CT_TAB = 'Tipos de cliente', CF_TAB = 'Campos', ROL_TAB = 'Roles';
+const CT_HEADERS = ['Clave', 'Nombre (FareHarbor)', 'Uso', 'Estado', 'Visto primero', 'Visto en (item)', 'Notas', 'Configurado por', 'Configurado'];
+const CF_HEADERS = ['Clave', 'Nombre (FareHarbor)', 'Uso', 'Producto ID', 'Estado', 'Visto primero', 'Visto en (item)', 'Ejemplo', 'Notas',
+  'Configurado por', 'Configurado'];
+const ROL_HEADERS = ['Clave', 'Short name (FareHarbor)', 'Nombre rol', 'Rol tarifa', 'Estado', 'Visto primero', 'Visto en (item)', 'Notas',
+  'Configurado por', 'Configurado'];
+const USOS_CT = ['pax', 'no cuenta', 'ops salida', 'ops regreso'];
+const USOS_CF = ['producto', 'personas', 'seats', 'hora extra', 'extras', 'costo adicional', 'ignorar'];
+const PEOPLE_RE = /number of people|n[uú]mero de personas|cantidad de personas|# de personas|people in/i;
+const SEATS_RE = /^QTY\s*·\s*Seats/i;
 
 // Tours seed (from FareHarbor research 23 Nov 2026). Editable later in the Tours tab.
 const TOURS_SEED = [
@@ -90,8 +108,10 @@ function doPost(e) {
     if (p && p.type === 'api') return apiResponse_(p);
   }
   const lock = LockService.getScriptLock();
+  let locked = false;
+  try { lock.waitLock(25000); locked = true; } catch (err) { locked = false; }
+  if (!locked) return rawOnly_(body); // never drop data: Raw first, derived tabs later
   try {
-    lock.waitLock(25000);
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const raw = sheet_(ss, 'Raw', RAW_HEADERS);
     const now = new Date();
@@ -107,22 +127,23 @@ function doPost(e) {
     }
     const b = parsed.booking || {};
     const av = b.availability || {};
-    const item = av.item || {};
 
     const dup = isDuplicate_(raw, hash);
-    let jsonCell = body;
-    if (body.length > MAX_CELL) jsonCell = 'DRIVE:' + saveToDrive_(b.pk, now, body);
-
-    raw.appendRow([now, hash, dup ? 'sí' : '', b.pk || '', b.uuid || '', b.status || '',
-      av.pk || '', item.pk || '', item.name || '', av.start_at || '', typeSummary_(b), jsonCell]);
+    raw.appendRow(rawRowFor_(now, hash, dup, b, body));
     const rawRow = raw.getLastRow();
 
     if (!dup && b.pk) {
       try {
-        const tours = loadTours_(ss);
-        const ing = loadIngresos_(ss);
-        upsertReserva_(ss, b, now, rawRow, tours, ing);
-        if (av.pk) recomputeSalidas_(ss, [String(av.pk)], tours, ing);
+        const M = loadMapeos_(ss);
+        if (!M) {
+          setRebuildPending_(); // mapping tabs not created yet: the 15-min rebuild seeds them and derives everything from Raw
+        } else {
+          const tours = loadTours_(ss);
+          const ing = loadIngresos_(ss);
+          upsertReserva_(ss, b, now, rawRow, tours, ing, M);
+          if (av.pk) recomputeSalidas_(ss, [String(av.pk)], tours, ing, M);
+          try { registerUnknowns_(ss, [b], M, ctxFor_(ss, tours), now); } catch (err2) { logError_(ss, 'Mapeos', err2, body); }
+        }
       } catch (err) { logError_(ss, 'Derivados', err, body); }
     }
   } catch (err) {
@@ -133,6 +154,44 @@ function doPost(e) {
   return ContentService.createTextOutput('ok');
 }
 
+/** One Raw row (same layout as always). Big payloads go to Drive. */
+function rawRowFor_(now, hash, dup, b, body) {
+  const av = b.availability || {};
+  const item = av.item || {};
+  let jsonCell = body;
+  if (body.length > MAX_CELL) jsonCell = 'DRIVE:' + saveToDrive_(b.pk, now, body);
+  return [now, hash, dup ? 'sí' : '', b.pk || '', b.uuid || '', b.status || '',
+    av.pk || '', item.pk || '', item.name || '', av.start_at || '', typeSummary_(b), jsonCell];
+}
+
+// Lock not available: still write Raw (append-only, atomic) and ask the next 15-min run to derive everything.
+function rawOnly_(body) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let parsed = {};
+    try { parsed = JSON.parse(body) || {}; } catch (err) {}
+    if (parsed.type === 'reporte') return ContentService.createTextOutput('{"ok":false,"error":"ocupado, intenta de nuevo"}').setMimeType(ContentService.MimeType.JSON);
+    const raw = sheet_(ss, 'Raw', RAW_HEADERS);
+    const hash = sha1_(body);
+    raw.appendRow(rawRowFor_(new Date(), hash, isDuplicate_(raw, hash), parsed.booking || {}, body));
+    setRebuildPending_();
+    logError_(ss, 'doPost', 'Sin candado: guardado en Raw, se recalcula en el próximo ciclo', body);
+  } catch (err) {
+    try { logError_(SpreadsheetApp.getActiveSpreadsheet(), 'doPost (sin candado)', err, body); } catch (e2) {}
+  }
+  return ContentService.createTextOutput('ok');
+}
+
+function setRebuildPending_() {
+  try { PropertiesService.getScriptProperties().setProperty('REBUILD_PENDING', '1'); } catch (e) {}
+}
+function isRebuildPending_() {
+  try { return PropertiesService.getScriptProperties().getProperty('REBUILD_PENDING') === '1'; } catch (e) { return false; }
+}
+function clearRebuildPending_() {
+  try { PropertiesService.getScriptProperties().deleteProperty('REBUILD_PENDING'); } catch (e) {}
+}
+
 function doGet() {
   return ContentService.createTextOutput('Adventure Lab Ops DB: OK');
 }
@@ -140,6 +199,7 @@ function doGet() {
 // ---------------- Menu ----------------
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Ops DB')
+    .addItem('Preparar mapeos (Tipos de cliente, Campos, Roles)', 'prepararMapeos')
     .addItem('Reconstruir todo desde Raw', 'rebuildAll')
     .addItem('Reconstruir solo Reservas', 'rebuildReservas')
     .addItem('Importar reportes nuevos de Drive', 'importFromDrive')
@@ -148,7 +208,35 @@ function onOpen() {
     .addToUi();
 }
 
+/** Run once after deploying (menu or editor): creates + seeds the mapping tabs from Raw, then rebuilds. Idempotent. */
+function prepararMapeos() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const seeded = ensureMapeos_(ss);
+  if (seeded || isRebuildPending_()) rebuildAll();
+  return seeded ? 'Mapeos creados desde Raw y todo reconstruido' : 'Los mapeos ya existían';
+}
+
 // ---------------- Tours (config) ----------------
+/** Pure: Estado of a Tours row. Empty cell → 'Nuevo – revisar' only for rows the app auto-added, else OK. */
+function tourEstado_(estadoCell, notas) {
+  const e = String(estadoCell || '').trim();
+  if (e) return /nuevo/i.test(e) ? ESTADO_NUEVO : ESTADO_OK;
+  return /^AUTO: revisar/i.test(String(notas || '')) ? ESTADO_NUEVO : ESTADO_OK;
+}
+/** Pure: Tours rows (any width ≥ 6) → {itemPk: {tipo, fields, bitacora, estado}} */
+function toursFromRows_(rows) {
+  const map = {};
+  rows.forEach(r => {
+    if (!r[0]) return;
+    map[String(r[0])] = {
+      tipo: String(r[2] || '').toLowerCase().trim(),
+      fields: String(r[3] || '').split(',').map(x => x.trim()).filter(String),
+      bitacora: /^s/i.test(String(r[4] || '')),
+      estado: tourEstado_(r[7], r[5])
+    };
+  });
+  return map;
+}
 function loadTours_(ss) {
   let sh = ss.getSheetByName('Tours');
   if (!sh) {
@@ -157,30 +245,22 @@ function loadTours_(ss) {
     sh.setFrozenRows(1);
     sh.getRange(2, 1, TOURS_SEED.length, TOURS_HEADERS.length).setValues(TOURS_SEED);
   }
-  const map = {};
   const last = sh.getLastRow();
-  if (last >= 2) {
-    sh.getRange(2, 1, last - 1, TOURS_HEADERS.length).getValues().forEach(r => {
-      if (!r[0]) return;
-      map[String(r[0])] = {
-        tipo: String(r[2] || '').toLowerCase().trim(),
-        fields: String(r[3] || '').split(',').map(x => x.trim()).filter(String),
-        bitacora: /^s/i.test(String(r[4] || ''))
-      };
-    });
-  }
-  return map;
+  if (last < 2) return {};
+  const w = Math.min(TOURS_COLS, Math.max(sh.getLastColumn(), TOURS_HEADERS.length));
+  return toursFromRows_(sh.getRange(2, 1, last - 1, w).getValues());
 }
 
-// Adds unknown items to Tours with a guessed type, so nothing is silently wrong
+// Adds unknown items to Tours with a guessed type and Estado "Nuevo – revisar", so nothing is silently wrong
 function ensureTour_(ss, tours, b) {
   const item = (b.availability || {}).item || {};
   const k = String(item.pk || '');
   if (!k || tours[k]) return tours[k];
   const names = (b.customers || []).map(c => custType_(c));
   const guess = names.some(n => /private|privad/i.test(n)) ? 'privado' : 'compartido';
-  sheet_(ss, 'Tours', TOURS_HEADERS).appendRow([item.pk, item.name || '', guess, '', 'no', 'AUTO: revisar tipo y campo de personas']);
-  tours[k] = { tipo: guess, fields: [], bitacora: false, auto: true };
+  sheet_(ss, 'Tours', TOURS_HEADERS).appendRow([item.pk, item.name || '', guess, '', 'no', 'AUTO: revisar tipo y campo de personas', '',
+    ESTADO_NUEVO, new Date()]);
+  tours[k] = { tipo: guess, fields: [], bitacora: false, estado: ESTADO_NUEVO, auto: true };
   return tours[k];
 }
 
@@ -199,35 +279,38 @@ function cfvNumber_(v) {
   const d = num_(v.display_value);
   return d !== null ? d : num_(v.value);
 }
-function allCfvs_(b) {
-  const out = (b.custom_field_values || []).map(v => ({ v: v, level: 'booking', ctype: '' }));
-  (b.customers || []).forEach(c => (c.custom_field_values || []).forEach(v => out.push({ v: v, level: 'customer', ctype: custType_(c) })));
+// ops = the customer's type is not a normal passenger type (OPS · Salida/Regreso, or "no cuenta")
+function allCfvs_(b, M) {
+  const out = (b.custom_field_values || []).map(v => ({ v: v, level: 'booking', ctype: '', ops: false }));
+  (b.customers || []).forEach(c => {
+    const ops = typeUso_(M, c) !== 'pax';
+    (c.custom_field_values || []).forEach(v => out.push({ v: v, level: 'customer', ctype: custType_(c), ops: ops }));
+  });
   return out;
 }
 function cfName_(v) { return ((v.custom_field || {}).name) || v.name || ''; }
 function cfPk_(v) { return String(((v.custom_field || {}).pk) || ''); }
 
 /** Pax for one booking → {pax, unidades, alerta} */
-function bookingPax_(b, tour) {
-  const cust = (b.customers || []).filter(c => !isOps_(custType_(c)));
+function bookingPax_(b, tour, M) {
+  const cust = (b.customers || []).filter(c => typeUso_(M, c) === 'pax');
   const unidades = cust.length;
   const tipo = (tour && tour.tipo) || 'compartido';
   if (!unidades) return { pax: 0, unidades: 0, alerta: '' };
   if (tipo === 'compartido' || tipo === 'otro') return { pax: unidades, unidades: unidades, alerta: '' };
 
   const fields = (tour && tour.fields) || [];
-  const cfvs = allCfvs_(b);
+  const cfvs = allCfvs_(b, M);
   let people = null;
   cfvs.forEach(x => {
-    const pk = cfPk_(x.v), nm = cfName_(x.v);
-    const isPeople = fields.length ? fields.indexOf(pk) >= 0
-      : /number of people|n[uú]mero de personas|cantidad de personas|# de personas|people in/i.test(nm);
+    const pk = cfPk_(x.v);
+    // Tours col D (field pks) first; if empty, every field whose Uso is "personas"
+    const isPeople = fields.length ? fields.indexOf(pk) >= 0 : fieldUso_(M, x.v).uso === 'personas';
     if (isPeople) { const n = cfvNumber_(x.v); if (n !== null && n > 0) people = (people || 0) + n; }
   });
   let seats = null;
   cfvs.forEach(x => {
-    const nm = cfName_(x.v);
-    if (/^QTY\s*·\s*Seats/i.test(nm)) { const n = num_(x.v.value); if (n !== null && n > 0) seats = (seats || 0) + n; }
+    if (fieldUso_(M, x.v).uso === 'seats') { const n = num_(x.v.value); if (n !== null && n > 0) seats = (seats || 0) + n; }
   });
 
   if (tipo === 'renta') return { pax: people !== null ? people : unidades, unidades: unidades, alerta: '' };
@@ -245,11 +328,11 @@ function netEstimate_(b) {
   return b.affiliate_company ? c(b.invoice_price) : c(b.amount_paid);
 }
 
-function opsType_(b) {
-  const t = (b.customers || []).map(custType_);
+function opsType_(b, M) {
+  const t = (b.customers || []).map(c => typeUso_(M, c));
   let o = '';
-  if (t.some(x => /OPS\s*·\s*Salida/i.test(x))) o = 'Salida';
-  if (t.some(x => /OPS\s*·\s*Regreso/i.test(x))) o = o ? o + '+Regreso' : 'Regreso';
+  if (t.some(x => x === 'ops salida')) o = 'Salida';
+  if (t.some(x => x === 'ops regreso')) o = o ? o + '+Regreso' : 'Regreso';
   return o;
 }
 
@@ -264,7 +347,7 @@ function fmtDate_(iso, pattern) {
  * One departure from its bookings (latest version of each).
  * list: [{b, status, row}] → {salida:[], bit:[[...]], crew:[[...]]}
  */
-function computeSalida_(avPk, list, tours, now, ing) {
+function computeSalida_(avPk, list, tours, now, ing, M) {
   ing = ing || {};
   const first = (list[0] || {}).b || {};
   const av = first.availability || {};
@@ -272,8 +355,8 @@ function computeSalida_(avPk, list, tours, now, ing) {
   const tour = tours[String(item.pk)] || { tipo: '?', fields: [], bitacora: false };
   const fecha = fmtDate_(av.start_at, 'yyyy-MM-dd'), hora = fmtDate_(av.start_at, 'HH:mm');
   const active = list.filter(x => x.b.status === 'booked');
-  const opsBk = active.filter(x => opsType_(x.b));
-  const custBk = active.filter(x => !opsType_(x.b));
+  const opsBk = active.filter(x => opsType_(x.b, M));
+  const custBk = active.filter(x => !opsType_(x.b, M));
 
   let pax = 0, unidades = 0, paxPend = false, ingreso = 0, estimados = 0;
   custBk.forEach(x => {
@@ -282,14 +365,14 @@ function computeSalida_(avPk, list, tours, now, ing) {
   });
   const alerts = [];
   custBk.forEach(x => {
-    const p = bookingPax_(x.b, tour);
+    const p = bookingPax_(x.b, tour, M);
     unidades += p.unidades;
     if (p.pax === '') paxPend = true; else pax += p.pax;
     if (p.alerta) alerts.push('#' + x.b.pk + ' ' + p.alerta);
   });
 
-  const sal = opsBk.filter(x => /Salida/.test(opsType_(x.b)));
-  const reg = opsBk.filter(x => /Regreso/.test(opsType_(x.b)));
+  const sal = opsBk.filter(x => /Salida/.test(opsType_(x.b, M)));
+  const reg = opsBk.filter(x => /Regreso/.test(opsType_(x.b, M)));
   if (sal.length > 1) alerts.push('Más de una reserva de salida');
   if (reg.length > 1) alerts.push('Más de una reserva de regreso');
   let bitacora = 'Sin bitácora';
@@ -301,9 +384,9 @@ function computeSalida_(avPk, list, tours, now, ing) {
   // Bitácora lines
   const bit = [];
   opsBk.forEach(x => {
-    const tipo = /Salida/.test(opsType_(x.b)) ? 'Salida' : 'Regreso';
-    allCfvs_(x.b).forEach(c => {
-      if (c.level !== 'customer' || !isOps_(c.ctype)) return;
+    const tipo = /Salida/.test(opsType_(x.b, M)) ? 'Salida' : 'Regreso';
+    allCfvs_(x.b, M).forEach(c => {
+      if (c.level !== 'customer' || !c.ops) return;
       const n = cfvNumber_(c.v);
       const txt = (c.v.display_value !== undefined && c.v.display_value !== null) ? String(c.v.display_value) : String(c.v.value || '');
       if (n === null && !txt) return;
@@ -316,7 +399,7 @@ function computeSalida_(avPk, list, tours, now, ing) {
   const latest = list.slice().sort((a, b) => (a.row || 0) - (b.row || 0)).pop();
   const crewList = (((latest || {}).b || {}).availability || {}).crew_members || [];
   const crew = crewList.map(m => [avPk, fecha, hora, item.name || '',
-    (m.role && m.role.short_name) || '', (m.user && m.user.name) || '', (m.user && m.user.username) || '', m.note || '']);
+    (m.role && m.role.short_name) || '', (m.user && m.user.name) || '', (m.user && m.user.username) || '', m.note || '', roleKey_(m)]);
   crew.forEach(c => { if (!c[4]) alerts.push('Falta rol: ' + (c[5] || c[6] || '?')); });
 
   const salida = [avPk, item.pk || '', item.name || '', tour.tipo || '?', fecha, hora, av.start_at || '', av.end_at || '',
@@ -328,14 +411,14 @@ function computeSalida_(avPk, list, tours, now, ing) {
 }
 
 // ---------------- Reservas ----------------
-function reservaRow_(b, eventTime, rawRow, tours, ing) {
+function reservaRow_(b, eventTime, rawRow, tours, ing, M) {
   ing = ing || {};
   const av = b.availability || {};
   const item = av.item || {};
   const tour = tours[String(item.pk)];
   const status = b.status || '';
-  const ops = opsType_(b);
-  const p = ops ? { pax: 0, unidades: 0, alerta: '' } : bookingPax_(b, tour);
+  const ops = opsType_(b, M);
+  const p = ops ? { pax: 0, unidades: 0, alerta: '' } : bookingPax_(b, tour, M);
   return [
     b.pk, b.display_id || '', status, status === 'booked' ? 'sí' : 'no',
     b.rebooked_to || '', b.rebooked_from || '',
@@ -362,10 +445,10 @@ function incomeCells_(b, status, ops, ing) {
   return exact !== undefined ? [exact, ''] : [netEstimate_(b), 'estimado'];
 }
 
-function upsertReserva_(ss, b, eventTime, rawRow, tours, ing) {
+function upsertReserva_(ss, b, eventTime, rawRow, tours, ing, M) {
   ensureTour_(ss, tours, b);
   const sh = sheet_(ss, 'Reservas', RES_HEADERS);
-  const row = reservaRow_(b, eventTime, rawRow, tours, ing);
+  const row = reservaRow_(b, eventTime, rawRow, tours, ing, M);
   const n = Math.max(sh.getLastRow() - 1, 1);
   const found = sh.getRange(2, 1, n, 1).createTextFinder(String(b.pk)).matchEntireCell(true).findNext();
   if (found) {
@@ -404,11 +487,14 @@ function latestFromRaw_(ss) {
 
 function rebuildReservas() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  ensureMapeos_(ss);
   const tours = loadTours_(ss);
   const ing = loadIngresos_(ss);
+  const M = loadMapeos_(ss);
   const latest = latestFromRaw_(ss);
   Object.values(latest).forEach(x => ensureTour_(ss, tours, x.b));
-  const rows = Object.values(latest).map(x => reservaRow_(x.b, x.t, x.row, tours, ing));
+  registerUnknowns_(ss, Object.values(latest).map(x => x.b), M, ctxFor_(ss, tours), new Date()); // keep unknowns, never drop data
+  const rows = Object.values(latest).map(x => reservaRow_(x.b, x.t, x.row, tours, ing, M));
   rows.sort((a, b) => String(a[11]).localeCompare(String(b[11])) || (a[0] - b[0]));
   writeTab_(ss, 'Reservas', RES_HEADERS, rows);
   return latest;
@@ -417,9 +503,11 @@ function rebuildReservas() {
 // ---------------- Salidas / Bitácora / Tripulación ----------------
 function rebuildAll() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  clearRebuildPending_(); // a full rebuild from Raw covers whatever was pending (a webhook arriving meanwhile sets it again)
   const latest = rebuildReservas();
   const tours = loadTours_(ss);
   const ing = loadIngresos_(ss);
+  const M = loadMapeos_(ss);
   const byAv = {};
   Object.values(latest).forEach(x => {
     const k = String(((x.b.availability || {}).pk) || '');
@@ -429,19 +517,19 @@ function rebuildAll() {
   const now = new Date();
   const sal = [], bit = [], crew = [];
   Object.keys(byAv).forEach(k => {
-    const r = computeSalida_(k, byAv[k], tours, now, ing);
+    const r = computeSalida_(k, byAv[k], tours, now, ing, M);
     sal.push(r.salida); r.bit.forEach(x => bit.push(x)); r.crew.forEach(x => crew.push(x));
   });
   sal.sort((a, b) => String(a[6]).localeCompare(String(b[6])));
   writeTab_(ss, 'Salidas', SAL_HEADERS, sal);
   writeTab_(ss, 'Bitácora', BIT_HEADERS, bit);
   writeTab_(ss, 'Tripulación', CREW_HEADERS, crew);
-  rebuildFinanzas(); // also refreshes Control días
+  rebuildFinanzas_(); // also refreshes Control días
   return sal.length;
 }
 
 // Recompute only some departures (used by each webhook)
-function recomputeSalidas_(ss, avPks, tours, ing) {
+function recomputeSalidas_(ss, avPks, tours, ing, M) {
   const res = sheet_(ss, 'Reservas', RES_HEADERS);
   const last = res.getLastRow();
   if (last < 2) return;
@@ -461,7 +549,7 @@ function recomputeSalidas_(ss, avPks, tours, ing) {
       } catch (err) { logError_(ss, 'recompute ' + avPk, err, json); }
     });
     if (!list.length) return;
-    const out = computeSalida_(String(avPk), list, tours, now, ing);
+    const out = computeSalida_(String(avPk), list, tours, now, ing, M);
     replaceRows_(ss, 'Salidas', SAL_HEADERS, avPk, [out.salida]);
     replaceRows_(ss, 'Bitácora', BIT_HEADERS, avPk, out.bit);
     replaceRows_(ss, 'Tripulación', CREW_HEADERS, avPk, out.crew);
@@ -471,6 +559,8 @@ function recomputeSalidas_(ss, avPks, tours, ing) {
 // Replace all rows whose first column == key (derived tabs only)
 function replaceRows_(ss, name, headers, key, newRows) {
   const sh = sheet_(ss, name, headers);
+  const lastH = headers[headers.length - 1];
+  if (sh.getRange(1, headers.length).getValue() !== lastH) sh.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold'); // new column added
   const last = sh.getLastRow();
   let keep = [];
   if (last >= 2) keep = sh.getRange(2, 1, last - 1, headers.length).getValues().filter(r => String(r[0]) !== String(key));
@@ -607,7 +697,7 @@ function importReport_(ss, input, archivo) {
     if (r[9]) fechas[fmtCell_(r[9])] = true;
   });
   const tours = loadTours_(ss);
-  recomputeSalidas_(ss, Object.keys(avs), tours, ing);
+  recomputeSalidas_(ss, Object.keys(avs), tours, ing, loadMapeos_(ss));
   rebuildControl();
 
   const multi = pks.filter(pk => count[pk] > 1).length;
@@ -799,28 +889,31 @@ function ruleValue_(rules, key, dflt) {
 }
 
 /** Eventuales for one departure. sal: Salidas row (array), crew: rows, bitRows: rows of that departure */
-function payForSalida_(sal, crew, bitRows, rules, barco) {
+function payForSalida_(sal, crew, bitRows, rules, barco, M) {
   const out = [], ext = [];
   const fecha = fmtDate_(sal[6], 'yyyy-MM-dd') || ymd_(sal[4]), hora = fmtDate_(sal[6], 'HH:mm'), horas = hoursBetween_(sal[6], sal[7]);
   const activas = Number(sal[8]) || 0;
   const factorCancel = ruleValue_(rules, 'cancelado', 0.5);
   const extraRate = ruleValue_(rules, 'hora extra', 100);
   let horasExtra = 0;
-  bitRows.forEach(b => { if (/hora extra/i.test(String(b[6])) && b[8] !== '') horasExtra += Number(b[8]) || 0; });
+  bitRows.forEach(b => { if (bitUso_(b, M).uso === 'hora extra' && b[8] !== '') horasExtra += Number(b[8]) || 0; });
   crew.forEach(c => {
     const rol = c[4], nombre = c[5], usuario = c[6];
-    if (/extern/i.test(nombre + ' ' + usuario) || /extern/i.test(rol)) {
+    const rolT = crewTarifa_(c, M); // Rol tarifa: mapped by role pk (Roles tab)
+    if (rolT === 'ignorar') return;
+    // a person named/user-named "Externo" is external whatever their role (users are not a FareHarbor config entity)
+    if (/extern/i.test(nombre + ' ' + usuario) || rolT === 'externo') {
       ext.push([fecha, hora, sal[2], sal[0], rol, nombre, c[7] || '', c[7] ? '' : 'Falta nota: ¿a quién se debe?']);
       return;
     }
-    const rate = findRate_(rules, rol, barco, horas, sal[2], nombre);
+    const rate = findRate_(rules, rolT, barco, horas, sal[2], nombre);
     let factor = 1, alerta = '';
     if (!activas) { factor = factorCancel; alerta = 'Sin reservas activas: ' + (factorCancel * 100) + '%'; }
     let tarifa = 0;
     if (!rate) alerta = (alerta ? alerta + ' | ' : '') + 'Sin tarifa para ' + rol + ' / ' + barco;
     else if (rate.pendiente) alerta = (alerta ? alerta + ' | ' : '') + 'Tarifa pendiente';
     else tarifa = rate.monto;
-    const extra = /capitan|marinero/.test(norm_(rol)) ? horasExtra : 0;
+    const extra = /capitan|marinero/.test(norm_(rolT)) ? horasExtra : 0;
     const extraMx = extra * extraRate;
     out.push([weekStart_(fecha), fecha, hora, sal[2], sal[0], nombre, usuario, rol, barco, horas, tarifa, factor,
       extra, extraMx, Math.round((tarifa * factor + extraMx) * 100) / 100, rate ? 'Tarifas fila ' + rate.regla : '', alerta]);
@@ -828,22 +921,30 @@ function payForSalida_(sal, crew, bitRows, rules, barco) {
   return { pay: out, ext: ext };
 }
 
-/** Consumption of one departure from its bitácora rows → {prodId: qty} */
-function consumoSalida_(bitRows, productos) {
+/** Consumption of one departure from its bitácora rows → {prodId: qty}. Field → product by field pk (Campos tab, Uso "producto"). */
+function consumoSalida_(bitRows, productos, M) {
   const s = {}, r = {};
   bitRows.forEach(b => {
     const q = Number(b[8]); if (b[8] === '' || isNaN(q)) return;
-    const k = norm_(b[6]);
-    if (b[5] === 'Salida') s[k] = (s[k] || 0) + q; else r[k] = (r[k] || 0) + q;
+    const u = bitUso_(b, M, productos);
+    if (u.uso !== 'producto' || !u.prod) return;
+    if (b[5] === 'Salida') s[u.prod] = (s[u.prod] || 0) + q; else r[u.prod] = (r[u.prod] || 0) + q;
   });
   const out = {};
   productos.forEach(p => {
-    const f = norm_(p.campo); if (!f || p.id === 'fru') return;
-    if (s[f] === undefined && r[f] === undefined) return;
-    const q = (s[f] || 0) - (r[f] || 0);
+    if (p.id === 'fru') return; // fruit counts people (allocateFruta_), not stock
+    if (s[p.id] === undefined && r[p.id] === undefined) return;
+    const q = (s[p.id] || 0) - (r[p.id] || 0);
     if (q) out[p.id] = q;
   });
   return out;
+}
+
+/** People with fruit on a departure: "Salida" qty of the field mapped to product `fru` (decided by product id, not by name) */
+function frutaSalida_(bitRows, M, productos) {
+  let fr = 0;
+  bitRows.forEach(x => { const u = bitUso_(x, M, productos); if (u.uso === 'producto' && u.prod === 'fru' && x[5] === 'Salida') fr += Number(x[8]) || 0; });
+  return fr;
 }
 
 /** Fruta: each purchase covers [fecha, cubre hasta]; split by "Fruta (personas)" if filled, else by pax. */
@@ -900,8 +1001,32 @@ function loadProductos_(ss) {
       campo: r[7], costo: r[8] === '' ? null : Number(r[8]) }));
 }
 
+/**
+ * Entry point of the 15-min trigger (and the menu). If a mapping changed (or a webhook couldn't derive its data),
+ * REBUILD_PENDING is set: then everything is rebuilt from Raw instead (rebuildAll → rebuildFinanzas_).
+ * The app's own writes call rebuildFinanzas_ directly so a purchase never waits for a full rebuild.
+ */
 function rebuildFinanzas() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const seeded = ensureMapeos_(ss);
+  if (seeded || isRebuildPending_()) {
+    const lock = LockService.getScriptLock();
+    const had = lock.hasLock();
+    if (had || lock.tryLock(20000)) {
+      try {
+        clearRebuildPending_(); // clear first: a webhook arriving during the rebuild sets it again
+        rebuildAll(); // calls rebuildFinanzas_ itself
+        return { reconstruido: true };
+      } finally { if (!had) { try { lock.releaseLock(); } catch (e) {} } }
+    }
+    setRebuildPending_(); // couldn't get the lock: try again next time
+  }
+  return rebuildFinanzas_();
+}
+
+function rebuildFinanzas_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const M = loadMapeos_(ss);
   const today = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
   const productos = loadProductos_(ss);
   const rules = readTab_(seedTab_(ss, 'Tarifas', TAR_HEADERS, TAR_SEED).getParent(), 'Tarifas', TAR_HEADERS).filter(r => r[0] !== '');
@@ -929,7 +1054,7 @@ function rebuildFinanzas() {
     const pk = String(s[0]);
     const barco = barcos[String(s[1])] || '';
     const b = bitBy[pk] || [];
-    let fr = 0; b.forEach(x => { if (/fruta/i.test(String(x[6])) && x[5] === 'Salida') fr += Number(x[8]) || 0; });
+    const fr = frutaSalida_(b, M, productos);
     const paxN = Number(String(s[9]).replace(/[^\d.]/g, '')) || 0;
     if (['ponton', 'catamaran', 'monocasco', 'hobie'].indexOf(barco) >= 0) frutaSal.push({ pk: pk, fecha: fmtDate_(s[6], 'yyyy-MM-dd'), fruta: fr, pax: paxN });
   });
@@ -940,9 +1065,9 @@ function rebuildFinanzas() {
     const pk = String(s[0]);
     const barco = barcos[String(s[1])] || '';
     const b = bitBy[pk] || [];
-    const p = payForSalida_(s, crewBy[pk] || [], b, rules, barco);
+    const p = payForSalida_(s, crewBy[pk] || [], b, rules, barco, M);
     p.pay.forEach(x => ev.push(x)); p.ext.forEach(x => ext.push(x));
-    const cons = consumoSalida_(b, productos);
+    const cons = consumoSalida_(b, productos, M);
     Object.keys(cons).forEach(id => { consumoTot[id] = (consumoTot[id] || 0) + cons[id]; });
     let beb = 0, hie = 0, gas = 0; const det = [];
     Object.keys(cons).forEach(id => {
@@ -1003,6 +1128,380 @@ function r2_(n) { return Math.round((Number(n) || 0) * 100) / 100; }
 let TOURS_CACHE_ = null;
 function loadToursCache_(ss) { return TOURS_CACHE_ || (TOURS_CACHE_ = loadTours_(ss)); }
 
+
+// ---------------- Mapeos por pk: Tipos de cliente · Campos · Roles ----------------
+// FareHarbor things are matched by pk (Clave), never by name. Anything not in these tabs is kept,
+// added with Estado "Nuevo – revisar" and a safe default (the old name rules); Omri confirms it in the app
+// ("Por configurar"). M = {ctype:{clave:{uso,estado,nombre,notas,row}}, field:{clave:{uso,prod,…}}, role:{clave:{tarifa,…}}}.
+// Every function that takes M also works with M = null/undefined (defaults only).
+
+// Clave = pk as text; when FareHarbor sends no pk: 'n:' + normalized name
+function ctKey_(c) {
+  const ct = ((c || {}).customer_type_rate || {}).customer_type || {};
+  return ct.pk ? String(ct.pk) : 'n:' + norm_(ct.singular || '');
+}
+function cfKey_(v) { const pk = cfPk_(v); return pk ? pk : 'n:' + norm_(cfName_(v)); }
+function roleKey_(m) {
+  const r = (m || {}).role || {};
+  return r.pk ? String(r.pk) : 'n:' + norm_(r.short_name || '');
+}
+function bitKey_(row) { return row[7] !== '' && row[7] !== null && row[7] !== undefined ? String(row[7]) : 'n:' + norm_(row[6]); }
+
+/** Today's name rule for a customer type: OPS · Salida / OPS · Regreso / other OPS · … (doesn't count) / everything else = a person */
+function guessCtype_(name) {
+  const n = String(name || '');
+  if (/OPS\s*·\s*Salida/i.test(n)) return 'ops salida';
+  if (/OPS\s*·\s*Regreso/i.test(n)) return 'ops regreso';
+  if (isOps_(n)) return 'no cuenta';
+  return 'pax';
+}
+/** campos: {normalized FareHarbor field name → Producto id} (first product wins); peoplePks: {fieldPk: true} from Tours col D */
+function camposMap_(prods) {
+  const m = {};
+  (prods || []).forEach(p => { const k = norm_(p.campo); if (k && !m[k]) m[k] = String(p.id); });
+  return m;
+}
+/** Today's name rules for a custom field → {uso, prod}. ctx: {ops (field sits on an OPS customer), campos, peoplePks} */
+function guessFieldUso_(name, pk, ctx) {
+  ctx = ctx || {};
+  const n = String(name || '');
+  if (ctx.ops) {
+    const id = ctx.campos && ctx.campos[norm_(n)];
+    if (id) return { uso: 'producto', prod: id };
+    if (/hora extra/i.test(n)) return { uso: 'hora extra', prod: '' };
+    if (/adicional/i.test(n)) return { uso: 'costo adicional', prod: '' };
+    if (/extra/i.test(n)) return { uso: 'extras', prod: '' };
+  }
+  if (pk && ctx.peoplePks && ctx.peoplePks[String(pk)]) return { uso: 'personas', prod: '' };
+  if (PEOPLE_RE.test(n)) return { uso: 'personas', prod: '' };
+  if (SEATS_RE.test(n)) return { uso: 'seats', prod: '' };
+  return { uso: 'ignorar', prod: '' };
+}
+function guessRolTarifa_(short) { return /extern/i.test(String(short || '')) ? 'externo' : norm_(short); }
+
+function entryFor_(tab, key, name) {
+  if (!tab) return null;
+  return tab[key] || (key.indexOf('n:') !== 0 && name ? tab['n:' + norm_(name)] : null) || null;
+}
+/** Uso of a customer's type: mapped by pk, else the name rule */
+function typeUso_(M, c) {
+  const e = M && entryFor_(M.ctype, ctKey_(c), custType_(c));
+  return e ? e.uso : guessCtype_(custType_(c));
+}
+/** {uso, prod} of a custom_field_value: mapped by pk, else the name rule (people/seats only; bitácora rules need the OPS context) */
+function fieldUso_(M, v, ctx) {
+  const e = M && entryFor_(M.field, cfKey_(v), cfName_(v));
+  return e ? { uso: e.uso, prod: e.prod || '' } : guessFieldUso_(cfName_(v), cfPk_(v), ctx);
+}
+/** {uso, prod} of a Bitácora row (matched by its Field pk; fallback 'n:'+name). productos: [{id, campo}] only for the unmapped default */
+function bitUso_(row, M, productos) {
+  const e = M && entryFor_(M.field, bitKey_(row), String(row[6] || ''));
+  if (e) return { uso: e.uso, prod: e.prod || '' };
+  return guessFieldUso_(row[6], row[7], { ops: true, campos: camposMap_(productos) });
+}
+/** Rol tarifa of a crew row (Tripulación: col 4 short name, col 8 Rol clave) */
+function crewTarifa_(row, M) {
+  const short = String(row[4] || '');
+  const key = row[8] ? String(row[8]) : 'n:' + norm_(short);
+  const e = M && entryFor_(M.role, key, short);
+  return e ? String(e.tarifa || '') : guessRolTarifa_(short);
+}
+
+function ctxFor_(ss, tours) {
+  const peoplePks = {};
+  Object.keys(tours || {}).forEach(k => ((tours[k] || {}).fields || []).forEach(f => { peoplePks[String(f)] = true; }));
+  const prods = readTab_(ss, 'Productos', PROD_HEADERS).filter(r => r[0] !== '').map(r => ({ id: String(r[0]), campo: r[7] }));
+  return { campos: camposMap_(prods), peoplePks: peoplePks };
+}
+
+/** Pure: the three tabs' rows → M (rows are 1-based sheet rows, header = 1) */
+function mapeosFromRows_(ctRows, cfRows, rolRows) {
+  const M = { ctype: {}, field: {}, role: {} };
+  const lc = v => String(v === null || v === undefined ? '' : v).toLowerCase().trim();
+  const est = v => /nuevo/i.test(String(v || '')) ? ESTADO_NUEVO : ESTADO_OK;
+  ctRows.forEach((r, i) => {
+    if (r[0] === '' || r[0] === null) return;
+    const u = lc(r[2]);
+    M.ctype[String(r[0])] = { uso: USOS_CT.indexOf(u) >= 0 ? u : 'pax', estado: est(r[3]), nombre: String(r[1] || ''), visto: r[4], en: String(r[5] || ''), notas: String(r[6] || ''), row: i + 2 };
+  });
+  cfRows.forEach((r, i) => {
+    if (r[0] === '' || r[0] === null) return;
+    const u = lc(r[2]);
+    M.field[String(r[0])] = { uso: USOS_CF.indexOf(u) >= 0 ? u : 'ignorar', prod: String(r[3] || '').trim(), estado: est(r[4]), nombre: String(r[1] || ''), visto: r[5], en: String(r[6] || ''), ejemplo: String(r[7] || ''), notas: String(r[8] || ''), row: i + 2 };
+  });
+  rolRows.forEach((r, i) => {
+    if (r[0] === '' || r[0] === null) return;
+    M.role[String(r[0])] = { tarifa: lc(r[3]), estado: est(r[4]), nombre: String(r[1] || ''), nombreRol: String(r[2] || ''), visto: r[5], en: String(r[6] || ''), notas: String(r[7] || ''), row: i + 2 };
+  });
+  return M;
+}
+/** Sheets: M from the three tabs, or null if any tab doesn't exist yet */
+function loadMapeos_(ss) {
+  if (!ss.getSheetByName(CT_TAB) || !ss.getSheetByName(CF_TAB) || !ss.getSheetByName(ROL_TAB)) return null;
+  return mapeosFromRows_(readTab_(ss, CT_TAB, CT_HEADERS), readTab_(ss, CF_TAB, CF_HEADERS), readTab_(ss, ROL_TAB, ROL_HEADERS));
+}
+
+/** Pure: item for "Visto en" */
+function seenIn_(b) {
+  const item = ((b || {}).availability || {}).item || {};
+  return (item.pk ? item.pk + ' · ' : '') + (item.name || '');
+}
+function sampleValue_(v) {
+  const t = (v.display_value !== undefined && v.display_value !== null && v.display_value !== '') ? v.display_value : v.value;
+  return String(t === undefined || t === null ? '' : t).slice(0, 60);
+}
+/** Pure: what one booking shows → {ctype:[{clave,nombre}], field:[{clave,nombre,ops,ejemplo}], role:[{clave,short,nombre}]} (de-duplicated) */
+function observe_(b, M) {
+  const out = { ctype: [], field: [], role: [] };
+  const seenC = {}, seenF = {}, seenR = {};
+  (b.customers || []).forEach(c => {
+    const k = ctKey_(c);
+    if (k === 'n:' || seenC[k]) return;
+    seenC[k] = true; out.ctype.push({ clave: k, nombre: custType_(c) });
+  });
+  allCfvs_(b, M).forEach(x => {
+    const k = cfKey_(x.v);
+    if (k === 'n:') return;
+    const o = seenF[k];
+    if (o) { o.ops = o.ops || (x.level === 'customer' && x.ops); if (!o.ejemplo) o.ejemplo = sampleValue_(x.v); return; }
+    seenF[k] = { clave: k, pk: cfPk_(x.v), nombre: cfName_(x.v), ops: x.level === 'customer' && x.ops, ejemplo: sampleValue_(x.v) };
+    out.field.push(seenF[k]);
+  });
+  (((b.availability || {}).crew_members) || []).forEach(m => {
+    const k = roleKey_(m);
+    if (k === 'n:' || seenR[k]) return;
+    seenR[k] = true; out.role.push({ clave: k, short: (m.role && m.role.short_name) || '', nombre: (m.role && m.role.name) || '' });
+  });
+  return out;
+}
+
+/**
+ * Pure: finds what is not in M yet. Returns rows to append per tab (Estado "Nuevo – revisar", default Uso from the name rules)
+ * and renames (known Clave, new name → only the Nombre column + "Antes: …" in Notas). Adds the new entries to M so
+ * the same thing is never added twice.
+ */
+function collectUnknowns_(b, M, ctx, now) {
+  const out = { ctype: [], field: [], role: [], renames: [] };
+  if (!M) return out;
+  const en = seenIn_(b), o = observe_(b, M);
+  const rename = (kind, e, nuevo) => {
+    if (!e || !nuevo || e.nombre === nuevo) return;
+    if (e.row) out.renames.push({ kind: kind, row: e.row, nuevo: nuevo, antes: e.nombre });
+    e.notas = (e.notas ? e.notas + ' | ' : '') + 'Antes: ' + e.nombre; e.nombre = nuevo;
+  };
+  o.ctype.forEach(x => {
+    const e = entryFor_(M.ctype, x.clave, x.nombre);
+    if (e) { rename('ctype', e, x.nombre); return; }
+    const uso = guessCtype_(x.nombre);
+    M.ctype[x.clave] = { uso: uso, estado: ESTADO_NUEVO, nombre: x.nombre, notas: '', row: 0 };
+    out.ctype.push([x.clave, x.nombre, uso, ESTADO_NUEVO, now, en, '', '', '']);
+  });
+  o.field.forEach(x => {
+    const e = entryFor_(M.field, x.clave, x.nombre);
+    if (e) { rename('field', e, x.nombre); return; }
+    const g = guessFieldUso_(x.nombre, x.pk, { ops: x.ops, campos: (ctx || {}).campos, peoplePks: (ctx || {}).peoplePks });
+    M.field[x.clave] = { uso: g.uso, prod: g.prod, estado: ESTADO_NUEVO, nombre: x.nombre, notas: '', row: 0 };
+    out.field.push([x.clave, x.nombre, g.uso, g.prod, ESTADO_NUEVO, now, en, x.ejemplo, '', '', '']);
+  });
+  o.role.forEach(x => {
+    const e = entryFor_(M.role, x.clave, x.short);
+    if (e) { rename('role', e, x.short); return; }
+    const t = guessRolTarifa_(x.short);
+    M.role[x.clave] = { tarifa: t, estado: ESTADO_NUEVO, nombre: x.short, notas: '', row: 0 };
+    out.role.push([x.clave, x.short, x.nombre, t, ESTADO_NUEVO, now, en, '', '', '']);
+  });
+  return out;
+}
+
+const MAPEO_TABS_ = {
+  ctype: { tab: CT_TAB, headers: CT_HEADERS, notas: 7 },
+  field: { tab: CF_TAB, headers: CF_HEADERS, notas: 9 },
+  role: { tab: ROL_TAB, headers: ROL_HEADERS, notas: 8 }
+};
+/** Sheets: collect unknowns from these bookings and append them (one setValues per tab). Returns how many rows were added. */
+function registerUnknowns_(ss, bookings, M, ctx, now) {
+  if (!M) return 0;
+  const all = { ctype: [], field: [], role: [], renames: [] };
+  bookings.forEach(b => {
+    const u = collectUnknowns_(b, M, ctx, now);
+    ['ctype', 'field', 'role', 'renames'].forEach(k => u[k].forEach(x => all[k].push(x)));
+  });
+  const n = all.ctype.length + all.field.length + all.role.length;
+  if (!n && !all.renames.length) return 0;
+  try { lockedRun_(() => {
+    ['ctype', 'field', 'role'].forEach(k => {
+      if (!all[k].length) return;
+      const d = MAPEO_TABS_[k], sh = sheet_(ss, d.tab, d.headers);
+      sh.getRange(sh.getLastRow() + 1, 1, all[k].length, d.headers.length).setValues(all[k]);
+    });
+    all.renames.forEach(r => {
+      const d = MAPEO_TABS_[r.kind], sh = ss.getSheetByName(d.tab); if (!sh) return;
+      sh.getRange(r.row, 2).setValue(r.nuevo);
+      const c = sh.getRange(r.row, d.notas), old = String(c.getValue() || '');
+      c.setValue((old ? old + ' | ' : '') + 'Antes: ' + r.antes);
+    });
+  }); } catch (err) { logError_(ss, 'Mapeos', err, ''); return 0; } // kept in Raw; the next rebuild adds them
+  return n;
+}
+function lockedRun_(fn, ms) {
+  const lock = LockService.getScriptLock(), had = lock.hasLock();
+  if (!had) lock.waitLock(ms || 20000);
+  try { return fn(); } finally { if (!had) { try { lock.releaseLock(); } catch (e) {} } }
+}
+
+/**
+ * Pure: first-time seed from the bookings already in Raw, using TODAY's name rules, all Estado OK, so results on day 1 are
+ * identical. entries: [{b, t}]; prodRows: Productos rows; tarRows: Tarifas rows; tours: map from toursFromRows_.
+ * → {ctype:[rows], field:[rows], role:[rows]} in the tabs' column order.
+ */
+function seedMapeos_(entries, prodRows, tarRows, tours, now) {
+  now = now || new Date();
+  const prods = (prodRows || []).filter(r => r[0] !== '').map(r => ({ id: String(r[0]), campo: r[7] }));
+  const ctx = { campos: camposMap_(prods), peoplePks: {} };
+  Object.keys(tours || {}).forEach(k => ((tours[k] || {}).fields || []).forEach(f => { ctx.peoplePks[String(f)] = true; }));
+  const ct = {}, cf = {}, rl = {};
+  entries.forEach(e => {
+    const b = e.b || {}, t = e.t || now, en = seenIn_(b);
+    // customer types first; "ops" for a field = the customer's type by name rule is not a passenger
+    (b.customers || []).forEach(c => {
+      const k = ctKey_(c); if (k === 'n:') return;
+      const o = ct[k] = ct[k] || { clave: k, t: t, en: en };
+      o.nombre = custType_(c);
+    });
+    allCfvs_(b, null).forEach(x => {
+      const k = cfKey_(x.v); if (k === 'n:') return;
+      const o = cf[k] = cf[k] || { clave: k, pk: cfPk_(x.v), t: t, en: en, ops: false, ejemplo: '' };
+      o.nombre = cfName_(x.v);
+      if (x.level === 'customer' && x.ops) o.ops = true;
+      if (!o.ejemplo) o.ejemplo = sampleValue_(x.v);
+    });
+    (((b.availability || {}).crew_members) || []).forEach(m => {
+      const k = roleKey_(m); if (k === 'n:') return;
+      const o = rl[k] = rl[k] || { clave: k, t: t, en: en };
+      o.short = (m.role && m.role.short_name) || ''; o.nombre = (m.role && m.role.name) || '';
+    });
+  });
+  const ctRows = Object.keys(ct).map(k => [k, ct[k].nombre, guessCtype_(ct[k].nombre), ESTADO_OK, ct[k].t, ct[k].en, '', 'Semilla', now]);
+  const cfRows = Object.keys(cf).map(k => {
+    const o = cf[k], g = guessFieldUso_(o.nombre, o.pk, { ops: o.ops, campos: ctx.campos, peoplePks: ctx.peoplePks });
+    return [k, o.nombre, g.uso, g.prod, ESTADO_OK, o.t, o.en, o.ejemplo, '', 'Semilla', now];
+  });
+  const ruleRoles = (tarRows || []).map(r => norm_(r[0])).filter(x => x && x !== '*');
+  const rolRows = Object.keys(rl).map(k => {
+    const o = rl[k], tar = guessRolTarifa_(o.short);
+    const nota = tar !== 'externo' && !ruleRoles.some(x => tar.indexOf(x) === 0) ? 'Sin regla en Tarifas' : '';
+    return [k, o.short, o.nombre, tar, ESTADO_OK, o.t, o.en, nota, 'Semilla', now];
+  });
+  return { ctype: ctRows, field: cfRows, role: rolRows };
+}
+
+/** Sheets: every non-duplicate booking version in Raw, in order → [{b, t}] */
+function rawEntries_(ss) {
+  const raw = sheet_(ss, 'Raw', RAW_HEADERS), last = raw.getLastRow(), out = [];
+  if (last < 2) return out;
+  raw.getRange(2, 1, last - 1, RAW_HEADERS.length).getValues().forEach((v, i) => {
+    if (v[2] === 'sí' || !v[3]) return;
+    let json = String(v[11] || '');
+    try {
+      if (json.indexOf('DRIVE:') === 0) json = DriveApp.getFileById(json.slice(6)).getBlob().getDataAsString();
+      const b = (JSON.parse(json) || {}).booking;
+      if (b && b.pk) out.push({ b: b, t: v[0] });
+    } catch (err) { logError_(ss, 'seed Raw fila ' + (i + 2), err, json); }
+  });
+  return out;
+}
+/** One-time + idempotent: Tours "Estado"/"Visto primero" columns, Tripulación "Rol clave" header */
+function ensureTourCols_(ss) {
+  const sh = ss.getSheetByName('Tours');
+  if (!sh) return;
+  if (sh.getRange(1, 8).getValue() !== TOURS_ESTADO_HDR) sh.getRange(1, 8).setValue(TOURS_ESTADO_HDR).setFontWeight('bold');
+  if (sh.getRange(1, 9).getValue() !== TOURS_VISTO_HDR) sh.getRange(1, 9).setValue(TOURS_VISTO_HDR).setFontWeight('bold');
+  const n = sh.getLastRow() - 1; if (n < 1) return;
+  const vals = sh.getRange(2, 1, n, TOURS_COLS).getValues();
+  const now = new Date();
+  let changed = false;
+  vals.forEach(r => {
+    if (!r[0]) return;
+    if (!String(r[7] || '').trim()) { r[7] = tourEstado_('', r[5]); changed = true; }
+    if (r[7] === ESTADO_NUEVO && !r[8]) { r[8] = now; changed = true; }
+  });
+  if (changed) sh.getRange(2, 8, n, 2).setValues(vals.map(r => [r[7], r[8]]));
+}
+/**
+ * Creates (and seeds from all of Raw) any mapping tab that doesn't exist yet. Never called by the webhook (too slow).
+ * Returns true if it seeded something.
+ */
+function ensureMapeos_(ss) {
+  loadTours_(ss);
+  ensureTourCols_(ss);
+  const trip = ss.getSheetByName('Tripulación');
+  if (trip && trip.getRange(1, CREW_HEADERS.length).getValue() !== CREW_HEADERS[CREW_HEADERS.length - 1]) {
+    trip.getRange(1, 1, 1, CREW_HEADERS.length).setValues([CREW_HEADERS]).setFontWeight('bold');
+  }
+  const missing = [CT_TAB, CF_TAB, ROL_TAB].filter(n => !ss.getSheetByName(n));
+  if (!missing.length) return false;
+  const tours = loadTours_(ss);
+  const prodRows = readTab_(seedTab_(ss, 'Productos', PROD_HEADERS, PROD_SEED).getParent(), 'Productos', PROD_HEADERS);
+  const tarRows = readTab_(seedTab_(ss, 'Tarifas', TAR_HEADERS, TAR_SEED).getParent(), 'Tarifas', TAR_HEADERS);
+  const seed = seedMapeos_(rawEntries_(ss), prodRows, tarRows, tours, new Date());
+  try {
+    return lockedRun_(() => {
+    const defs = [[CT_TAB, CT_HEADERS, seed.ctype], [CF_TAB, CF_HEADERS, seed.field], [ROL_TAB, ROL_HEADERS, seed.role]];
+    let did = false;
+    defs.forEach(([name, headers, rows]) => {
+      if (ss.getSheetByName(name)) return; // created meanwhile
+      const sh = ss.insertSheet(name);
+      sh.getRange(1, 1, 1 + rows.length, headers.length).setValues([headers].concat(rows));
+      sh.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+      sh.setFrozenRows(1);
+      did = true;
+    });
+    return did;
+    }, 25000);
+  } catch (err) { logError_(ss, 'Mapeos (semilla)', err, ''); return false; } // no lock: try again next time
+}
+
+// Admin: Estado → OK + values. Pure validation, returns the normalized values or throws a Spanish message.
+const ITEM_TIPOS_ = ['compartido', 'privado', 'renta', 'otro'];
+function validateMapeo_(kind, valores, ctx) {
+  const v = valores || {}, ids = (ctx && ctx.prodIds) || [], barcos = (ctx && ctx.barcos) || [];
+  const lc = x => String(x === null || x === undefined ? '' : x).toLowerCase().trim();
+  if (kind === 'tipo') {
+    const uso = lc(v.uso);
+    if (USOS_CT.indexOf(uso) < 0) throw new Error('Uso inválido para el tipo de cliente');
+    return { uso: uso };
+  }
+  if (kind === 'campo') {
+    const uso = lc(v.uso);
+    if (USOS_CF.indexOf(uso) < 0) throw new Error('Uso inválido para el campo');
+    if (uso === 'producto') {
+      const prod = String(v.prod === undefined || v.prod === null ? '' : v.prod).trim();
+      if (!prod) throw new Error('Elige el producto');
+      if (ids.indexOf(prod) < 0) throw new Error('Producto desconocido: ' + prod);
+      return { uso: uso, prod: prod };
+    }
+    return { uso: uso, prod: '' };
+  }
+  if (kind === 'rol') {
+    const t = norm_(v.tarifa);
+    if (!t) throw new Error('Falta el rol de tarifa');
+    if (t.length > 60) throw new Error('El rol es demasiado largo');
+    return { tarifa: t };
+  }
+  if (kind === 'item') {
+    const tipo = lc(v.tipo), barco = lc(v.barco);
+    if (ITEM_TIPOS_.indexOf(tipo) < 0) throw new Error('Tipo de tour inválido');
+    if (barcos.indexOf(barco) < 0) throw new Error('Tipo de barco inválido');
+    const list = Array.isArray(v.fields) ? v.fields : String(v.fields || '').split(',');
+    const fields = list.map(x => String(x).trim()).filter(String);
+    if (fields.some(f => !/^\d+$/.test(f))) throw new Error('Los campos de personas deben ser números (pk)');
+    const bit = lc(v.bitacora);
+    if (bit !== 'sí' && bit !== 'si' && bit !== 'no') throw new Error('Bitácora debe ser sí o no');
+    return { tipo: tipo, barco: barco, fields: fields.filter((f, i) => fields.indexOf(f) === i).join(','), bitacora: bit === 'no' ? 'no' : 'sí' };
+  }
+  throw new Error('Tipo de configuración desconocido');
+}
+
 // ---------------- Helpers ----------------
 function typeSummary_(b) {
   const m = {};
@@ -1044,4 +1543,7 @@ function sheet_(ss, name, headers) {
   return s;
 }
 
-if (typeof module !== 'undefined') module.exports = { bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_ };
+if (typeof module !== 'undefined') module.exports = { ctKey_, cfKey_, roleKey_, guessCtype_, guessFieldUso_, guessRolTarifa_, camposMap_, typeUso_, fieldUso_, bitUso_, crewTarifa_,
+  mapeosFromRows_, observe_, collectUnknowns_, seedMapeos_, validateMapeo_, toursFromRows_, tourEstado_, TOURS_SEED_ROWS: TOURS_SEED, USOS_CT, USOS_CF,
+  CT_HEADERS, CF_HEADERS, ROL_HEADERS, CREW_HEADERS, BIT_HEADERS, ESTADO_NUEVO, ESTADO_OK, rawRowFor_, doPost, rebuildFinanzas, rebuildAll, ensureMapeos_, loadMapeos_,
+  registerUnknowns_, prepararMapeos, reservaRow_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_ };

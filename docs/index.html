@@ -132,6 +132,12 @@ button.cell:active{background:var(--fill)}
 .tab{border:0;background:none;font:inherit;font-size:11px;font-weight:500;color:var(--ink2);padding:7px 0 6px;display:grid;justify-items:center;gap:3px;cursor:pointer;min-height:50px}
 .tab svg{width:25px;height:25px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .tab[aria-current="page"]{color:var(--lagoon)}
+.tab{position:relative}
+.tab .bdg{position:absolute;top:3px;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center;font-variant-numeric:tabular-nums}
+.warn ul{margin:6px 0 0;padding-left:18px}.warn li{margin:2px 0}
+.warn .link{min-height:44px;padding:0;margin-top:2px}
+.chipsel[hidden],.chips[hidden],.group[hidden]{display:none}
+.chips{margin:0 0 6px}
 /* Sheet */
 .scrim{position:fixed;inset:0;background:var(--scrim);z-index:20;display:flex;align-items:flex-end;justify-content:center}
 #pickRoot .scrim{z-index:25}
@@ -292,7 +298,7 @@ const TYPES=[['ponton','Pontón'],['catamaran','Catamarán'],['monocasco','Monoc
 const RB={'Capitán':'Cap.','Marinero':'Mar.','Instructor':'Inst.','Auxiliar':'Aux.','Guía':'Guía'};
 const rb=r=>RB[r]||(r.length>5?r.slice(0,4)+'.':r);
 const S={role:'op',realRole:'op',user:'',date:'',wk:'',
-  perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},
+  perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},pend:[],salud:[],rebuildPending:false,
   win:{from:'',to:''},fetchedAt:'',q:''};
 let PIN='';
 
@@ -309,7 +315,8 @@ let busyN=0;
 function setBusy(n){busyN=Math.max(0,busyN+n);$('busy').hidden=!busyN}
 let lastLoad=Date.now();
 function applyData(d){lastLoad=Date.now();
-  ['items','purchases','moves','priceLog','deps','rates','paid','weekly','externos','control','tours','comidas','fh'].forEach(k=>{S[k]=d[k]});
+  ['items','purchases','moves','priceLog','deps','rates','paid','weekly','externos','control','tours','comidas','fh','pend','salud','rebuildPending'].forEach(k=>{S[k]=d[k]});
+  S.pend=d.pend||[];S.salud=d.salud||[];S.rebuildPending=!!d.rebuildPending;
   S.perms=d.perms;S.realRole=d.user.rol;S.user=d.user.nombre;
   if(S.realRole!=='admin'||!S.date)S.role=S.realRole;
   TODAY=d.today;NOW=d.now;S.fetchedAt=d.now;S.win={from:d.desde,to:d.hasta};
@@ -453,11 +460,39 @@ function mvRow2(m){
 const sortedMoves=()=>S.moves.map((m,n)=>({m,n})).filter(x=>!x.m.noStock).sort((a,b)=>a.m.d<b.m.d?1:a.m.d>b.m.d?-1:b.n-a.n).map(x=>x.m);
 
 
+// ===== Avisos de salud y Por configurar =====
+const USO_T=[['pax','Cuenta como persona'],['no cuenta','No cuenta'],['ops salida','Bitácora salida'],['ops regreso','Bitácora regreso']];
+const USO_C=[['personas','Personas'],['seats','Seats'],['hora extra','Hora extra'],['extras','Extras (texto)'],['costo adicional','Costo adicional'],['ignorar','Ignorar']];
+const ROL_O=[['capitan','Capitán'],['marinero','Marinero'],['guia','Guía'],['instructor lider','Instructor líder'],['instructor asistente','Instructor asistente'],['externo','Externo'],['ignorar','Ignorar']];
+const TIPOS_T=[['compartido','Compartido'],['privado','Privado'],['renta','Renta'],['otro','Otro']];
+const PEND_GROUPS=[['tipo','Tipos de cliente'],['campo','Campos'],['rol','Roles de tripulación'],['item','Tours']];
+const PEND_TITLE={tipo:'Tipo de cliente',campo:'Campo de FareHarbor',rol:'Rol de tripulación',item:'Tour nuevo'};
+const pendN=()=>S.role==='admin'?S.pend.length:0;
+const saludList=()=>(S.salud||[]).filter(a=>S.role==='admin'||a.rol==='todos');
+function saludBox(){
+  const l=saludList();if(!l.length)return '';
+  return `<div class="warn" role="status"><b>Avisos</b><ul>${l.slice(0,3).map(a=>`<li>${esc(a.texto)}</li>`).join('')}</ul>${l.length>3?`<button class="link" data-view="fh">Ver los ${l.length} avisos</button>`:''}</div>`;
+}
+function saludRows(){
+  const l=saludList();
+  return l.map(a=>`<div class="cell w-orange"><span class="main"><span class="s" style="margin:0">⚠️ ${esc(a.texto)}</span></span></div>`).join('')||'<div class="cell"><span class="main t" style="color:var(--green)">✅ Todo en orden</span></div>';
+}
+function pendLabel(p){
+  const a=p.actual||{},f=(arr,k)=>(arr.find(x=>x[0]===k)||['',k||''])[1];
+  if(p.kind==='tipo')return f(USO_T,a.uso);
+  if(p.kind==='campo')return a.uso==='producto'?item(a.prod).name:f(USO_C,a.uso);
+  if(p.kind==='rol')return a.tarifa?f(ROL_O,a.tarifa):'Sin rol';
+  return [cap(a.tipo||''),f(TYPES,a.barco)].filter(Boolean).join(' · ');
+}
+function pendRow(p,i){
+  return `<button class="cell" data-pend="${i}"><span class="main"><span class="t">${esc(p.name||'(sin nombre)')}</span><div class="s">${p.pk?'pk '+esc(p.pk)+' · ':''}visto ${esc(p.visto||'—')}${p.en?' · '+esc(p.en):''}</div>${p.ejemplo?`<div class="s">Ejemplo: ${esc(p.ejemplo)}</div>`:''}</span><span class="v" style="white-space:normal;max-width:38%">${esc(pendLabel(p))}</span>${chev}</button>`;
+}
+
 // ===== Screens =====
 const V={
 op(){
   const date=S.date,ds=depsOn(date),fut=date>TODAY;
-  let h=topBar('Operación')+`<div class="daterow"><button class="nx" data-day="-1" aria-label="Día anterior">‹</button><button class="dt" data-cal aria-label="Abrir calendario">${fd(date)}&nbsp;&nbsp;📅</button><button class="nx" data-day="1" aria-label="Día siguiente">›</button></div>
+  let h=topBar('Operación')+saludBox()+`<div class="daterow"><button class="nx" data-day="-1" aria-label="Día anterior">‹</button><button class="dt" data-cal aria-label="Abrir calendario">${fd(date)}&nbsp;&nbsp;📅</button><button class="nx" data-day="1" aria-label="Día siguiente">›</button></div>
   <button class="live" data-refresh><i class="dot"></i>&nbsp;Actualizado ${esc(S.fetchedAt)} · toca para actualizar</button>`;
   if(!ds.length)return h+`<div class="group"><div class="list"><div class="empty">Sin salidas este día.${pd(date).getDay()===3?' Los miércoles no hay tours.':''}</div></div></div>`;
   const rev=ds.filter(d=>d.rev).length,falta=ds.filter(needBit).length,pend=ds.filter(d=>okish(d)&&!d.rev).length;
@@ -584,8 +619,11 @@ purchase(id){
   <div class="group"><div class="ghead">Historial</div><div class="list">${c.history.slice().reverse().map(h=>`<div class="cell"><span class="main"><span class="t">${esc(h.a)}</span><div class="s">${short(h.d)}${h.r?' · '+esc(h.r):''}</div></span></div>`).join('')}</div></div>`;
 },
 mas(){
-  const n=S.items.length;
-  return topBar('Más')+`
+  const n=S.items.length,pn=pendN();
+  return topBar('Más')+(S.role==='admin'?`
+  <div class="group"><div class="list">
+    <button class="cell" data-view="pend"><span class="ic">🧩</span><span class="main"><span class="t">Por configurar</span><div class="s">${pn?'Cosas nuevas de FareHarbor':'Todo al día'}</div></span>${pn?`<span class="badge red">${pn}</span>`:''}${chev}</button>
+  </div></div>`:'')+`
   <div class="group"><div class="list">
     <button class="cell" data-view="productos"><span class="ic">📦</span><span class="main"><span class="t">Productos</span><div class="s">${n} ${n===1?'producto':'productos'}</div></span>${chev}</button>
     <button class="cell" data-view="tarifas"><span class="ic">💵</span><span class="main"><span class="t">Tarifas eventuales</span><div class="s">Pago por rol y tipo de barco</div></span>${chev}</button>
@@ -616,7 +654,8 @@ tours(){
 },
 fh(){
   const f=S.fh||{},ctl=S.control.slice(0,14);
-  return topBar('Conexión FareHarbor',{back:'Más',backTo:'mas'})+`
+  return topBar('Conexión FareHarbor',{back:'Más',backTo:'mas'})+(S.rebuildPending?'<div class="live">Recalculando… (puede tardar hasta 15 min)</div>':'')+`
+  <div class="group"><div class="ghead">Avisos</div><div class="list">${saludRows()}</div></div>
   <section class="today"><div class="state"><span class="dot ${f.errores?'low':''}" style="display:inline-block;margin-right:6px"></span>${f.ultimo?'Conectado':'Sin eventos todavía'}</div><div class="head" style="margin-bottom:6px">Webhook ${f.errores?'con errores':'activo'}</div>
     <div class="state">${f.ultimo?'Último evento '+esc(f.ultimo)+' · ':''}${f.errores||0} errores hoy</div></section>
   <div class="group"><div class="list">
@@ -628,6 +667,15 @@ fh(){
   <div class="group"><div class="ghead">Últimos eventos</div><div class="list">${(f.eventos||[]).map(e=>`<div class="cell"><span class="main"><span class="t">${esc(e.t)}</span><div class="s">${esc(e.s)}</div></span><span class="v">${esc(e.at.slice(5))}</span></div>`).join('')||'<div class="empty">Sin eventos.</div>'}</div></div>
   <div class="group"><div class="ghead">Control de días</div><div class="list">${ctl.map(c=>`<div class="cell ${/⚠/.test(c.estado)?'w-orange':''}"><span class="main"><span class="t">${sd(c.d)}</span><div class="s">${c.res} reservas · ${c.sal} salidas</div></span><span class="v" style="white-space:normal;text-align:right;max-width:55%">${esc(c.estado)}</span></div>`).join('')||'<div class="empty">Sin datos.</div>'}</div>
   <div class="gfoot">El ingreso exacto llega con el reporte diario de Comercial.</div></div>`;
+},
+pend(){
+  const l=S.pend;
+  let h=topBar('Por configurar',{back:'Más',backTo:'mas',lede:'FareHarbor mandó cosas nuevas. Toca una para decir qué es; el historial se recalcula solo.'});
+  if(S.rebuildPending)h+='<div class="live">Recalculando… (puede tardar hasta 15 min)</div>';
+  if(!l.length)return h+'<div class="group"><div class="list"><div class="empty">Todo al día. No hay nada por configurar.</div></div></div>';
+  PEND_GROUPS.forEach(([k,t])=>{const xs=l.map((p,i)=>[p,i]).filter(x=>x[0].kind===k);
+    if(xs.length)h+=`<div class="group"><div class="ghead">${t} (${xs.length})</div><div class="list">${xs.map(([p,i])=>pendRow(p,i)).join('')}</div></div>`});
+  return h+'<div class="gfoot">Mientras no lo confirmes, la app usa la opción de la derecha. No se pierde ningún dato.</div>';
 },
 productos(){
   const by=f=>S.items.filter(f);
@@ -848,7 +896,7 @@ function openProducto(id){
     <div class="field"><label for="pPrice">Precio por unidad</label><input id="pPrice" type="number" inputmode="decimal" placeholder="$" step="any" value="${v.price}" ${dp}></div>
     <div class="field" data-only="stock" ${ctl?'':'hidden'}><label for="pMin">Mínimo en bodega</label><input id="pMin" type="number" inputmode="numeric" value="${v.min}" ${d}></div>
     <div class="field"><label for="pField">Campo en la bitácora</label><input id="pField" placeholder="Nombre en FareHarbor" value="${esc(v.field)}" ${d}></div></div>
-    <div class="gfoot">${ro?'Tu rol no puede editar productos.':hasBuys?'El precio cambia solo con cada compra nueva. El campo en la bitácora':'El campo en la bitácora es el nombre del campo de FareHarbor donde se anota este producto.'}</div></div>`,
+    <div class="gfoot">${ro?'Tu rol no puede editar productos.':(hasBuys?'El precio cambia solo con cada compra nueva. ':'')+'Este nombre solo ayuda a la primera configuración. Qué campo de FareHarbor es este producto se elige en Más, Por configurar (Campos).'}</div></div>`,
     ro?{closeLabel:'Cerrar'}:{ok:saveProducto,okLabel:it?'Guardar':'Agregar',disabled:!v.name,input:()=>{$('sheetOk').disabled=!$('pName').value.trim()}});
 }
 async function saveProducto(){
@@ -917,6 +965,57 @@ function openTour(pk){
   sheet('Tipo de barco',`<div class="group"><div class="ghead">${esc(t.name)}</div><div class="list">${TYPES.map(x=>`<button class="cell" data-tt="${x[0]}" data-ttn="${esc(pk)}"><span class="main t">${x[1]}</span>${t.barco===x[0]?'<span class="check">✓</span>':''}</button>`).join('')}</div>
     <div class="gfoot">${ro?'Tu rol no puede cambiar el tipo de barco.':'El tipo de barco decide cuánto se paga al capitán y al marinero.'}</div></div>`,{closeLabel:'Cerrar'});
 }
+// --- Por configurar: una pregunta por cosa nueva, con opciones de un toque ---
+let pc=null;
+const pcValid=()=>{if(!pc)return false;const v=pc.v;
+  if(pc.p.kind==='item')return !!(v.tipo&&v.barco&&v.bit);
+  if(pc.p.kind==='rol')return !!v.main&&(v.main!=='otro'||!!v.otro.trim());
+  return !!v.main};
+const pcChips=(g,opts,cur,cls)=>`<div class="${cls}" role="group">${opts.map(([k,l])=>`<button type="button" class="${cls==='chips'?'chip':''}" data-pc="${g}:${esc(k)}" aria-pressed="${cur===k}">${esc(l)}</button>`).join('')}</div>`;
+function openPend(i){
+  const p=S.pend[i];if(!p||!can('config'))return;
+  const a=p.actual||{},v={main:'',otro:'',tipo:'',barco:'',bit:'',fld:[]};
+  if(p.kind==='tipo')v.main=a.uso;
+  else if(p.kind==='campo')v.main=a.uso==='producto'?'p:'+a.prod:a.uso;
+  else if(p.kind==='rol'){const k=ROL_O.some(x=>x[0]===a.tarifa);v.main=k?a.tarifa:'otro';v.otro=k?'':(a.tarifa||'')}
+  else{v.tipo=a.tipo||'';v.barco=a.barco||'';v.bit=a.bitacora||'no';v.fld=(a.fields||[]).slice()}
+  pc={p,v};
+  const info=`<div class="group"><div class="list"><div class="cell"><span class="main"><span class="t">${esc(p.name||'(sin nombre)')}</span><div class="s">${p.pk?'pk '+esc(p.pk)+' · ':''}visto ${esc(p.visto||'—')}${p.en?' · '+esc(p.en):''}</div>${p.ejemplo?`<div class="s">Ejemplo: ${esc(p.ejemplo)}</div>`:''}</span></div></div></div>`;
+  let body='';
+  if(p.kind==='tipo')body=`<div class="group"><div class="ghead">¿Qué es?</div>${pcChips('main',USO_T,v.main,'chipsel')}</div>`;
+  else if(p.kind==='campo'){
+    const prods=S.items.filter(x=>x.active).map(x=>['p:'+x.id,x.icon+' '+x.name]);
+    body=`<div class="group"><div class="ghead">¿Qué es?</div>${pcChips('main',prods.concat(USO_C),v.main,'chipsel')}</div>`}
+  else if(p.kind==='rol')
+    body=`<div class="group"><div class="ghead">¿Qué rol es para la tarifa?</div>${pcChips('main',ROL_O.concat([['otro','Otro…']]),v.main,'chipsel')}</div>
+      <div class="group" id="pcOtroBox" ${v.main==='otro'?'':'hidden'}><div class="list"><div class="field"><label for="pcOtro">Rol en Tarifas</label><input id="pcOtro" placeholder="Ej. instructor" value="${esc(v.otro)}"></div></div><div class="gfoot">Debe coincidir con la columna Rol de la hoja Tarifas.</div></div>`;
+  else{
+    const cs=(p.opciones&&p.opciones.campos)||[];
+    body=`<div class="group"><div class="ghead">Tipo de tour</div>${pcChips('tipo',TIPOS_T,v.tipo,'chips')}</div>
+      <div class="group"><div class="ghead">Tipo de barco</div>${pcChips('barco',TYPES,v.barco,'chips')}</div>
+      <div class="group"><div class="ghead">¿Lleva bitácora?</div>${pcChips('bit',[['sí','Sí'],['no','No']],v.bit,'chips')}</div>
+      <div class="group" id="pcFld" ${v.tipo==='privado'||v.tipo==='renta'?'':'hidden'}><div class="ghead">Campo de personas</div>${cs.length?`<div class="chips" role="group">${cs.map(c=>`<button type="button" class="chip" data-pc="fld:${esc(c.pk)}" aria-pressed="${v.fld.indexOf(String(c.pk))>=0}">${esc(c.name)} · ${esc(c.pk)}${c.ejemplo?' ('+esc(c.ejemplo)+')':''}</button>`).join('')}</div>`:'<div class="list"><div class="empty">No vi campos en las reservas de este tour.</div></div>'}
+        <div class="gfoot">Para tours privados o rentas: el campo que dice cuántas personas son.</div></div>`}
+  sheet(PEND_TITLE[p.kind],info+body,{ok:savePend,okLabel:'Guardar',disabled:!pcValid(),input:()=>{const o=$('pcOtro');if(o&&pc)pc.v.otro=o.value;$('sheetOk').disabled=!pcValid()}});
+}
+function paintPc(){
+  if(!pc)return;const v=pc.v;
+  document.querySelectorAll('#sheetRoot [data-pc]').forEach(b=>{const i=b.dataset.pc.indexOf(':'),g=b.dataset.pc.slice(0,i),k=b.dataset.pc.slice(i+1);
+    b.setAttribute('aria-pressed',g==='fld'?v.fld.indexOf(k)>=0:v[g]===k)});
+  const ob=$('pcOtroBox');if(ob)ob.hidden=v.main!=='otro';
+  const fb=$('pcFld');if(fb)fb.hidden=!(v.tipo==='privado'||v.tipo==='renta');
+  $('sheetOk').disabled=!pcValid();
+}
+async function savePend(){
+  if(!pc||!pcValid()||!can('config'))return;
+  const {p,v}=pc;let val;
+  if(p.kind==='tipo')val={uso:v.main};
+  else if(p.kind==='campo')val=v.main.indexOf('p:')===0?{uso:'producto',prod:v.main.slice(2)}:{uso:v.main};
+  else if(p.kind==='rol')val={tarifa:v.main==='otro'?v.otro.trim():v.main};
+  else val={tipo:v.tipo,barco:v.barco,fields:(v.tipo==='privado'||v.tipo==='renta')?v.fld.join(','):'',bitacora:v.bit};
+  const r=await act('setMapeo',[p.kind,p.clave,val]);
+  if(r){closeSheet();pc=null;render();toast('Guardado. Recalculando historial…')}
+}
 // --- Comida empleado ---
 let comidaTipo='desayuno';
 function openComida(){
@@ -981,6 +1080,10 @@ function render(){
   try{app.innerHTML=roleBar()+(stackView?V[stackView.name](stackView.arg):V[tab]())}
   catch(err){app.innerHTML=roleBar()+`<div class="warn">No pude mostrar esta pantalla: ${esc(err.message)}</div>`;console.warn(err)}
   document.querySelectorAll('.tab').forEach(b=>b.dataset.tab===tab?b.setAttribute('aria-current','page'):b.removeAttribute('aria-current'));
+  const mb=document.querySelector('.tab[data-tab="mas"]');
+  if(mb){let bd=mb.querySelector('.bdg');const n=pendN();
+    if(n){if(!bd){bd=document.createElement('span');bd.className='bdg';mb.appendChild(bd)}bd.textContent=n;mb.setAttribute('aria-label','Más, '+n+' por configurar')}
+    else{if(bd)bd.remove();mb.removeAttribute('aria-label')}}
   const q=$('q');if(q)q.oninput=()=>{S.q=q.value;const pos=q.selectionStart;render();const n=$('q');n.focus();n.setSelectionRange(pos,pos)};
 }
 const goTop=()=>window.scrollTo(0,0);
@@ -1029,6 +1132,9 @@ document.addEventListener('click',e=>{
     const cn=on('[data-calnav]');if(cn){cal.m+=+cn.dataset.calnav;if(cal.m<0){cal.m=11;cal.y--}if(cal.m>11){cal.m=0;cal.y++}calMonth();return}
     const cd=on('[data-calday]');if(cd){S.date=cd.dataset.calday;stackView=null;tab='op';closeSheet();render();goTop();return}
     const cty=on('[data-ct]');if(cty){comidaTipo=cty.dataset.ct;document.querySelectorAll('[data-ct]').forEach(b=>b.setAttribute('aria-pressed',b===cty));return}
+    const pcb=on('[data-pc]');if(pcb&&pc){const x=pcb.dataset.pc,i=x.indexOf(':'),g=x.slice(0,i),val=x.slice(i+1);
+      if(g==='fld'){const k=pc.v.fld.indexOf(val);if(k>=0)pc.v.fld.splice(k,1);else pc.v.fld.push(val)}else pc.v[g]=val;
+      paintPc();return}
     const tt=on('[data-tt]');if(tt){if(can('config')){(async()=>{const r=await act('saveTourBarco',[tt.dataset.ttn,tt.dataset.tt]);if(r){closeSheet();render();toast('Tipo de barco guardado')}})()}return}
     return;
   }
@@ -1056,6 +1162,7 @@ document.addEventListener('click',e=>{
   const py=on('[data-pay]');if(py){doPaid(py.dataset.pay);return}
   const rt=on('[data-rate]');if(rt){openRate(rt.dataset.rate);return}
   const tr2=on('[data-tour]');if(tr2){openTour(tr2.dataset.tour);return}
+  const pd2=on('[data-pend]');if(pd2){openPend(+pd2.dataset.pend);return}
   const a=on('[data-act]');if(!a)return;const act2=a.dataset.act,pre=a.dataset.pre;
   if(act2==='compra'&&can('compras'))openCompra(pre);
   if(act2==='addprod'&&can('config'))openProducto();
