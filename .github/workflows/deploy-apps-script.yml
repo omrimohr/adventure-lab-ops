@@ -1,18 +1,25 @@
-# After a push that changes apps-script/, ask the Apps Script to pull and publish itself (deploy.gs).
+# Push apps-script/ to the Apps Script project and update the existing web-app deployment (URL unchanged).
 name: Deploy Apps Script
 on:
   push:
     branches: [main]
-    paths: ['apps-script/**']
+    paths: ['apps-script/**', '.clasp.json']
   workflow_dispatch:
+concurrency: deploy-apps-script
 jobs:
-  ping:
+  deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for raw.githubusercontent cache
-        run: sleep 30
-      - name: Trigger self-update
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm i -g @google/clasp@2.4.2
+      - name: Credentials
+        env: { CLASPRC: '${{ secrets.CLASPRC_JSON }}' }
         run: |
-          out=$(curl -sSL --max-time 120 "https://script.google.com/macros/s/AKfycbzUi-BEXRiNNShtlVSSc8tTMb9JZloofTHCJPougpu6h_f1HzQDF63wbjNXxf0nJI6ncQ/exec?deploy=1")
-          echo "$out"
-          case "$out" in error*) exit 1;; esac
+          test -n "$CLASPRC" || { echo "Missing secret CLASPRC_JSON"; exit 1; }
+          printf '%s' "$CLASPRC" > ~/.clasprc.json
+      - name: Safety check (webhook must exist)
+        run: grep -q "function doPost(" apps-script/Code.gs
+      - run: clasp push -f
+      - run: clasp deploy -i AKfycbzUi-BEXRiNNShtlVSSc8tTMb9JZloofTHCJPougpu6h_f1HzQDF63wbjNXxf0nJI6ncQ -d "GitHub ${GITHUB_SHA::7}"

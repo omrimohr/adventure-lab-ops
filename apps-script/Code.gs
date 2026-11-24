@@ -133,9 +133,7 @@ function doPost(e) {
   return ContentService.createTextOutput('ok');
 }
 
-function doGet(e) {
-  // ?deploy=1 → pull the latest code from GitHub and publish it (deploy.gs). Harmless: it only syncs to the repo.
-  if (e && e.parameter && e.parameter.deploy) return ContentService.createTextOutput(String(deployFromGitHub()));
+function doGet() {
   return ContentService.createTextOutput('Adventure Lab Ops DB: OK');
 }
 
