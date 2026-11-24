@@ -745,7 +745,7 @@ op(){
   if(!ds.length)return h+`<div class="group"><div class="list"><div class="empty">${S.loadingRange?'Cargando…':'Sin salidas este día.'}${!S.loadingRange&&pd(date).getDay()===3?' Los miércoles no hay tours.':''}</div></div></div>`;
   const dc=dayCounts(ds),sal=n=>n+' '+(n===1?'salida':'salidas');
   const dsum=`<div class="dsum"><span><b>Tours:</b> ${sal(dc.t.n)} · ${dc.t.pax} pax</span><span class="sp" aria-hidden="true">│</span><span><b>Rentas:</b> ${dc.r.n} · ${dc.r.pax} pax</span></div>`;
-  const rev=ds.filter(d=>d.rev).length,falta=ds.filter(needBit).length,pend=ds.filter(d=>okish(d)&&!d.rev).length;
+  const rev=ds.filter(d=>d.rev).length,falta=ds.filter(needBit).length,pend=ds.filter(d=>needsReview(d,TODAY)).length;
   const pills=`<div class="pills"><span class="pill">${ds.length} ${ds.length===1?'salida':'salidas'}</span>${fut?'<span class="pill">Programadas</span>':`<span class="pill g">${rev} ${rev===1?'revisada':'revisadas'}</span>${pend?`<span class="pill o">${pend} por revisar</span>`:''}${falta?`<span class="pill r">${falta} ${falta===1?'falta bitácora':'faltan bitácora'}</span>`:''}`}</div>`;
   if(fut)h+=`<section class="today"><div class="state">Todavía no hay costos ni ingreso neto</div><div class="head" style="margin-bottom:6px">${personasTxt(ds.reduce((a,d)=>a+paxOf(d),0))} reservados</div>${money2(ds.reduce((a,d)=>a+(d.gross||0),0),undefined,false,true)}${dsum}${pills}</section>`;
   else{
