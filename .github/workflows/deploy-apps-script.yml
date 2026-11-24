@@ -1,0 +1,18 @@
+# After a push that changes apps-script/, ask the Apps Script to pull and publish itself (deploy.gs).
+name: Deploy Apps Script
+on:
+  push:
+    branches: [main]
+    paths: ['apps-script/**']
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for raw.githubusercontent cache
+        run: sleep 30
+      - name: Trigger self-update
+        run: |
+          out=$(curl -sSL --max-time 120 "https://script.google.com/macros/s/AKfycbzUi-BEXRiNNShtlVSSc8tTMb9JZloofTHCJPougpu6h_f1HzQDF63wbjNXxf0nJI6ncQ/exec?deploy=1")
+          echo "$out"
+          case "$out" in error*) exit 1;; esac

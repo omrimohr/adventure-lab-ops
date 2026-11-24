@@ -1,0 +1,1070 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Adventure Lab Ops</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="AL Ops">
+<meta name="theme-color" content="#f2f2f7">
+<style>
+/* reset that the claude.ai page skeleton used to provide */
+[hidden]{display:none!important}
+body{margin:0;font:14px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+img{max-width:100%}
+</style>
+<style>
+/* Layout: iOS-style phone app — large title per screen, inset grouped lists, bottom tab bar, bottom sheets for forms.
+   Type: the device's own system face (SF on iPhone) on purpose, so it feels native. One accent: Bacalar lagoon turquoise. */
+:root{
+  --ground:#f2f2f7; --row:#ffffff; --ink:#111418; --ink2:#6b7076; --sep:#d8d8de; --fill:#e9e9ee;
+  --lagoon:#00939c; --lagoon-ink:#ffffff; --lagoon-soft:#d6eff0;
+  --red:#d93a2f; --orange:#d27a00; --green:#2a9d4b;
+  --bar:rgba(249,249,251,.92); --scrim:rgba(0,0,0,.32);
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font-d:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --ground:#000000; --row:#1c1c1e; --ink:#f2f2f5; --ink2:#9a9aa1; --sep:#38383c; --fill:#2c2c2e;
+  --lagoon:#2cc4cc; --lagoon-ink:#00262a; --lagoon-soft:#0f3a3d;
+  --red:#ff5a4f; --orange:#ff9f0a; --green:#32d164; --bar:rgba(22,22,24,.92); --scrim:rgba(0,0,0,.55); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --ground:#000000; --row:#1c1c1e; --ink:#f2f2f5; --ink2:#9a9aa1; --sep:#38383c; --fill:#2c2c2e;
+  --lagoon:#2cc4cc; --lagoon-ink:#00262a; --lagoon-soft:#0f3a3d;
+  --red:#ff5a4f; --orange:#ff9f0a; --green:#32d164; --bar:rgba(22,22,24,.92); --scrim:rgba(0,0,0,.55); color-scheme:dark}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{background:var(--ground)}
+body{color:var(--ink);font-family:var(--font);font-size:17px;line-height:1.3;margin:0}
+.app{max-width:560px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:6px 110px}
+/* Top */
+.rolebar{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:50px;font-size:13px;color:var(--ink2)}
+.rolebar .seg{width:200px;flex:none}
+.nav{display:flex;justify-content:space-between;align-items:center;min-height:44px}
+.nav .back{color:var(--lagoon);background:none;border:0;font:inherit;padding:10px 0;min-height:44px;cursor:pointer}
+.nav .acts{display:flex;margin-right:-10px}
+.nav .act{color:var(--lagoon);background:none;border:0;font:inherit;font-size:28px;line-height:1;width:44px;height:44px;cursor:pointer}
+h1{font-family:var(--font-d);font-size:34px;font-weight:700;letter-spacing:.01em;margin:2px 0 4px}
+.lede{color:var(--ink2);font-size:15px;margin:0 0 18px}
+/* Grouped lists */
+.group{margin:0 0 26px}
+.ghead{font-size:13px;color:var(--ink2);margin:0 0 7px 16px}
+.gfoot{font-size:13px;color:var(--ink2);margin:7px 16px 0}
+.list{background:var(--row);border-radius:12px;overflow:hidden}
+.cell{display:flex;align-items:center;gap:12px;min-height:48px;padding:10px 16px;position:relative;width:100%;background:none;border:0;font:inherit;color:inherit;text-align:left}
+.cell+.cell::before{content:"";position:absolute;top:0;left:16px;right:0;border-top:1px solid var(--sep)}
+button.cell{cursor:pointer}
+button.cell:active{background:var(--fill)}
+.cell .main{flex:1;min-width:0}
+.cell .t{font-size:17px}
+.cell .s{font-size:14px;color:var(--ink2);margin-top:2px}
+.cell .v{font-variant-numeric:tabular-nums;color:var(--ink2);text-align:right;white-space:nowrap}
+.cell .v.neg{color:var(--red)}.cell .v.pos{color:var(--green)}
+.cell .big{font-size:22px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.cell .big small{display:block;font-size:13px;font-weight:400;color:var(--ink2)}
+.ic{font-size:22px;width:28px;text-align:center;flex:none;line-height:1}
+.chev{width:8px;height:13px;flex:none;color:var(--sep)}
+.dot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--green)}
+.dot.low{background:var(--red)}.dot.mid{background:var(--orange)}
+.badge{font-size:13px;font-weight:600;padding:3px 9px;border-radius:99px;background:var(--lagoon-soft);color:var(--lagoon);white-space:nowrap}
+.badge.red{background:color-mix(in srgb,var(--red) 16%,transparent);color:var(--red)}
+/* Today hero */
+.today{background:var(--row);border-radius:16px;padding:18px 18px 16px;margin:0 0 26px}
+.today .state{font-size:15px;color:var(--ink2)}
+.today .head{font-family:var(--font-d);font-size:24px;font-weight:700;margin:4px 0 14px}
+.btn{display:flex;justify-content:center;align-items:center;gap:8px;width:100%;min-height:50px;border-radius:12px;border:0;font:inherit;font-weight:600;cursor:pointer;background:var(--lagoon);color:var(--lagoon-ink)}
+.btn.plain{background:var(--fill);color:var(--lagoon)}
+.btn.red{background:var(--red);color:#fff}
+.btn:disabled{opacity:.45;cursor:default}
+.btn:focus-visible,.cell:focus-visible,.tab:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,.seg button:focus-visible,.sw:focus-visible{outline:3px solid var(--lagoon);outline-offset:2px}
+.stack{display:grid;gap:10px}
+/* Detail hero */
+.hero{text-align:center;padding:6px 0 22px}
+.hero .n{font-family:var(--font-d);font-size:56px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+.hero .u{color:var(--ink2);font-size:15px;margin-top:6px}
+/* Search + segmented */
+.search{display:flex;align-items:center;gap:8px;background:var(--fill);border-radius:10px;padding:0 10px;height:38px;margin:0 0 18px}
+.search input{border:0;background:none;font:inherit;font-size:17px;color:var(--ink);width:100%;outline:none}
+.search svg{width:16px;height:16px;color:var(--ink2);flex:none}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:var(--fill);border-radius:9px;padding:2px;gap:2px}
+.seg button{border:0;background:none;font:inherit;font-size:14px;font-weight:600;color:var(--ink);padding:7px 6px;border-radius:7px;cursor:pointer;min-height:44px}
+.seg button[aria-pressed="true"]{background:var(--row);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+/* Forms inside lists */
+.field{display:flex;align-items:center;gap:12px;min-height:48px;padding:6px 16px;position:relative}
+.field+.field::before{content:"";position:absolute;top:0;left:16px;right:0;border-top:1px solid var(--sep)}
+.field label,.field .lab{flex:1;font-size:17px;min-width:0}
+.field label .s{font-size:14px;color:var(--ink2)}
+.field input,.field select{border:0;background:none;font:inherit;color:var(--ink);text-align:right;width:52%;min-height:44px}
+.field select{color:var(--lagoon)}
+.field input::placeholder,.note::placeholder{color:var(--ink2)}
+.field .pick{color:var(--lagoon);text-align:right}
+.note{display:block;width:100%;min-height:92px;border:0;background:var(--row);border-radius:12px;font:inherit;color:var(--ink);padding:12px 16px;resize:vertical}
+/* Switch */
+.sw{width:60px;height:44px;background:none;border:0;position:relative;cursor:pointer;flex:none;padding:0}
+.sw i{position:absolute;right:0;top:7px;width:51px;height:30px;border-radius:99px;background:var(--fill);border:1px solid var(--sep);transition:background .2s}
+.sw i::after{content:"";position:absolute;top:1px;left:1px;width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .2s}
+.sw[aria-checked="true"] i{background:var(--green);border-color:var(--green)}
+.sw[aria-checked="true"] i::after{transform:translateX(21px)}
+.sw:disabled{opacity:.45;cursor:default}
+/* Cart */
+.li{padding:12px 16px;display:grid;gap:10px;position:relative}
+.li+.li::before{content:"";position:absolute;top:0;left:16px;right:0;border-top:1px solid var(--sep)}
+.lhead{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.lhead .t{display:flex;align-items:center;gap:8px;font-weight:600}
+.lhead button{background:none;border:0;color:var(--ink2);font-size:18px;width:44px;height:44px;margin-right:-12px;cursor:pointer}
+.stepper{display:flex;align-items:center;gap:8px}
+.stepper button{width:44px;height:44px;border-radius:50%;border:0;background:var(--fill);color:var(--lagoon);font-size:24px;line-height:1;cursor:pointer;flex:none}
+.stepper input{width:84px;height:44px;text-align:center;font:inherit;font-size:20px;font-weight:600;border:0;background:var(--fill);border-radius:10px;color:var(--ink)}
+.stepper .ulab{color:var(--ink2);font-size:15px}
+.mini{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:15px;min-height:44px}
+.mini input{width:104px;height:44px;text-align:right;border:0;background:var(--fill);border-radius:8px;font:inherit;color:var(--ink);padding:0 10px}
+.mini b{font-size:17px}
+.sticky{position:sticky;bottom:0;background:var(--ground);padding:12px 4px 6px;margin-top:8px;display:flex;justify-content:space-between;font-weight:700;font-size:20px;border-top:1px solid var(--sep)}
+/* Warnings */
+.warn{background:color-mix(in srgb,var(--orange) 16%,transparent);border:1px solid color-mix(in srgb,var(--orange) 55%,transparent);border-radius:12px;padding:12px 16px;font-size:15px;margin-bottom:18px}
+.cell.w-orange{box-shadow:inset 4px 0 0 var(--orange)}.cell.w-orange .s{color:var(--orange)}
+.cell.w-red{box-shadow:inset 4px 0 0 var(--red)}.cell.w-red .s{color:var(--red)}
+.cell .s{overflow-wrap:anywhere}
+/* Tab bar */
+.tabbar{position:fixed;left:0;right:0;bottom:0;background:var(--bar);backdrop-filter:saturate(180%) blur(18px);-webkit-backdrop-filter:saturate(180%) blur(18px);border-top:1px solid var(--sep);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);z-index:5}
+.tabbar .in{max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
+.tab{border:0;background:none;font:inherit;font-size:11px;font-weight:500;color:var(--ink2);padding:7px 0 6px;display:grid;justify-items:center;gap:3px;cursor:pointer;min-height:50px}
+.tab svg{width:25px;height:25px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.tab[aria-current="page"]{color:var(--lagoon)}
+/* Sheet */
+.scrim{position:fixed;inset:0;background:var(--scrim);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+#pickRoot .scrim{z-index:25}
+.sheet{background:var(--ground);width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:14px 14px 0 0;padding:0 max(16px,env(safe-area-inset-left,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-right,0px));animation:up .28s cubic-bezier(.2,.8,.2,1)}
+.sheet .bar{position:sticky;top:0;background:var(--ground);display:grid;grid-template-columns:1fr auto 1fr;align-items:center;min-height:54px;margin-bottom:6px;z-index:2}
+.sheet .bar b{font-size:17px}
+.sheet .bar button{background:none;border:0;font:inherit;color:var(--lagoon);cursor:pointer;min-height:44px;padding:0;text-align:left}
+.sheet .bar .ok{font-weight:600;text-align:right}
+.sheet .bar button:disabled{color:var(--ink2)}
+@keyframes up{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.sheet,.sw i,.sw i::after{animation:none;transition:none}}
+/* Toast with undo */
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(72px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--ground);border-radius:14px;padding:6px 6px 6px 16px;display:flex;align-items:center;gap:12px;max-width:calc(100vw - 32px);z-index:30;font-size:15px}
+.toast button{background:none;border:0;font:inherit;font-weight:600;color:var(--lagoon);min-height:44px;padding:0 10px;cursor:pointer}
+.empty{color:var(--ink2);font-size:15px;padding:18px 16px;text-align:center}
+.neg{color:var(--red)}.pos{color:var(--green)}
+/* Movimientos section: set apart from the stock list */
+.divider{height:1px;background:var(--sep);margin:10px calc(-1*max(16px,env(safe-area-inset-right,0px))) 0 calc(-1*max(16px,env(safe-area-inset-left,0px)))}
+.msec{display:flex;justify-content:space-between;align-items:center;margin:14px 0 6px}
+.msec h2{font-family:var(--font-d);font-size:22px;font-weight:700;margin:0}
+.link{background:none;border:0;font:inherit;color:var(--lagoon);min-height:44px;padding:0 0 0 12px;cursor:pointer}
+.cell.mv{min-height:52px;padding:8px 16px}
+.mv .t{font-size:15px}.mv .s{font-size:13px}.mv .v{font-size:15px;font-weight:600}
+/* Cart: product chips inside a line, ticket thumbnail */
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 14px;border-radius:22px;border:0;background:var(--fill);color:var(--ink);font:inherit;font-size:16px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--lagoon-soft);color:var(--lagoon);font-weight:600}
+.lhead .tn{display:flex;align-items:center;gap:8px;width:auto;height:44px;margin:0;padding:0;font-size:17px;font-weight:600;color:var(--ink);text-align:left}
+.lhead .tn .caret{color:var(--ink2);font-size:12px}
+.lhead .pl{color:var(--ink2);font-weight:600}
+.tk{display:flex;align-items:center;gap:12px;padding:8px 16px;border-top:1px solid var(--sep)}
+.tk .thumb{width:48px;height:48px;border-radius:8px;object-fit:cover;background:var(--fill);flex:none}
+.tk .nm{flex:1;min-width:0;font-size:15px;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tk button{background:none;border:0;font:inherit;color:var(--red);min-height:44px;padding:0 0 0 8px;cursor:pointer}
+#tkBox+.field::before{content:"";position:absolute;top:0;left:16px;right:0;border-top:1px solid var(--sep)}
+/* Product editor */
+.icons{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px}
+.icons button{width:44px;height:44px;border-radius:10px;border:2px solid transparent;background:var(--fill);font-size:22px;line-height:1;cursor:pointer;padding:0}
+.icons button[aria-pressed="true"]{border-color:var(--lagoon);background:var(--lagoon-soft)}
+.icons button:disabled{cursor:default}
+.field input:disabled{color:var(--ink2);opacity:1}
+/* ===== v7: Operación, Eventuales, calendario ===== */
+.daterow{display:flex;align-items:center;justify-content:space-between;margin:0 -10px 0}
+.daterow button{background:none;border:0;font:inherit;color:var(--lagoon);cursor:pointer;min-height:44px}
+.daterow .nx{width:44px;font-size:30px;line-height:1;flex:none}
+.daterow .dt{flex:1;font-size:17px;font-weight:600;color:var(--ink);text-align:center;white-space:nowrap}
+.daterow .wk{flex:1;font-size:16px;font-weight:600;color:var(--ink);text-align:center}
+.live{display:flex;align-items:center;justify-content:center;gap:7px;font-size:13px;color:var(--ink2);margin:0 0 14px}
+.live .dot{width:8px;height:8px}
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.kpi .k{font-size:13px;color:var(--ink2)}
+.kpi .n{font-size:21px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
+.kpi .n.pend{font-size:17px;color:var(--orange)}
+.kpi .sub{font-size:12px;color:var(--ink2);font-variant-numeric:tabular-nums}
+.today .fn{font-size:13px;color:var(--ink2);margin:12px 0 0}
+.pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.pill{font-size:13px;font-weight:600;padding:4px 10px;border-radius:99px;background:var(--fill);color:var(--ink)}
+.pill.g{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}
+.pill.o{background:color-mix(in srgb,var(--orange) 16%,transparent);color:var(--orange)}
+.pill.r{background:color-mix(in srgb,var(--red) 16%,transparent);color:var(--red)}
+.dcard{background:var(--row);border-radius:12px;margin:0 0 12px;overflow:hidden}
+.dmain{display:block;width:100%;text-align:left;background:none;border:0;font:inherit;color:inherit;padding:12px 16px 10px;cursor:pointer}
+.dmain:active{background:var(--fill)}
+.dmain:focus-visible,.sbtn:focus-visible,.cal button:focus-visible,.daterow button:focus-visible{outline:3px solid var(--lagoon);outline-offset:-3px}
+.d1{display:flex;align-items:flex-start;gap:10px}
+.d1 .tm{font-variant-numeric:tabular-nums;font-size:17px;font-weight:700;color:var(--lagoon)}
+.d1 .tn{flex:1;min-width:0;font-weight:600;overflow-wrap:anywhere}
+.d1 .chev{margin-top:5px}
+.lbl{font-weight:400;color:var(--ink2)}
+.crew{font-size:14px;color:var(--ink2);margin:6px 0 0;line-height:1.5}
+.rb{display:inline-block;font-size:12px;font-weight:600;padding:0 6px;border-radius:6px;background:var(--lagoon-soft);color:var(--lagoon);margin-right:4px}
+.rb.w{background:color-mix(in srgb,var(--orange) 18%,transparent);color:var(--orange)}
+.d3{font-size:14px;margin:6px 0 0}
+.nums{display:flex;justify-content:space-between;gap:10px;font-size:14px;margin-top:6px;font-variant-numeric:tabular-nums;color:var(--ink2)}
+.nums .pendt{color:var(--orange)}
+.dfoot{border-top:1px solid var(--sep);padding:4px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:52px;font-size:14px}
+.dfoot .ok{color:var(--green);font-weight:600}
+.dfoot .mut{color:var(--ink2)}
+.sbtn{min-height:44px;padding:0 14px;border-radius:10px;border:0;background:var(--lagoon-soft);color:var(--lagoon);font:inherit;font-size:15px;font-weight:600;cursor:pointer;flex:none}
+.trow{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(4,minmax(0,1fr));gap:4px;padding:10px 16px;position:relative;font-size:15px;font-variant-numeric:tabular-nums;align-items:center}
+.trow>span:not(:first-child){text-align:right}
+.trow.th{font-size:13px;color:var(--ink2);padding-block:8px}
+.trow+.trow::before,.trow+.cell::before,.cell+.trow::before{content:"";position:absolute;top:0;left:16px;right:0;border-top:1px solid var(--sep)}
+.mut{color:var(--ink2)}
+.badge.ok{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}
+.badge.warn{background:color-mix(in srgb,var(--orange) 18%,transparent);color:var(--orange)}
+.calhead{display:flex;align-items:center;justify-content:space-between;margin:0 -8px 4px}
+.calhead b{font-size:17px;text-transform:none}
+.calhead button{background:none;border:0;color:var(--lagoon);font:inherit;font-size:28px;width:44px;height:44px;cursor:pointer}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;text-align:center;background:var(--row);border-radius:12px;padding:8px}
+.cal .wd{font-size:12px;color:var(--ink2);padding:4px 0}
+.cal button{min-height:48px;border:0;background:none;border-radius:10px;font:inherit;color:var(--ink);cursor:pointer;display:grid;justify-items:center;align-content:center;gap:3px;padding:0;font-variant-numeric:tabular-nums}
+.cal button[aria-pressed="true"]{background:var(--lagoon-soft);color:var(--lagoon);font-weight:700}
+.cal button.tdy .n{font-weight:700;color:var(--lagoon)}
+.cal i,.lg i{display:inline-block;width:8px;height:8px;border-radius:50%;background:transparent;flex:none}
+.cal i.g,.lg i.g{background:var(--green)}.cal i.y,.lg i.y{background:var(--orange)}.cal i.r,.lg i.r{background:var(--red)}
+.cal i.p,.lg i.p{border:1.5px solid var(--ink2)}
+.lg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--ink2);margin:10px 4px 0}
+.lg span{display:inline-flex;align-items:center;gap:6px}
+.chipsel{display:grid;gap:8px}
+.chipsel button{min-height:50px;border-radius:12px;border:2px solid transparent;background:var(--row);color:var(--ink);font:inherit;font-size:17px;cursor:pointer;text-align:left;padding:0 16px}
+.chipsel button[aria-pressed="true"]{border-color:var(--lagoon);background:var(--lagoon-soft);color:var(--lagoon);font-weight:600}
+.cell a,a.cell{color:inherit;text-decoration:none}
+.cell .check{color:var(--lagoon);font-size:20px;font-weight:700}
+/* ===== v9: PIN, carga, estados ===== */
+.pinwrap{position:fixed;inset:0;z-index:60;background:var(--ground);display:grid;place-items:center;padding:24px}
+.pinbox{width:100%;max-width:320px;text-align:center}
+.pinbox .logo{font-size:44px;line-height:1}
+.pinbox h1{font-size:28px;margin:10px 0 4px}
+.pinbox .lede{margin:0 0 24px;min-height:22px}
+.pinbox .lede.err{color:var(--red)}
+.pdots{display:flex;justify-content:center;gap:16px;margin:0 0 30px}
+.pdots i{width:14px;height:14px;border-radius:50%;border:2px solid var(--ink2);display:block}
+.pdots i.on{background:var(--ink);border-color:var(--ink)}
+.pdots.shake{animation:shake .4s}
+@keyframes shake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+.keys{display:grid;grid-template-columns:repeat(3,76px);gap:14px 22px;justify-content:center}
+.keys button{width:76px;height:76px;border-radius:50%;border:0;background:var(--row);color:var(--ink);font:inherit;font-size:30px;font-weight:500;cursor:pointer;padding:0}
+.keys button:active{background:var(--fill)}
+.keys .ghost{background:none;font-size:22px;color:var(--ink2)}
+.keys button:focus-visible{outline:3px solid var(--lagoon);outline-offset:2px}
+.boot{position:fixed;inset:0;z-index:55;background:var(--ground);display:grid;place-items:center;text-align:center;color:var(--ink2);padding:24px}
+.boot .btn{margin-top:16px;width:auto;padding:0 28px}
+.busy{position:fixed;top:0;left:0;right:0;height:3px;z-index:70;overflow:hidden}
+.busy i{display:block;height:100%;width:40%;background:var(--lagoon);animation:bz 1s infinite ease-in-out}
+@keyframes bz{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}
+@media (prefers-reduced-motion:reduce){.busy i,.pdots.shake{animation:none}}
+button.live{display:flex;width:100%;background:none;border:0;font:inherit;font-size:13px;color:var(--ink2);cursor:pointer;min-height:44px;margin:0 0 4px}
+.est{font-size:12px;color:var(--ink2);font-weight:400}
+.toast.err{background:var(--red);color:#fff}
+.toast{padding:12px 16px}
+</style>
+</head>
+<body>
+<div class="busy" id="busy" hidden><i></i></div>
+<div class="app" id="app"></div>
+<nav class="tabbar" aria-label="Secciones"><div class="in" id="tabs"></div></nav>
+<div id="sheetRoot"></div>
+<div id="pickRoot"></div>
+<div class="toast" id="toast" hidden role="status" aria-live="polite"><span id="toastText"></span></div>
+<div class="boot" id="boot"><div>Cargando…</div></div>
+<div class="pinwrap" id="pin" hidden><div class="pinbox"><div class="logo">⛵</div><h1>Adventure Lab Ops</h1><p class="lede" id="pMsg" role="status">Ingresa tu PIN</p>
+<div class="pdots" id="pDots" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+<div class="keys" role="group" aria-label="Teclado numérico"><button type="button" data-pk="1">1</button><button type="button" data-pk="2">2</button><button type="button" data-pk="3">3</button><button type="button" data-pk="4">4</button><button type="button" data-pk="5">5</button><button type="button" data-pk="6">6</button><button type="button" data-pk="7">7</button><button type="button" data-pk="8">8</button><button type="button" data-pk="9">9</button><span></span><button type="button" data-pk="0">0</button><button type="button" class="ghost" data-pk="del" aria-label="Borrar">⌫</button></div></div></div>
+<script>
+window.addEventListener('error',function(e){try{var b=document.getElementById('boot');if(b){b.hidden=false;b.innerHTML='<div style="padding:20px;font:13px monospace;white-space:pre-wrap">Error: '+String(e.message)+'\nlínea '+e.lineno+':'+e.colno+'</div>'}}catch(x){}});
+window.addEventListener('unhandledrejection',function(e){try{var b=document.getElementById('boot');if(b&&!b.hidden){b.innerHTML+='<div style="padding:20px;font:13px monospace">Promesa: '+String((e.reason&&e.reason.message)||e.reason)+'</div>'}}catch(x){}});
+</script>
+<script>
+(()=>{
+// ===== Estado. Todo viene de la hoja de Google (getData). Aquí no hay datos de ejemplo. =====
+let TODAY='',NOW='';
+const PERMS=[['compras','Agregar compras'],['revisar','Marcar revisado'],['pagar','Pagar eventuales'],['inventario','Inventario completo'],['ajuste','Ajustar inventario'],['editar','Editar o anular compras'],['comida','Comida de empleado'],['config','Configuración (productos, tarifas y permisos)']];
+const ROLES=[['admin','Admin'],['op','Operación']];
+const REASONS=['Merma','Pérdida','Rotura','Error de conteo','Otro'];
+const GI={'Bebidas':'🥤','Combustible':'⛽','Consumo directo':'🧊','Comida empleado':'🍽️'};
+const TYPES=[['ponton','Pontón'],['catamaran','Catamarán'],['monocasco','Monocasco'],['hobie','Hobie'],['sup','Paddle (SUP)'],['kayak','Kayak'],['otro','Otro']];
+const RB={'Capitán':'Cap.','Marinero':'Mar.','Instructor':'Inst.','Auxiliar':'Aux.','Guía':'Guía'};
+const rb=r=>RB[r]||(r.length>5?r.slice(0,4)+'.':r);
+const S={role:'op',realRole:'op',user:'',date:'',wk:'',
+  perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},
+  win:{from:'',to:''},fetchedAt:'',q:''};
+let PIN='';
+
+// ===== Servidor =====
+// Servidor: Apps Script web app (misma URL que el webhook de FareHarbor). POST text/plain = sin preflight CORS.
+const EXEC='https://script.google.com/macros/s/AKfycbzUi-BEXRiNNShtlVSSc8tTMb9JZloofTHCJPougpu6h_f1HzQDF63wbjNXxf0nJI6ncQ/exec';
+const API=(fn,...args)=>fetch(EXEC,{method:'POST',body:JSON.stringify({type:'api',fn,args})})
+  .then(r=>{if(!r.ok)throw new Error('Servidor '+r.status);return r.json()})
+  .then(j=>{if(!j||!j.ok)throw new Error((j&&j.error)||'Error del servidor');return j.result});
+const errMsg=e=>{const m=String((e&&e.message)||e||'Error').replace(/^(Error:\s*)+/,'');
+  return /Failed to fetch|NetworkError|Load failed/i.test(m)?'Sin conexión. Intenta de nuevo.':m||'Error'};
+const srv=(fn,...args)=>API(fn,PIN,...args).catch(e=>{if(/^PIN incorrecto|Demasiados intentos/.test(errMsg(e))&&PIN)logout(errMsg(e));throw e});
+let busyN=0;
+function setBusy(n){busyN=Math.max(0,busyN+n);$('busy').hidden=!busyN}
+let lastLoad=Date.now();
+function applyData(d){lastLoad=Date.now();
+  ['items','purchases','moves','priceLog','deps','rates','paid','weekly','externos','control','tours','comidas','fh'].forEach(k=>{S[k]=d[k]});
+  S.perms=d.perms;S.realRole=d.user.rol;S.user=d.user.nombre;
+  if(S.realRole!=='admin'||!S.date)S.role=S.realRole;
+  TODAY=d.today;NOW=d.now;S.fetchedAt=d.now;S.win={from:d.desde,to:d.hasta};
+  if(!S.date)S.date=TODAY;if(!S.wk)S.wk=wkStart(TODAY);
+}
+async function load(from,to){applyData(await srv('getData',from||'',to||''))}
+// Fuera de la ventana cargada (hoy-21 … hoy+7) se vuelve a pedir al servidor
+async function ensureRange(from,to){
+  if(S.win.from&&from>=S.win.from&&to<=S.win.to)return;
+  setBusy(1);
+  try{await load(addD(from,-14),addD(to,14))}catch(e){toast(errMsg(e),'err')}finally{setBusy(-1)}
+}
+async function refresh(quiet){
+  setBusy(1);
+  try{await load(S.win.from,S.win.to);render()}catch(e){if(!quiet)toast(errMsg(e),'err')}finally{setBusy(-1)}
+}
+// Escribir: llamar al servidor, volver a pedir los datos y pintar. Devuelve el resultado o null si falló.
+let saving=false;
+async function act(fn,args){
+  if(saving)return null;
+  saving=true;setBusy(1);toast('Guardando…','',900000);
+  const btn=$('sheetOk');if(btn)btn.disabled=true;
+  let r;
+  try{r=await srv(fn,...args)}
+  catch(e){toast(errMsg(e),'err');if(btn)btn.disabled=false;saving=false;setBusy(-1);return null}
+  try{await load(S.win.from,S.win.to);render()}catch(e){toast('Guardado, pero no pude actualizar. Toca "actualizar".','err')}
+  saving=false;setBusy(-1);
+  return r||{ok:true};
+}
+
+// ===== Helpers =====
+function item(id){return S.items.find(x=>x.id===id)||{id,name:String(id),icon:'📦',unitIcon:'',controlStock:false,group:'',unit:'unidad',units:'unidades',pack:1,packName:'caja',price:0,min:0,field:'',active:false}}
+const $=id=>document.getElementById(id);
+const can=k=>!!S.perms[S.role][k];
+const menuOk=()=>can('inventario')||can('ajuste');
+const stock=id=>S.moves.filter(m=>m.i===id&&!m.noStock).reduce((a,m)=>a+m.q,0);
+const fmt=n=>'$'+Number(n).toLocaleString('es-MX',{maximumFractionDigits:2});
+const num=n=>Number(n).toLocaleString('es-MX',{maximumFractionDigits:1});
+const sg=n=>(n>0?'+':n<0?'−':'')+num(Math.abs(n));
+const r2=x=>Math.round(x*100)/100;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const dayName=d=>new Date(d+'T12:00:00').toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'});
+const short=d=>new Date(d+'T12:00:00').toLocaleDateString('es-MX',{day:'numeric',month:'short'});
+const chev='<svg class="chev" viewBox="0 0 8 13"><path d="M1 1l6 5.5L1 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+const NB='  ';
+const cap=s=>s?s.charAt(0).toUpperCase()+s.slice(1):s;
+const plural=s=>/[aeiouáéíóú]$/i.test(s)?s+'s':/s$/i.test(s)?s:s+'es';
+const ICONS=['🍺','💧','🥤','🧃','🍷','⛽','🧊','🧴','🍉','🍳','🍽️','📦'];
+function level(it){const s=stock(it.id);return s<it.min?'low':s<it.min*1.5?'mid':''}
+function packs(it,s){if(it.pack<=1)return `${num(s)} ${it.units}`;const p=Math.floor(s/it.pack),r=s-p*it.pack;return `📦 ${p}${NB}${it.unitIcon?it.unitIcon+' '+num(r):num(r)+' '+it.units}`}
+
+// ===== Operación helpers =====
+const DOW=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'],MON=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+const MONTHS=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const pd=d=>new Date(d+'T12:00:00');
+const fd=d=>{const x=pd(d);return DOW[x.getDay()]+' '+x.getDate()+' '+MON[x.getMonth()]};
+const sd=d=>{const x=pd(d);return DOW[x.getDay()].slice(0,3)+' '+x.getDate()+' '+MON[x.getMonth()]};
+const addD=(d,n)=>{const x=pd(d);x.setDate(x.getDate()+n);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')};
+const wkStart=d=>addD(d,-((pd(d).getDay()-4+7)%7));
+function wkLabel(ws){const a=pd(ws),b=pd(addD(ws,6));return 'Semana '+DOW[a.getDay()].slice(0,3)+' '+a.getDate()+(a.getMonth()!==b.getMonth()?' '+MON[a.getMonth()]:'')+' – '+DOW[b.getDay()].slice(0,3)+' '+b.getDate()+' '+MON[b.getMonth()]}
+const depsOn=d=>S.deps.filter(x=>x.date===d).sort((a,b)=>a.time<b.time?-1:1);
+// Estado de la bitácora (viene de la columna "Bitácora" de Salidas)
+const isFut=d=>d.date>TODAY||(d.date===TODAY&&d.time>NOW&&d.bit==='Sin bitácora');
+function status(d){
+  if(isFut(d))return 'prog';
+  if(d.bit==='Completa')return 'ok';
+  if(d.bit==='Falta regreso')return 'sal';
+  if(d.bit==='Falta salida')return 'fsal';
+  if(d.bit==='No aplica')return 'na';
+  return d.bookings.length?'none':'na'; // sin reservas activas no hay bitácora que exigir
+}
+const okish=d=>{const s=status(d);return s==='ok'||s==='na'};
+const needBit=d=>{const s=status(d);return s==='none'||s==='sal'||s==='fsal'};
+const ST_T={ok:'✅ Salida y regreso',sal:'⚠️ Falta regreso',fsal:'⚠️ Falta salida',none:'❌ Sin bitácora',prog:'⏳ Programada'};
+const stText=d=>{const s=status(d);return s==='na'?(d.bookings.length?'⚪ No lleva bitácora':'⚪ Sin reservas activas'):ST_T[s]};
+const missingRole=d=>d.crew.filter(c=>!c.r&&!c.ext);
+const rateAlert=x=>/pendiente|sin tarifa/i.test(x.alert||'');
+const payLine=(d,c)=>c.pay||{base:0,hx:0,tot:0};   // sueldo por salida: lo calcula el servidor (hoja Eventuales)
+const cost=d=>okish(d)?d.costs:null;                // costos de la hoja "Costos salida"
+const netOf=d=>d.bookings.some(b=>b.net===null)?null:d.bookings.reduce((a,b)=>a+b.net,0);
+const paxOf=d=>d.bookings.reduce((a,b)=>a+b.pax,0);
+function dayState(date){
+  const ds=depsOn(date);if(!ds.length)return 'none';
+  if(date>TODAY)return 'prog';
+  if(ds.some(needBit))return 'r';
+  if(ds.some(d=>status(d)!=='prog'&&!d.rev))return 'y';
+  return ds.every(d=>status(d)==='prog')?'prog':'g';
+}
+function faltan(){
+  const out=[];
+  S.deps.filter(d=>d.date<=TODAY).forEach(d=>{const st=status(d);
+    if(st==='none')out.push({d,t:'❌ Sin bitácora'});else if(st==='sal')out.push({d,t:'⚠️ Falta regreso'});else if(st==='fsal')out.push({d,t:'⚠️ Falta salida'});else if((st==='ok'||st==='na')&&!d.rev)out.push({d,t:'Por revisar'})});
+  return out.sort((a,b)=>(a.d.date+a.d.time)<(b.d.date+b.d.time)?1:-1);
+}
+function weekPeople(ws){
+  const we=addD(ws,6),map={};
+  S.deps.filter(d=>d.date>=ws&&d.date<=we&&d.date<=TODAY).forEach(d=>d.crew.forEach(c=>{
+    if(c.ext)return; // externos se pagan aparte
+    const p=map[c.n]||(map[c.n]={n:c.n,roles:new Set(),lines:[],tot:0,hx:0,miss:false,rate:false}),pl=payLine(d,c);
+    if(c.r)p.roles.add(c.r);else p.miss=true;
+    if(rateAlert(c))p.rate=true;
+    p.lines.push({d,c,pl});p.tot+=pl.tot;if(pl.hx)p.hx+=d.hx}));
+  return Object.values(map).sort((a,b)=>b.tot-a.tot||a.n.localeCompare(b.n));
+}
+
+// Modo caja/unidad y tamaño de caja por producto (localStorage es opcional)
+let prefs={};
+try{prefs=JSON.parse(localStorage.getItem('adv_ops_pref')||'{}')||{}}catch(e){prefs={}}
+function setPref(l){prefs[l.i]={mode:l.mode,pack:l.pack};try{localStorage.setItem('adv_ops_pref',JSON.stringify(prefs))}catch(e){}}
+
+// ===== Aviso =====
+let toastT;
+function toast(text,kind,ms){const t=$('toast');$('toastText').textContent=text;t.className='toast'+(kind==='err'?' err':'');t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{t.hidden=true},ms||(kind==='err'?6000:3500))}
+
+// ===== Navigation =====
+const TABS=[
+ ['op','Operación','<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2"/>'],
+ ['stock','Stock','<path d="M3 7.5L12 3l9 4.5-9 4.5z"/><path d="M3 7.5V17l9 4.5 9-4.5V7.5"/><path d="M12 12v9.5"/>'],
+ ['ev','Eventuales','<circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.5-3.4 2.7-5 5.5-5s5 1.6 5.5 5"/><path d="M16.5 5.2a3 3 0 010 5.6M18 14.3c1.6.6 2.6 2 3 4.7"/>'],
+ ['mas','Más','<circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/>']];
+let tab='op',stackView=null; // stackView = {name, arg}
+$('tabs').innerHTML=TABS.map(([k,l,ic])=>`<button class="tab" data-tab="${k}"><svg viewBox="0 0 24 24">${ic}</svg>${l}</button>`).join('');
+
+const PLUS=pre=>can('compras')&&{k:'compra',l:'Nueva compra',s:'+',pre};
+const DOTS=pre=>menuOk()&&{k:'menu',l:'Más acciones',s:'⋯',pre};
+function topBar(title,{back,backTo,backView,acts=[],lede}={}){
+  const a=acts.filter(Boolean).map(x=>`<button class="act" data-act="${x.k}" data-pre="${x.pre||''}" aria-label="${x.l}">${x.s}</button>`).join('');
+  const nav=(back||a)?`<div class="nav">${back?`<button class="back" data-back="${backTo||''}" ${backView?`data-backview="${backView}"`:''}>‹ ${esc(back)}</button>`:'<span></span>'}<span class="acts">${a}</span></div>`:'';
+  return nav+`<h1>${esc(title)}</h1>${lede?`<p class="lede">${lede}</p>`:''}`;
+}
+function roleBar(){const adm=S.realRole==='admin';return `<div class="rolebar"><span>${adm?'Viendo como:':'Hola, '+esc(S.user)}</span>${adm?`<div class="seg" role="group" aria-label="Rol">${ROLES.map(([k,l])=>`<button type="button" data-rolesw="${k}" aria-pressed="${S.role===k}">${l}</button>`).join('')}</div>`:''}</div>`}
+function mvRow(m){
+  const it=item(m.i),tag=m.cid?'button':'div';
+  return `<${tag} class="cell" ${m.cid?`data-purchase="${m.cid}"`:''}><span class="ic">${it.icon}</span><span class="main"><span class="t">${esc(m.t)}</span><div class="s">${short(m.d)} · ${esc(m.ref)}</div></span><span class="v ${m.q<0?'neg':'pos'}">${sg(m.q)}<div class="s">${esc(it.name)}</div></span>${m.cid?chev:''}</${tag}>`;
+}
+
+function mvRow2(m){
+  const it=item(m.i),tag=m.cid?'button':'div';
+  return `<${tag} class="cell mv" ${m.cid?`data-purchase="${m.cid}"`:''}><span class="main"><span class="t">${esc(m.t)} · ${esc(m.ref)}</span><div class="s">${short(m.d)} · ${esc(it.name)}</div></span><span class="v ${m.q<0?'neg':'pos'}">${sg(m.q)}</span>${m.cid?chev:''}</${tag}>`;
+}
+const sortedMoves=()=>S.moves.map((m,n)=>({m,n})).filter(x=>!x.m.noStock).sort((a,b)=>a.m.d<b.m.d?1:a.m.d>b.m.d?-1:b.n-a.n).map(x=>x.m);
+
+
+// ===== Screens =====
+const V={
+op(){
+  const date=S.date,ds=depsOn(date),fut=date>TODAY;
+  let h=topBar('Operación')+`<div class="daterow"><button class="nx" data-day="-1" aria-label="Día anterior">‹</button><button class="dt" data-cal aria-label="Abrir calendario">${fd(date)}&nbsp;&nbsp;📅</button><button class="nx" data-day="1" aria-label="Día siguiente">›</button></div>
+  <button class="live" data-refresh><i class="dot"></i>&nbsp;Actualizado ${esc(S.fetchedAt)} · toca para actualizar</button>`;
+  if(!ds.length)return h+`<div class="group"><div class="list"><div class="empty">Sin salidas este día.${pd(date).getDay()===3?' Los miércoles no hay tours.':''}</div></div></div>`;
+  const rev=ds.filter(d=>d.rev).length,falta=ds.filter(needBit).length,pend=ds.filter(d=>okish(d)&&!d.rev).length;
+  const pills=`<div class="pills"><span class="pill">${ds.length} ${ds.length===1?'salida':'salidas'}</span>${fut?'<span class="pill">Programadas</span>':`<span class="pill g">${rev} ${rev===1?'revisada':'revisadas'}</span>${pend?`<span class="pill o">${pend} por revisar</span>`:''}${falta?`<span class="pill r">${falta} ${falta===1?'falta bitácora':'faltan bitácora'}</span>`:''}`}</div>`;
+  if(fut)h+=`<section class="today"><div class="state">Todavía no hay ingresos ni costos</div><div class="head" style="margin-bottom:0">${ds.reduce((a,d)=>a+paxOf(d),0)} personas reservadas</div>${pills}</section>`;
+  else{
+    let netSum=0,netMiss=0,costSum=0,a=0,b=0,both=0,costMiss=0,est=false;
+    ds.forEach(d=>{const n=netOf(d),c=cost(d);if(n===null)netMiss++;else{netSum+=n;if(d.netSource==='estimado')est=true}if(c)costSum+=c.tot;else if(status(d)!=='prog')costMiss++;if(n!==null&&n>0&&c){a+=c.tot;b+=n;both++}});
+    const pct=b?Math.round(a/b*100):null;
+    h+=`<section class="today"><div class="kpis">
+      <div class="kpi"><div class="k">Ingreso neto</div>${netMiss?`<div class="n pend">Pendiente</div>${netSum?`<div class="sub">Parcial ${fmt(netSum)}</div>`:''}`:`<div class="n">${fmt(netSum)}</div>${est?'<div class="sub">incluye estimado</div>':''}`}</div>
+      <div class="kpi"><div class="k">Costo</div><div class="n">${fmt(costSum)}</div>${costMiss?'<div class="sub">Parcial</div>':''}</div>
+      <div class="kpi"><div class="k">Costo %</div><div class="n">${pct===null?'—':pct+'%'}</div></div></div>
+      ${netMiss||costMiss?`<div class="fn">${netMiss?`Ingreso neto pendiente en ${netMiss} ${netMiss===1?'salida':'salidas'}. El Costo % se calcula solo con las ${both} que ya tienen ingreso y bitácora completa.`:''}${costMiss?` El costo suma solo salidas con bitácora completa.`:''}</div>`:''}
+      ${pills}</section>`;
+  }
+  return h+ds.map(depCard).join('');
+},
+dep(id){
+  const d=S.deps.find(x=>x.id===id);
+  if(!d)return topBar('Salida',{back:'Operación',backTo:'op'})+'<div class="group"><div class="list"><div class="empty">No encontré esta salida.</div></div></div>';
+  const st=status(d),c=cost(d),n=netOf(d),miss=missingRole(d),fut=st==='prog';
+  let h=topBar(d.item,{back:'Operación',backTo:'op',lede:[d.time,d.boat?esc(d.boat):'',fd(d.date),d.label?esc(d.label):''].filter(Boolean).join(' · ')});
+  h+=`<div class="group"><div class="list"><div class="cell"><span class="main t">Bitácora</span><span class="v">${stText(d)}</span></div></div></div>`;
+  if(d.alerts)h+=`<div class="group"><div class="ghead">Avisos</div><div class="list">${d.alerts.split(' | ').map(a=>`<div class="cell w-orange"><span class="main"><span class="s" style="margin:0">${esc(a)}</span></span></div>`).join('')}</div></div>`;
+  h+=`<div class="group"><div class="ghead">Clientes</div><div class="list">${d.bookings.map(b=>`<div class="cell"><span class="main"><span class="t">${esc(b.name||b.id)}</span><div class="s">#${esc(b.id)} · ${b.pax} ${b.pax===1?'persona':'personas'}${b.types?' · '+esc(b.types):''}</div></span>${fut?'':b.net===null?'<span class="v" style="color:var(--orange)">Pendiente</span>':`<span class="v pos">${fmt(b.net)}${b.est?'<div class="s est">estimado</div>':''}</span>`}</div>`).join('')||'<div class="empty">Sin reservas activas.</div>'}</div>
+    <div class="gfoot">${paxOf(d)} personas${fut?'':'. Ingreso neto cobrado (Net revenue collected) por reserva'}.</div></div>`;
+  if(st==='prog'||(!d.out&&!d.back)){h+=`<div class="group"><div class="ghead">Bitácora</div><div class="list"><div class="empty">${fut?'La bitácora se llena después de la salida.':st==='na'?'Este tour no lleva bitácora.':'Todavía no hay bitácora. Llega sola desde FareHarbor.'}</div></div>${fut?'':`<div class="gfoot">${bkLine(d)}</div>`}</div>`}
+  else{
+    const out=d.out||{},back=d.back||{},ids=S.items.filter(i=>out[i.id]!==undefined||back[i.id]!==undefined);
+    const rows=ids.map(it=>{const i=it.id,o=out[i]||0,bev=it.group==='Bebidas',bk=bev?(d.back?(back[i]||0):null):0;
+      const used=!d.out?null:bev?(d.back?Math.max(0,o-bk):null):o;
+      return `<div class="trow"><span>${esc(it.name)}</span><span>${d.out&&o?num(o):'—'}</span><span>${bev?(bk===null?'…':num(bk)):'—'}</span><span>${used===null?'…':(used?num(used):'—')}</span><span>${used===null?'…':(used?fmt(used*it.price):'—')}</span></div>`}).join('');
+    h+=`<div class="group"><div class="ghead">Bitácora</div><div class="list"><div class="trow th"><span>Producto</span><span>Salió</span><span>Regresó</span><span>Usado</span><span>Costo</span></div>${rows||'<div class="empty">Sin productos anotados.</div>'}
+      <div class="cell"><span class="main t">Extras a bordo</span><span class="v" style="white-space:normal;max-width:55%">${d.extras?esc(d.extras):'Ninguno'}</span></div>
+      <div class="cell"><span class="main t">Hora extra</span><span class="v">${d.hx} ${d.hx===1?'hora':'horas'}</span></div></div>
+      <div class="gfoot">${bkLine(d)}</div>
+      <div class="gfoot">${st==='sal'?'Falta el regreso. El stock se descuenta cuando llegue.':st==='fsal'?'Falta la salida.':'Hielo y gasolina solo se anotan a la salida.'}</div></div>`;
+  }
+  h+=`<div class="group"><div class="ghead">Tripulación</div><div class="list">${d.crew.map(x=>{const p=payLine(d,x);
+    return `<div class="cell"><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${x.ext?'<span class="rb">Ext.</span>Externo'+(x.note?' · '+esc(x.note):''):x.r?`<span class="rb">${esc(rb(x.r))}</span>${esc(x.r)}`:'⚠️ Falta rol'}${p.hx?` · hora extra ${fmt(p.hx)}`:''}</div>${x.alert?`<div class="s" style="color:var(--orange)">⚠️ ${esc(x.alert)}</div>`:''}</span>${x.ext||!x.r?'':`<span class="v">${fmt(p.tot)}</span>`}</div>`}).join('')||'<div class="empty">Sin tripulación asignada.</div>'}${miss.length?`<div class="cell"><span class="main"><span class="t" style="color:var(--orange)">⚠️ Falta rol en FareHarbor</span></span></div>`:''}</div>
+    ${miss.length?`<div class="gfoot">La app no edita datos: el rol se asigna en FareHarbor y llega solo.</div>`:''}<div class="gfoot">Pago por rol y tipo de barco${d.boat?` (${esc(d.boat)})`:''}.</div></div>`;
+  if(c)h+=`<div class="group"><div class="ghead">Costos</div><div class="list">
+    <div class="cell"><span class="main t">Bebidas</span><span class="v">${fmt(c.b)}</span></div>
+    <div class="cell"><span class="main t">Gasolina</span><span class="v">${fmt(c.g)}</span></div>
+    <div class="cell"><span class="main t">Hielo</span><span class="v">${fmt(c.h)}</span></div>
+    ${c.f?`<div class="cell"><span class="main t">Fruta</span><span class="v">${fmt(c.f)}</span></div>`:''}${c.des?`<div class="cell"><span class="main t">Desayuno</span><span class="v">${fmt(c.des)}</span></div>`:''}
+    <div class="cell"><span class="main t">Eventuales</span><span class="v">${fmt(c.ev)}</span></div>
+    <div class="cell"><span class="main t"><b>Costo total</b></span><span class="big" style="font-size:17px">${fmt(c.tot)}</span></div>
+    <div class="cell"><span class="main t">Ingreso neto</span>${n===null?'<span class="v" style="color:var(--orange)">Pendiente</span>':`<span class="v">${fmt(n)}${d.netSource==='estimado'?'<div class="s est">estimado</div>':''}</span>`}</div>
+    <div class="cell"><span class="main t">Costo %</span><span class="v">${n?Math.round(c.tot/n*100)+'%':'—'}</span></div></div></div>`;
+  else if(!fut)h+=`<div class="group"><div class="ghead">Costos</div><div class="list"><div class="empty">El costo se calcula cuando la bitácora tiene salida y regreso.</div></div></div>`;
+  if(!fut){
+    if(d.rev)h+=`<div class="group"><div class="list"><div class="cell"><span class="main t" style="color:var(--green)">✅ Revisado · ${esc(d.rev.by)} ${esc(d.rev.at)}</span></div></div></div>`;
+    else if(okish(d)&&!miss.length&&can('revisar'))h+=`<div class="stack" style="margin-bottom:26px"><button class="btn" data-rev="${d.id}">Marcar revisado</button></div>`;
+    else h+=`<div class="group"><div class="list"><div class="cell"><span class="main t mut">${!okish(d)?'Revisión pendiente: falta bitácora':miss.length?'Revisión pendiente: falta asignar rol':'Por revisar'}</span></div></div></div>`;
+  }
+  return h;
+},
+ev(){
+  const ws=S.wk,we=addD(ws,6),ps=weekPeople(ws),tot=ps.reduce((a,p)=>a+p.tot,0),paid=ps.filter(p=>S.paid[ws+'|'+p.n]).length;
+  const ext=S.externos.filter(x=>x.d>=ws&&x.d<=we).sort((a,b)=>a.d<b.d?-1:1);
+  let h=topBar('Eventuales',{lede:'Semana de jueves a miércoles. Se paga los jueves.'})+`<div class="daterow"><button class="nx" data-wk="-1" aria-label="Semana anterior">‹</button><span class="wk">${wkLabel(ws)}</span><button class="nx" data-wk="1" aria-label="Semana siguiente">›</button></div>
+  <div class="live" style="margin-top:2px">Pago: jueves ${short(addD(ws,7))}</div>`;
+  if(!ps.length&&!ext.length)return h+`<div class="group"><div class="list"><div class="empty">Sin salidas en esta semana.</div></div></div>`;
+  if(ps.length)h+=`<section class="today"><div class="kpis" style="grid-template-columns:1.4fr 1fr 1fr"><div class="kpi"><div class="k">Total a pagar</div><div class="n">${fmt(tot)}</div></div><div class="kpi"><div class="k">Personas</div><div class="n">${ps.length}</div></div><div class="kpi"><div class="k">Pagados</div><div class="n">${paid}</div></div></div></section>
+  <div class="group"><div class="list">${ps.map(p=>{const pg=S.paid[ws+'|'+p.n];return `<button class="cell" data-person="${esc(p.n)}"><span class="main"><span class="t">${esc(p.n)}</span><div class="s">${[...p.roles].join(', ')||'Sin rol'} · ${p.lines.length} ${p.lines.length===1?'salida':'salidas'}${p.hx?` · ${p.hx} h extra`:''}</div>${p.miss?'<div class="s" style="color:var(--orange)">⚠️ Falta rol en una salida</div>':''}${p.rate?'<div class="s" style="color:var(--orange)">⚠️ Tarifa pendiente o sin tarifa</div>':''}</span><span class="v" style="text-align:right">${fmt(p.tot)}${pg?'<div class="s" style="color:var(--green)">Pagado</div>':''}</span>${chev}</button>`}).join('')}</div></div>`;
+  if(ext.length)h+=`<div class="group"><div class="ghead">Externos (se pagan aparte)</div><div class="list">${ext.map(x=>`<div class="cell"><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${sd(x.d)} · ${esc(x.time)} · ${esc(x.item)}</div>${x.note?`<div class="s">Se debe a: ${esc(x.note)}</div>`:`<div class="s" style="color:var(--orange)">⚠️ Falta nota: ¿a quién se debe?</div>`}</span></div>`).join('')}</div></div>`;
+  return h;
+},
+person(name){
+  const ws=S.wk,p=weekPeople(ws).find(x=>x.n===name);
+  if(!p)return topBar(name,{back:'Eventuales',backTo:'ev'})+'<div class="empty">Sin salidas.</div>';
+  const pg=S.paid[ws+'|'+name];
+  let h=topBar(name,{back:'Eventuales',backTo:'ev',lede:wkLabel(ws)})+`<div class="hero"><div class="n">${fmt(p.tot)}</div><div class="u">${p.lines.length} ${p.lines.length===1?'salida':'salidas'}${p.hx?` · ${p.hx} h extra`:''}</div></div>
+  <div class="group"><div class="list">${p.lines.sort((a,b)=>(a.d.date+a.d.time)<(b.d.date+b.d.time)?-1:1).map(l=>`<div class="cell"><span class="main"><span class="t">${sd(l.d.date)} · ${l.d.time}</span><div class="s">${esc(l.d.item)}</div><div class="s">${l.c.r?`${esc(l.c.r)} · tarifa ${fmt(l.pl.base)}`:'⚠️ Falta rol'}${l.pl.hx?` · hora extra ${fmt(l.pl.hx)}`:''}</div>${l.c.alert?`<div class="s" style="color:var(--orange)">⚠️ ${esc(l.c.alert)}</div>`:''}</span><span class="v">${fmt(l.pl.tot)}</span></div>`).join('')}
+    <div class="cell"><span class="main t"><b>Total</b></span><span class="big" style="font-size:17px">${fmt(p.tot)}</span></div></div></div>`;
+  if(pg)h+=`<div class="group"><div class="list"><div class="cell"><span class="main t" style="color:var(--green)">✅ Pagado · ${short(pg)}</span></div></div></div>`;
+  else if(can('pagar')){const blk=p.miss||p.rate;h+=`<div class="stack" style="margin-bottom:26px"><button class="btn" data-pay="${esc(name)}" ${blk?'disabled':''}>Marcar pagado</button>${p.miss?'<div class="gfoot" style="margin:0">Asigna el rol faltante en FareHarbor antes de pagar.</div>':p.rate?'<div class="gfoot" style="margin:0">Falta una tarifa. Defínela en Más, Tarifas eventuales, antes de pagar.</div>':''}</div>`}
+  else h+=`<div class="group"><div class="list"><div class="cell"><span class="main t mut">Tu rol no puede marcar pagos.</span></div></div></div>`;
+  return h;
+},
+stock(){
+  const q=(S.q||'').toLowerCase();
+  const its=S.items.filter(i=>i.controlStock&&i.active&&i.name.toLowerCase().includes(q));
+  const groups=[...new Set(its.map(i=>i.group))];
+  const value=its.reduce((a,i)=>a+stock(i.id)*i.price,0);
+  const recent=sortedMoves().slice(0,8);
+  return topBar('Stock actual',{acts:[PLUS(),DOTS()],lede:`Valor en bodega ${fmt(value)}`})+`
+  <label class="search"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><input id="q" type="search" placeholder="Buscar" value="${esc(S.q||'')}" aria-label="Buscar producto"></label>
+  ${groups.map(g=>`<div class="group"><div class="ghead">${GI[g]||'📦'} ${esc(g)}</div><div class="list">
+    ${its.filter(i=>i.group===g).map(i=>{const s=stock(i.id),l=level(i);return `<button class="cell" data-item="${i.id}"><span class="dot ${l}"></span><span class="ic">${i.icon}</span><span class="main"><span class="t">${esc(i.name)}</span><div class="s">${packs(i,s)}</div></span><span class="big">${num(s)}<small>${i.units}</small></span>${chev}</button>`}).join('')}
+  </div></div>`).join('')||'<div class="empty">Ningún producto coincide.</div>'}
+  <div class="divider"></div>
+  <div class="msec"><h2>Movimientos</h2><button class="link" type="button" data-movs>Ver todos</button></div>
+  <div class="group"><div class="list">${recent.map(mvRow2).join('')||'<div class="empty">Sin movimientos.</div>'}</div></div>`;
+},
+movs(){
+  const all=sortedMoves(),days=[...new Set(all.map(m=>m.d))];
+  return topBar('Movimientos',{back:'Stock',backTo:'stock'})+(days.map(d=>`<div class="group"><div class="ghead">${esc(dayName(d))}</div><div class="list">${all.filter(m=>m.d===d).map(mvRow2).join('')}</div></div>`).join('')||'<div class="empty">Sin movimientos.</div>');
+},
+item(id){
+  const i=item(id),s=stock(id),mv=S.moves.filter(m=>m.i===id&&!m.noStock).slice().reverse(),pl=(S.priceLog[id]||[]).slice().reverse();
+  return topBar(i.name,{back:i.controlStock?'Stock':'Más',backTo:i.controlStock?'stock':'mas',acts:[PLUS(id),i.controlStock&&DOTS(id)]})+`
+  ${i.controlStock?`<div class="hero"><div class="n ${level(i)==='low'?'neg':''}">${num(s)}</div><div class="u">${i.units} en bodega · ${packs(i,s)}</div></div>`:`<div class="hero"><div class="n">${fmt(i.price)}</div><div class="u">por ${i.unit} · se paga al usarlo, no se guarda en bodega</div></div>`}
+  <div class="group"><div class="list">
+    <div class="cell"><span class="main t">Precio actual</span><span class="v">${fmt(i.price)} por ${i.unit}</span></div>
+    ${i.controlStock?`<div class="cell"><span class="main t">Mínimo</span><span class="v">${num(i.min)} ${i.units}</span></div>
+    <div class="cell"><span class="main t">Valor en bodega</span><span class="v">${fmt(s*i.price)}</span></div>`:''}
+    <div class="cell"><span class="main t">Campo en la bitácora</span><span class="v">${esc(i.field)}</span></div>
+  </div></div>
+  <div class="group"><div class="ghead">Precios anteriores</div><div class="list">${pl.map(p=>`<div class="cell"><span class="main t">${short(p.d)}</span><span class="v">${fmt(p.p)}</span></div>`).join('')}</div></div>
+  ${i.controlStock?`<div class="group"><div class="ghead">Movimientos</div><div class="list">${mv.map(mvRow).join('')||'<div class="empty">Sin movimientos.</div>'}</div></div>`:''}`;
+},
+purchase(id){
+  const c=S.purchases.find(x=>x.id===id);
+  if(!c)return topBar('Compra',{back:'Stock',backTo:'stock'})+'<div class="group"><div class="list"><div class="empty">No encontré esta compra.</div></div></div>';
+  const tot=c.lines.reduce((a,l)=>a+l.q*l.p,0),url=/^https?:/.test(c.ticket);
+  return topBar(c.sup,{back:'Stock',backTo:'stock',lede:dayName(c.d),acts:[can('editar')&&!c.annulled&&{k:'pmenu',l:'Editar o anular compra',s:'⋯',pre:id}]})+
+  (c.annulled?`<div class="group"><span class="badge red">Anulada</span></div>`:'')+`
+  <div class="group"><div class="list">${c.lines.map(l=>{const i=item(l.i);return `<div class="cell"><span class="ic">${i.icon}</span><span class="main"><span class="t">${esc(i.name)}</span><div class="s">${num(l.q)} ${i.units} × ${fmt(l.p)}</div></span><span class="v">${fmt(l.q*l.p)}</span></div>`}).join('')}
+  <div class="cell"><span class="main t"><b>Total</b></span><span class="big" style="font-size:17px">${fmt(tot)}</span></div></div></div>
+  ${c.ticket||c.note||c.hasta?`<div class="group"><div class="list">${c.ticket?`<div class="cell"><span class="main t">Ticket</span><span class="v">${url?`<a href="${esc(c.ticket)}" target="_blank" rel="noopener" style="color:var(--lagoon)">📷 Ver foto</a>`:'📷 '+esc(c.ticket)}</span></div>`:''}${c.hasta?`<div class="cell"><span class="main t">Cubre hasta</span><span class="v">${short(c.hasta)}</span></div>`:''}${c.note?`<div class="cell"><span class="main t">Nota</span><span class="v" style="white-space:normal">${esc(c.note)}</span></div>`:''}</div></div>`:''}
+  <div class="group"><div class="ghead">Historial</div><div class="list">${c.history.slice().reverse().map(h=>`<div class="cell"><span class="main"><span class="t">${esc(h.a)}</span><div class="s">${short(h.d)}${h.r?' · '+esc(h.r):''}</div></span></div>`).join('')}</div></div>`;
+},
+mas(){
+  const n=S.items.length;
+  return topBar('Más')+`
+  <div class="group"><div class="list">
+    <button class="cell" data-view="productos"><span class="ic">📦</span><span class="main"><span class="t">Productos</span><div class="s">${n} ${n===1?'producto':'productos'}</div></span>${chev}</button>
+    <button class="cell" data-view="tarifas"><span class="ic">💵</span><span class="main"><span class="t">Tarifas eventuales</span><div class="s">Pago por rol y tipo de barco</div></span>${chev}</button>
+    <button class="cell" data-view="tours"><span class="ic">⛵</span><span class="main"><span class="t">Tours</span><div class="s">Tipo de barco de cada tour</div></span>${chev}</button>
+    <button class="cell" data-view="permisos"><span class="ic">🔐</span><span class="main"><span class="t">Permisos</span><div class="s">${ROLES.length} roles</div></span>${chev}</button>
+  </div></div>
+  <div class="group"><div class="list">
+    ${can('comida')?`<button class="cell" data-act="comida"><span class="ic">🍽️</span><span class="main"><span class="t">Comida empleado</span><div class="s">Registrar desayuno o almuerzo</div></span>${chev}</button>`:''}
+    <button class="cell" data-view="fh"><span class="ic">🔗</span><span class="main"><span class="t">Conexión FareHarbor</span><div class="s"><span class="dot" style="display:inline-block;margin-right:6px"></span>${S.fh&&S.fh.ultimo?'Último evento '+esc(S.fh.ultimo.slice(5)):'Webhook'}</div></span>${chev}</button>
+  </div></div>
+  <div class="group"><div class="ghead">Próximamente</div><div class="list">
+    <div class="cell"><span class="main t">Cierre comercial</span></div>
+    <div class="cell"><span class="main t">QuickBooks</span></div>
+  </div></div>
+  <div class="group"><div class="list"><button class="cell" data-logout><span class="ic">🔒</span><span class="main"><span class="t">Cerrar sesión</span><div class="s">${esc(S.user)} · ${S.realRole==='admin'?'Admin':'Operación'}</div></span></button></div></div>`;
+},
+tarifas(){
+  const val=r=>r.pending?'<span style="color:var(--orange)">Pendiente</span>':r.u==='factor'?'× '+num(r.amt):`${fmt(r.amt)} por ${r.u}`;
+  return topBar('Tarifas eventuales',{back:'Más',backTo:'mas',lede:'Pago por salida, según el rol y el tipo de barco.'})+`
+  <div class="group"><div class="list">${S.rates.map(r=>`<button class="cell" data-rate="${r.id}"><span class="main"><span class="t">${esc(r.l)}</span>${r.note?`<div class="s">${esc(r.note)}</div>`:''}</span><span class="v">${val(r)}</span>${chev}</button>`).join('')}</div>
+  <div class="gfoot">${can('config')?'Toca una tarifa para cambiarla.':'Tu rol no puede cambiar tarifas.'} Las pendientes no se pagan hasta que tengan monto. El cambio aplica a todas las salidas, también a las ya registradas.</div></div>`;
+},
+tours(){
+  const lab=b=>(TYPES.find(x=>x[0]===b)||['','—'])[1];
+  return topBar('Tours',{back:'Más',backTo:'mas',lede:'El tipo de barco decide la tarifa del capitán y marinero.'})+`
+  <div class="group"><div class="list">${S.tours.map(t=>`<button class="cell" data-tour="${esc(t.pk)}"><span class="main t">${esc(t.name)}</span><span class="v">${lab(t.barco)}</span>${chev}</button>`).join('')||'<div class="empty">Sin tours todavía.</div>'}</div>
+  <div class="gfoot">${can('config')?'Toca un tour para cambiar su tipo de barco.':'Tu rol no puede cambiar el tipo de barco.'}</div></div>`;
+},
+fh(){
+  const f=S.fh||{},ctl=S.control.slice(0,14);
+  return topBar('Conexión FareHarbor',{back:'Más',backTo:'mas'})+`
+  <section class="today"><div class="state"><span class="dot ${f.errores?'low':''}" style="display:inline-block;margin-right:6px"></span>${f.ultimo?'Conectado':'Sin eventos todavía'}</div><div class="head" style="margin-bottom:6px">Webhook ${f.errores?'con errores':'activo'}</div>
+    <div class="state">${f.ultimo?'Último evento '+esc(f.ultimo)+' · ':''}${f.errores||0} errores hoy</div></section>
+  <div class="group"><div class="list">
+    <div class="cell"><span class="main t">Eventos de hoy</span><span class="v">${f.hoy||0}</span></div>
+    <div class="cell"><span class="main t">Errores de hoy</span><span class="v">${f.errores||0}</span></div>
+    <div class="cell"><span class="main t">Duplicados ignorados hoy</span><span class="v">${f.dups||0}</span></div></div>
+  <div class="gfoot">Los eventos duplicados se ignoran.</div>
+  <div class="gfoot">Salida y regreso son dos reservas distintas; la app las une por salida (fecha, hora y tour).</div></div>
+  <div class="group"><div class="ghead">Últimos eventos</div><div class="list">${(f.eventos||[]).map(e=>`<div class="cell"><span class="main"><span class="t">${esc(e.t)}</span><div class="s">${esc(e.s)}</div></span><span class="v">${esc(e.at.slice(5))}</span></div>`).join('')||'<div class="empty">Sin eventos.</div>'}</div></div>
+  <div class="group"><div class="ghead">Control de días</div><div class="list">${ctl.map(c=>`<div class="cell ${/⚠/.test(c.estado)?'w-orange':''}"><span class="main"><span class="t">${sd(c.d)}</span><div class="s">${c.res} reservas · ${c.sal} salidas</div></span><span class="v" style="white-space:normal;text-align:right;max-width:55%">${esc(c.estado)}</span></div>`).join('')||'<div class="empty">Sin datos.</div>'}</div>
+  <div class="gfoot">El ingreso exacto llega con el reporte diario de Comercial.</div></div>`;
+},
+productos(){
+  const by=f=>S.items.filter(f);
+  const row=i=>`<button class="cell" data-edit="${i.id}"><span class="ic">${i.icon}</span><span class="main"><span class="t">${esc(i.name)}${i.active?'':' (inactivo)'}</span><div class="s">${fmt(i.price)} por ${esc(i.unit)}${i.controlStock&&i.pack>1?`, ${esc(i.packName)} de ${i.pack}`:''}</div></span>${chev}</button>`;
+  return topBar('Productos',{back:'Más',backTo:'mas',acts:[can('config')&&{k:'addprod',l:'Agregar producto',s:'+'}]})+`
+  <div class="group"><div class="ghead">Con stock</div><div class="list">${by(i=>i.controlStock).map(row).join('')||'<div class="empty">Sin productos.</div>'}</div></div>
+  <div class="group"><div class="ghead">Sin stock (costo directo)</div><div class="list">${by(i=>!i.controlStock).map(row).join('')||'<div class="empty">Sin productos.</div>'}</div>
+  <div class="gfoot">Se paga cuando se usa y no se guarda en bodega.</div></div>`;
+},
+permisos(){
+  return topBar('Permisos',{back:'Más',backTo:'mas'})+`
+  <div class="group"><div class="list">
+    ${ROLES.map(([k,l])=>`<button class="cell" data-roleview="${k}"><span class="main t">${l}</span><span class="v">${Object.values(S.perms[k]).filter(Boolean).length} de ${PERMS.length}</span>${chev}</button>`).join('')}
+    <div class="cell"><span class="main"><span class="t">Usuarios</span><div class="s">Se administran en la hoja "Usuarios" del Sheet</div></span></div>
+  </div></div>`;
+},
+role(k){
+  const nm=ROLES.find(r=>r[0]===k)[1],edit=can('config');
+  return topBar(nm,{back:'Permisos',backTo:'mas',backView:'permisos',lede:'Lo que puede hacer este rol.'})+`
+  <div class="group"><div class="list">${PERMS.map(([p,l])=>{const lock=!edit||(k==='admin'&&p==='config');return `<div class="cell"><span class="main t">${l}</span><button class="sw" role="switch" aria-checked="${!!S.perms[k][p]}" aria-label="${l}" data-perm="${k}:${p}" ${lock?'disabled':''}><i></i></button></div>`}).join('')}</div>
+  <div class="gfoot">${edit?'Admin siempre conserva Configuración. Los cambios aplican a todos los usuarios de ese rol.':'Tu rol no puede cambiar permisos.'}</div></div>`;
+}};
+
+// ===== Sheets =====
+
+let inFn=null;
+function sheet(title,body,{ok,okLabel='Guardar',disabled,back,input,closeLabel='Cancelar'}={}){
+  $('sheetRoot').innerHTML=`<div class="scrim" data-scrim><div class="sheet" role="dialog" aria-modal="true" aria-label="${title}"><div class="bar">${back?`<button id="sheetBack">‹ ${back.label}</button>`:`<button data-close>${closeLabel}</button>`}<b>${title}</b>${ok?`<button class="ok" id="sheetOk" ${disabled?'disabled':''}>${okLabel}</button>`:'<span></span>'}</div>${body}</div></div>`;
+  inFn=input||null;
+  if(ok)$('sheetOk').onclick=ok;
+  if(back)$('sheetBack').onclick=back.fn;
+}
+function closeSheet(){if(cart&&cart.ticketUrl){try{URL.revokeObjectURL(cart.ticketUrl)}catch(e){}cart.ticketUrl=''}$('sheetRoot').innerHTML='';$('pickRoot').innerHTML='';inFn=null}
+const ctlItems=()=>S.items.filter(i=>i.controlStock&&i.active);
+const noteBox=(id,ph)=>`<textarea id="${id}" class="note" placeholder="${ph}" aria-label="Nota"></textarea>`;
+
+let menuPre=null;
+function openMenu(pre){
+  menuPre=pre||null;
+  const b=[can('inventario')&&['inv','Inventario completo','📋'],can('ajuste')&&['aj','Ajustar inventario','✏️']].filter(Boolean);
+  sheet('Acciones',`<div class="group"><div class="list">${b.map(([k,l,ic])=>`<button class="cell" data-m="${k}"><span class="ic">${ic}</span><span class="main t">${l}</span>${chev}</button>`).join('')}</div></div>`);
+}
+function openPMenu(id){
+  menuPre=id;
+  sheet('Compra',`<div class="group"><div class="list"><button class="cell" data-m="edit"><span class="ic">✏️</span><span class="main t">Editar compra</span>${chev}</button><button class="cell" data-m="anul"><span class="ic">🚫</span><span class="main t" style="color:var(--red)">Anular compra</span>${chev}</button></div></div>`);
+}
+
+// --- Nueva compra (shopping cart) ---
+let cart=null;
+const units=l=>l.i?(l.mode==='caja'?l.qty*l.pack:l.qty):0;
+function emptyLine(){return {i:null,mode:'unidad',pack:1,qty:0,price:0}}
+function newLine(id){const it=item(id),p=prefs[id]||{};const mode=it.pack>1?(p.mode||'caja'):'unidad';return {i:id,mode,pack:p.pack||it.pack,qty:0,price:it.price}}
+function lineHtml(l,k){
+  const it=l.i?item(l.i):null;
+  const chips=(!it||l.choosing)?`<div class="chips" role="group" aria-label="Elegir producto">${S.items.filter(i=>i.active).map(i=>`<button type="button" class="chip" data-chip="${k}:${i.id}" aria-pressed="${l.i===i.id}"><span>${i.icon}</span>${esc(i.name)}</button>`).join('')}</div>`:'';
+  const rm=`<button type="button" data-rm="${k}" aria-label="Quitar línea">✕</button>`;
+  if(!it)return `<div class="li" data-k="${k}"><div class="lhead"><span class="pl">Elige un producto</span>${rm}</div>${chips}</div>`;
+  const pn=cap(it.packName||'caja');
+  return `<div class="li" data-k="${k}">
+    <div class="lhead"><button type="button" class="tn" data-chg="${k}" aria-expanded="${!!l.choosing}" aria-label="Cambiar producto: ${esc(it.name)}"><span class="ic">${it.icon}</span>${esc(it.name)}<span class="caret">▾</span></button>${rm}</div>
+    ${chips}
+    ${it.pack>1?`<div class="seg" role="group" aria-label="Modo de cantidad"><button type="button" data-mode="${k}:caja" aria-pressed="${l.mode==='caja'}">${esc(pn)}</button><button type="button" data-mode="${k}:unidad" aria-pressed="${l.mode==='unidad'}">Unidad</button></div>`:''}
+    <div class="stepper"><button type="button" data-step="${k}:-1" aria-label="Menos">−</button><input class="cQ" data-k="${k}" type="number" inputmode="decimal" min="0" step="any" value="${l.qty||''}" placeholder="0" aria-label="Cantidad"><button type="button" data-step="${k}:1" aria-label="Más">+</button><span class="ulab">${l.mode==='caja'?esc(plural(it.packName||'caja')):esc(it.units)}</span></div>
+    ${l.mode==='caja'&&it.pack>1?`<label class="mini"><span>Unidades por ${esc(it.packName||'caja')}</span><input class="cK" data-k="${k}" type="number" inputmode="numeric" min="1" value="${l.pack}"></label>`:''}
+    <label class="mini"><span>Precio por ${esc(it.unit)}</span><input class="cP" data-k="${k}" type="number" inputmode="decimal" step="any" value="${l.price}"></label>
+    <div class="mini"><span class="lu" style="color:var(--ink2)"></span><b class="lt"></b></div>
+  </div>`;
+}
+function renderCart(){
+  $('cart').innerHTML=cart.lines.length?cart.lines.map(lineHtml).join(''):'<div class="empty">Aún no hay productos. Toca "+ Agregar producto".</div>';
+  updateTotals();
+}
+function updateTotals(){
+  let tot=0;
+  cart.lines.forEach((l,k)=>{if(!l.i)return;const u=units(l),el=document.querySelector(`.li[data-k="${k}"]`);if(el){el.querySelector('.lu').textContent=`${num(u)} ${item(l.i).units}`;el.querySelector('.lt').textContent=fmt(u*l.price)}tot+=u*l.price});
+  $('sTot').textContent=fmt(tot);const hf=$('hastaF');if(hf)hf.hidden=!cart.lines.some(l=>l.i==='fru');
+  const ok=$('sheetOk');if(ok)ok.disabled=!cart.lines.some(l=>units(l)>0);
+}
+function renderTicket(){
+  $('tkName').textContent=cart.ticket?'📷 Cambiar foto':'📷 Adjuntar foto';
+  $('tkBox').innerHTML=cart.ticket?`<div class="tk">${cart.ticketUrl?`<img class="thumb" src="${cart.ticketUrl}" alt="Foto del ticket">`:'<span class="thumb"></span>'}<span class="nm">${esc(cart.ticket)}</span><button type="button" data-tkrm>Quitar</button></div>`:'';
+}
+function setTicket(f){
+  if(cart.ticketUrl){try{URL.revokeObjectURL(cart.ticketUrl)}catch(e){}}
+  cart.file=f||null;cart.ticket=f?f.name:'';cart.ticketUrl='';
+  if(f){try{cart.ticketUrl=URL.createObjectURL(f)}catch(e){}}
+  renderTicket();
+}
+function openCompra(pre){
+  cart={lines:[pre&&item(pre)&&item(pre).active?newLine(pre):emptyLine()],ticket:'',ticketUrl:'',file:null};
+  sheet('Nueva compra',`<div class="group"><div class="list">
+      <div class="field"><label for="sSup">Proveedor</label><input id="sSup" placeholder="Ej. Depósito Bacalar"></div>
+      <div class="field"><label for="sDate">Fecha</label><input id="sDate" type="date" value="${TODAY}"></div>
+      <div class="field" id="hastaF" hidden><label for="sHasta">Cubre hasta<div class="s">Fruta: último día que alcanza esta compra</div></label><input id="sHasta" type="date"></div>
+      <label class="field"><span class="lab">Ticket</span><span class="pick" id="tkName">📷 Adjuntar foto</span><input id="tkFile" type="file" accept="image/*" hidden></label>
+      <div id="tkBox"></div>
+      <div class="field"><label for="sNote">Nota</label><input id="sNote" placeholder="Opcional"></div></div>
+      <div class="gfoot">Puedes adjuntar la foto y además capturar los productos a mano.</div></div>
+    <div class="group"><div class="ghead">Carrito</div><div class="list" id="cart"></div></div>
+    <div class="stack"><button class="btn plain" type="button" data-addp>+ Agregar producto</button></div>
+    <div class="sticky"><span>Total</span><span id="sTot">$0</span></div>`,{ok:saveCompra,disabled:true,input:cartInput});
+  renderCart();
+}
+function cartInput(e){
+  const t=e.target;
+  if(t.id==='tkFile'){const f=t.files&&t.files[0]||null;if(f!==cart.file)setTicket(f);return}
+  const l=cart.lines[+t.dataset.k];if(!l)return;
+  if(t.classList.contains('cQ'))l.qty=Math.max(0,+t.value||0);
+  else if(t.classList.contains('cK')){l.pack=Math.max(1,+t.value||1);setPref(l)}
+  else if(t.classList.contains('cP'))l.price=Math.max(0,+t.value||0);
+  else return;
+  updateTotals();
+}
+// Foto del ticket: se reduce en el teléfono (máx. 1000 px, JPEG) y el servidor la guarda en Drive
+function shrink(file){return new Promise(res=>{try{
+  const url=URL.createObjectURL(file),img=new Image();
+  img.onload=()=>{try{const k=Math.min(1,1000/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);res(c.toDataURL('image/jpeg',.7))}catch(e){res('')}};
+  img.onerror=()=>{URL.revokeObjectURL(url);res('')};img.src=url}catch(e){res('')}})}
+async function saveCompra(){
+  const ls=cart.lines.filter(l=>units(l)>0);if(!ls.length||saving)return;
+  const okb=$('sheetOk');if(okb)okb.disabled=true;
+  const sup=$('sSup').value.trim()||'Sin proveedor',d=$('sDate').value||TODAY,note=$('sNote').value.trim(),hasta=$('sHasta')?$('sHasta').value:'';
+  const payload={d,sup,note,hasta:ls.some(l=>l.i==='fru')?hasta:'',ticket:cart.ticket,lines:ls.map(l=>({i:l.i,q:units(l),p:l.price}))};
+  if(cart.file)payload.ticketData=await shrink(cart.file);
+  ls.forEach(setPref);
+  const r=await act('addCompra',[payload]);
+  if(r){closeSheet();render();toast('Compra registrada')}
+}
+
+// --- Inventario completo ---
+let counts={};
+function invStep1(){
+  const its=ctlItems();
+  sheet('Inventario completo',`<div class="group"><div class="list">${its.map(i=>`<div class="field"><span class="ic">${i.icon}</span><label for="iv_${i.id}">${esc(i.name)}<div class="s">Sistema ${num(stock(i.id))} ${i.units}</div></label><input id="iv_${i.id}" class="ivIn" data-id="${i.id}" type="number" inputmode="decimal" step="any" style="width:96px" placeholder="${num(stock(i.id))}" value="${counts[i.id]??''}"></div>`).join('')}</div>
+    <div class="gfoot">Escribe lo que contaste. Si lo dejas en blanco, se queda igual que el sistema.</div></div>`,{ok:invReview,okLabel:'Revisar'});
+}
+function invReview(){
+  counts={};document.querySelectorAll('.ivIn').forEach(x=>{if(x.value!=='')counts[x.dataset.id]=x.value});
+  const diffs=ctlItems().filter(i=>counts[i.id]!==undefined&&+counts[i.id]!==stock(i.id)).map(i=>({it:i,sys:stock(i.id),cnt:+counts[i.id]}));
+  if(!diffs.length){closeSheet();toast('Todo coincide');return}
+  sheet('Revisar diferencias',`<div class="group"><div class="ghead">Diferencias</div><div class="list">${diffs.map(d=>{const df=d.cnt-d.sys,sev=Math.abs(df)>=Math.max(1,d.sys*.1)?'red':'orange';return `<div class="cell w-${sev}"><span class="ic">⚠️</span><span class="main"><span class="t">${d.it.icon} ${esc(d.it.name)}</span><div class="s">Sistema ${num(d.sys)} → Conteo ${num(d.cnt)} (${sg(df)})</div></span></div>`}).join('')}</div></div>
+    <div class="group"><div class="ghead">Nota (obligatoria)</div>${noteBox('iNote','Por qué cambia el inventario')}<div class="gfoot">Esto reescribe el stock actual. Se guarda un ajuste por producto en el historial.</div></div>
+    <div class="stack"><button class="btn" id="iGo" disabled>Confirmar y reescribir inventario</button></div>`,
+    {back:{label:'Conteo',fn:invStep1},input:()=>{$('iGo').disabled=!$('iNote').value.trim()}});
+  $('iGo').onclick=async()=>{const note=$('iNote').value.trim();if(!note)return;$('iGo').disabled=true;
+    const r=await act('addConteo',[{d:TODAY,counts:counts,nota:note}]);
+    if(r){counts={};closeSheet();render();toast(`Inventario reescrito (${r.n} ${r.n===1?'producto':'productos'})`)}else $('iGo').disabled=false};
+}
+
+// --- Ajustar inventario ---
+function openAjuste(pre){
+  const its=ctlItems();
+  sheet('Ajustar inventario',`<div class="group"><div class="list">
+    <div class="field"><label for="aItem">Producto</label><select id="aItem">${its.map(i=>`<option value="${i.id}"${i.id===pre?' selected':''}>${i.icon} ${esc(i.name)}</option>`).join('')}</select></div>
+    <div class="field"><label for="aCount">Conteo nuevo</label><input id="aCount" type="number" inputmode="decimal" step="any" placeholder="unidades"></div>
+    <div class="field"><label for="aReason">Motivo</label><select id="aReason">${REASONS.map(r=>`<option>${r}</option>`).join('')}</select></div></div>
+    <div class="gfoot" id="aHint"></div></div>
+    <div class="group"><div class="ghead">Nota (obligatoria)</div>${noteBox('aNote','Qué pasó')}</div>`,{ok:saveAjuste,disabled:true,input:ajusteUpdate});
+  ajusteUpdate();
+}
+function ajusteUpdate(){
+  const it=item($('aItem').value),v=$('aCount').value,sys=stock(it.id),df=(+v)-sys;
+  $('aHint').textContent=v===''?`El sistema dice ${num(sys)} ${it.units}. Pon lo que contaste.`:df===0?`Sistema ${num(sys)} y conteo iguales. No hay nada que ajustar.`:`Sistema ${num(sys)} → Conteo ${num(+v)} (${sg(df)} ${it.units})`;
+  $('aHint').style.color=v!==''&&df!==0?'var(--orange)':'';
+  $('sheetOk').disabled=!(v!==''&&df!==0&&$('aNote').value.trim());
+}
+async function saveAjuste(){
+  const it=item($('aItem').value),v=$('aCount').value,note=$('aNote').value.trim(),df=(+v)-stock(it.id);if(v===''||!df||!note)return;
+  const r=await act('addAjuste',[{d:TODAY,i:it.id,q:r2(df),motivo:$('aReason').value,nota:note}]);
+  if(r){closeSheet();render();toast(`Ajuste ${sg(df)} ${it.units}`)}
+}
+
+// --- Editar / anular compra (el original nunca se borra: se anula con motivo y se crea la nueva) ---
+const WARN='<div class="warn"><b>Esto cambia el stock y el costo ya registrados.</b><br>Se guarda en el historial con tu motivo. Las compras originales no se borran.</div>';
+function openEditCompra(id){
+  const c=S.purchases.find(x=>x.id===id);if(!c)return;
+  sheet('Editar compra',WARN+`<div class="group"><div class="ghead">Productos</div><div class="list">${c.lines.map((l,k)=>{const it=item(l.i);return `<div class="li"><div class="lhead"><span class="t"><span class="ic">${it.icon}</span>${esc(it.name)}</span></div>
+      <label class="mini"><span>Cantidad (${it.units})</span><input class="eQ" data-k="${k}" type="number" inputmode="decimal" step="any" value="${l.q}"></label>
+      <label class="mini"><span>Precio por ${it.unit}</span><input class="eP" data-k="${k}" type="number" inputmode="decimal" step="any" value="${l.p}"></label></div>`}).join('')}</div>
+      <div class="gfoot">Con cantidad 0 el producto se quita de la compra.</div></div>
+    <div class="group"><div class="ghead">Motivo (obligatorio)</div>${noteBox('eNote','Por qué se corrige')}</div>`,
+    {ok:async()=>{
+      const note=$('eNote').value.trim();if(!note)return;let n=0;
+      const lines=c.lines.map((l,k)=>{const nq=Math.max(0,+document.querySelector(`.eQ[data-k="${k}"]`).value||0),np=Math.max(0,+document.querySelector(`.eP[data-k="${k}"]`).value||0);
+        if(nq!==l.q||np!==l.p)n++;return {i:l.i,q:nq,p:np}}).filter(l=>l.q>0);
+      if(!n){closeSheet();toast('Sin cambios');return}
+      if(!lines.length){toast('Deja al menos un producto, o anula la compra','err');return}
+      const r=await act('editCompra',[id,{d:c.d,sup:c.sup,note:c.note,ticket:c.ticket,hasta:c.hasta,lines},note]);
+      if(r){closeSheet();stackView={name:'purchase',arg:r.id||id};render();toast('Compra corregida')}},disabled:true,input:()=>{$('sheetOk').disabled=!$('eNote').value.trim()}});
+}
+function openAnular(id){
+  sheet('Anular compra',WARN+`<div class="group"><div class="ghead">Motivo (obligatorio)</div>${noteBox('nNote','Por qué se anula')}<div class="gfoot">Se agregan movimientos contrarios. Los originales se quedan en la lista.</div></div>`,
+    {okLabel:'Anular',disabled:true,input:()=>{$('sheetOk').disabled=!$('nNote').value.trim()},ok:async()=>{
+      const note=$('nNote').value.trim();if(!note)return;
+      const r=await act('anularCompra',[id,note]);
+      if(r){closeSheet();render();toast('Compra anulada')}}});
+}
+
+// --- Producto: nuevo / editar ---
+let pe=null;
+function openProducto(id){
+  const it=id?item(id):null,ro=!!it&&!can('config');
+  pe={id:id||null,icon:it?it.icon:'📦',ctl:it?it.controlStock:true,act:it?it.active:true,ro};
+  const v=it||{name:'',unit:'',pack:24,packName:'caja',price:'',min:24,field:''};
+  const hasBuys=!!it&&S.purchases.some(c=>!c.annulled&&c.lines.some(l=>l.i===it.id)),d=ro?'disabled':'',dp=(ro||hasBuys)?'disabled':'';
+  const ctl=pe.ctl;
+  sheet(it?'Editar producto':'Nuevo producto',`<div class="group"><div class="ghead">Icono</div><div class="list"><div class="icons" role="group" aria-label="Icono">${ICONS.map(ic=>`<button type="button" data-ico="${ic}" aria-pressed="${ic===pe.icon}" aria-label="Icono ${ic}" ${d}>${ic}</button>`).join('')}</div></div></div>
+    <div class="group"><div class="list">
+      <div class="field"><span class="lab">Controla stock</span><button type="button" class="sw" role="switch" aria-checked="${ctl}" aria-label="Controla stock" data-ctl ${d}><i></i></button></div>
+      ${it?`<div class="field"><span class="lab">Activo</span><button type="button" class="sw" role="switch" aria-checked="${pe.act}" aria-label="Activo" data-actsw ${d}><i></i></button></div>`:''}</div>
+    <div class="gfoot" id="ctlHint">${ctl?'Se guarda en bodega y se descuenta con la bitácora.':'Se paga al usarlo y no se guarda en bodega. Solo se registra el costo.'}${it?' Los productos inactivos no aparecen en el stock ni en las compras.':''}</div></div>
+    <div class="group"><div class="list">
+    <div class="field"><label for="pName">Nombre</label><input id="pName" placeholder="Ej. Refresco de limón" value="${esc(v.name)}" ${d}></div>
+    <div class="field"><label for="pUnit">Unidad</label><input id="pUnit" placeholder="lata, botella, litro" value="${esc(v.unit)}" ${d}></div>
+    <div class="field" data-only="stock" ${ctl?'':'hidden'}><label for="pPack">Unidades por caja</label><input id="pPack" type="number" inputmode="numeric" value="${v.pack}" ${d}></div>
+    <div class="field" data-only="stock" ${ctl?'':'hidden'}><label for="pPackName">Nombre del empaque</label><input id="pPackName" placeholder="caja o paquete" value="${esc(v.packName)}" ${d}></div>
+    <div class="field"><label for="pPrice">Precio por unidad</label><input id="pPrice" type="number" inputmode="decimal" placeholder="$" step="any" value="${v.price}" ${dp}></div>
+    <div class="field" data-only="stock" ${ctl?'':'hidden'}><label for="pMin">Mínimo en bodega</label><input id="pMin" type="number" inputmode="numeric" value="${v.min}" ${d}></div>
+    <div class="field"><label for="pField">Campo en la bitácora</label><input id="pField" placeholder="Nombre en FareHarbor" value="${esc(v.field)}" ${d}></div></div>
+    <div class="gfoot">${ro?'Tu rol no puede editar productos.':hasBuys?'El precio cambia solo con cada compra nueva. El campo en la bitácora':'El campo en la bitácora es el nombre del campo de FareHarbor donde se anota este producto.'}</div></div>`,
+    ro?{closeLabel:'Cerrar'}:{ok:saveProducto,okLabel:it?'Guardar':'Agregar',disabled:!v.name,input:()=>{$('sheetOk').disabled=!$('pName').value.trim()}});
+}
+async function saveProducto(){
+  const g=id=>$(id).value.trim();if(!g('pName')||!can('config'))return;
+  const k=pe.ctl,it=pe.id?item(pe.id):null,unit=g('pUnit')||'unidad';
+  const prod={id:pe.id||'',name:g('pName'),icon:pe.icon,controlStock:k,active:pe.act,unit,pack:k?Math.max(1,+g('pPack')||1):1,packName:k?(g('pPackName')||'caja'):'caja',
+    price:+g('pPrice')||0,min:k?(+g('pMin')||0):0,field:g('pField')||g('pName'),
+    group:it?(k?(it.group==='Consumo directo'?'Bebidas':it.group):'Consumo directo'):(k?'Bebidas':'Consumo directo')};
+  const r=await act('saveProducto',[prod]);
+  if(r){closeSheet();render();toast(it?'Producto guardado':'Producto agregado')}
+}
+
+function bkLine(d){return 'Salida: reserva '+(d.salidaId?'#'+d.salidaId:'—')+' · Regreso: reserva '+(d.regresoId?'#'+d.regresoId:'—')}
+function depCard(d){
+  const st=status(d),c=cost(d),n=netOf(d),miss=missingRole(d),fut=st==='prog';
+  const crew=d.crew.map(x=>`<span class="rb ${x.r||x.ext?'':'w'}">${x.ext?'Ext.':x.r?esc(rb(x.r)):'?'}</span>${esc(x.n)}`).join(' · ');
+  const pct=c&&n?Math.round(c.tot/n*100):null,est=d.netSource==='estimado'?' <span class="est">estimado</span>':'';
+  const left=fut?`${d.bookings.length} ${d.bookings.length===1?'reserva':'reservas'}`:c?`Costo ${fmt(c.tot)}${pct!==null?' · '+pct+'%':''}`:'Costo pendiente';
+  const right=fut?`${paxOf(d)} personas`:n===null?'<span class="pendt">Ingreso pendiente</span>':fmt(n)+est;
+  let foot='';
+  if(miss.length)foot+=`<div class="dfoot"><span>⚠️ Falta rol en FareHarbor · ${esc(miss.map(x=>x.n).join(', '))}</span></div>`;
+  const ra=d.crew.filter(rateAlert);
+  if(ra.length)foot+=`<div class="dfoot"><span style="color:var(--orange)">⚠️ ${ra.some(x=>/sin tarifa/i.test(x.alert))?'Sin tarifa':'Tarifa pendiente'} · ${esc(ra.map(x=>x.n).join(', '))}</span></div>`;
+  if(!fut){
+    if(d.rev)foot+=`<div class="dfoot"><span class="ok">✅ Revisado · ${esc(d.rev.by)} ${esc(d.rev.at)}</span></div>`;
+    else if(okish(d)&&!miss.length&&can('revisar'))foot+=`<div class="dfoot"><span class="mut">Por revisar</span><button class="sbtn" data-rev="${d.id}">Marcar revisado</button></div>`;
+    else foot+=`<div class="dfoot"><span class="mut">${!okish(d)?'Revisión pendiente: falta bitácora':miss.length?'Revisión pendiente: falta rol':'Por revisar'}</span></div>`;
+  }
+  return `<div class="dcard"><button class="dmain" data-dep="${d.id}"><div class="d1"><span class="tm">${d.time}</span><span class="tn">${esc(d.item)}${d.label?` <span class="lbl">· ${esc(d.label)}</span>`:''}</span>${chev}</div>
+    <div class="crew">${crew||'Sin tripulación'}</div><div class="d3">${stText(d)}</div><div class="nums"><span>${left}</span><span>${right}</span></div></button>${foot}</div>`;
+}
+
+// --- Calendario ---
+let cal={y:0,m:0};
+function openCal(){
+  const pad=(new Date(cal.y,cal.m,1).getDay()+6)%7,dim=new Date(cal.y,cal.m+1,0).getDate();
+  let cells=['L','M','M','J','V','S','D'].map(x=>`<span class="wd">${x}</span>`).join('');
+  for(let i=0;i<pad;i++)cells+='<span></span>';
+  for(let k=1;k<=dim;k++){const ds=cal.y+'-'+String(cal.m+1).padStart(2,'0')+'-'+String(k).padStart(2,'0'),st=dayState(ds);
+    cells+=`<button type="button" data-calday="${ds}" aria-pressed="${ds===S.date}" class="${ds===TODAY?'tdy':''}" aria-label="${fd(ds)}"><span class="n">${k}</span><i class="${{g:'g',y:'y',r:'r',prog:'p',none:''}[st]}"></i></button>`}
+  const fl=faltan();
+  sheet('Calendario',`<div class="calhead"><button type="button" data-calnav="-1" aria-label="Mes anterior">‹</button><b>${cap(MONTHS[cal.m])} ${cal.y}</b><button type="button" data-calnav="1" aria-label="Mes siguiente">›</button></div>
+    <div class="cal">${cells}</div>
+    <div class="lg"><span><i class="g"></i>Todo revisado</span><span><i class="y"></i>Por revisar</span><span><i class="r"></i>Falta bitácora</span><span><i class="p"></i>Programada</span><span><i></i>Sin salidas</span></div>
+    <div class="group" style="margin-top:22px"><div class="ghead">Faltan (${fl.length})</div><div class="list">${fl.map(f=>`<button class="cell" data-calday="${f.d.date}"><span class="main"><span class="t">${sd(f.d.date)} · ${f.d.time}</span><div class="s">${esc(f.d.item)}</div></span><span class="v" style="white-space:normal;text-align:right">${f.t}</span>${chev}</button>`).join('')||'<div class="empty">No falta nada.</div>'}</div></div>`,{closeLabel:'Cerrar'});
+}
+
+
+async function doRev(id){
+  const d=S.deps.find(x=>x.id===id);if(!d||!can('revisar')||!okish(d)||missingRole(d).length)return;
+  const r=await act('markRev',[id]);if(r)toast('Marcado como revisado');
+}
+async function doPaid(name){
+  if(!can('pagar'))return;const p=weekPeople(S.wk).find(x=>x.n===name);if(!p||p.miss||p.rate)return;
+  const r=await act('markPaid',[S.wk,name,r2(p.tot)]);if(r)toast('Marcado como pagado');
+}
+function openRate(id){
+  const r=S.rates.find(x=>String(x.id)===String(id));if(!r)return;const ro=!can('config');
+  sheet('Tarifa',`<div class="group"><div class="list"><div class="field"><label for="rAmt">${esc(r.l)}<div class="s">${r.u==='factor'?'Factor (por ejemplo 0.5 = 50%)':'Por '+esc(r.u)}${r.pending?' · pendiente':''}</div></label><input id="rAmt" type="number" inputmode="decimal" step="any" value="${r.pending?'':r.amt}" placeholder="Monto" ${ro?'disabled':''}></div></div>
+    <div class="gfoot">${ro?'Tu rol no puede cambiar tarifas.':'El cambio aplica a todas las salidas, también a las ya registradas.'}</div></div>`,
+    ro?{closeLabel:'Cerrar'}:{ok:async()=>{const v=$('rAmt').value;if(v===''||!(+v>=0))return;const x=await act('saveTarifa',[r.id,{amt:+v}]);if(x){closeSheet();render();toast('Tarifa guardada')}},
+      input:()=>{$('sheetOk').disabled=$('rAmt').value===''},disabled:r.pending});
+}
+function openTour(pk){
+  const t=S.tours.find(x=>x.pk===pk);if(!t)return;const ro=!can('config');
+  sheet('Tipo de barco',`<div class="group"><div class="ghead">${esc(t.name)}</div><div class="list">${TYPES.map(x=>`<button class="cell" data-tt="${x[0]}" data-ttn="${esc(pk)}"><span class="main t">${x[1]}</span>${t.barco===x[0]?'<span class="check">✓</span>':''}</button>`).join('')}</div>
+    <div class="gfoot">${ro?'Tu rol no puede cambiar el tipo de barco.':'El tipo de barco decide cuánto se paga al capitán y al marinero.'}</div></div>`,{closeLabel:'Cerrar'});
+}
+// --- Comida empleado ---
+let comidaTipo='desayuno';
+function openComida(){
+  comidaTipo='desayuno';
+  const names=[...new Set(S.deps.flatMap(d=>d.crew.filter(c=>!c.ext).map(c=>c.n)))].sort();
+  sheet('Comida empleado',`<div class="group"><div class="list">
+      <div class="field"><label for="cDate">Fecha</label><input id="cDate" type="date" value="${TODAY}"></div>
+      <div class="field"><label for="cName">Nombre</label><input id="cName" list="cNames" placeholder="Quién comió" autocomplete="off"><datalist id="cNames">${names.map(n=>`<option value="${esc(n)}">`).join('')}</datalist></div>
+      <div class="field"><span class="lab">Comida</span><div class="seg" style="width:62%" role="group" aria-label="Tipo de comida"><button type="button" data-ct="desayuno" aria-pressed="true">Desayuno</button><button type="button" data-ct="almuerzo" aria-pressed="false">Almuerzo</button></div></div>
+      <div class="field"><label for="cQty">Cantidad</label><input id="cQty" type="number" inputmode="numeric" min="1" step="1" value="1"></div>
+      <div class="field"><label for="cNote">Nota</label><input id="cNote" placeholder="Opcional"></div></div></div>
+    <div class="group"><div class="ghead">Últimos registros</div><div class="list">${S.comidas.slice(0,6).map(c=>`<div class="cell"><span class="main"><span class="t">${esc(c.n)}</span><div class="s">${short(c.d)} · ${esc(c.tipo)}${c.nota?' · '+esc(c.nota):''}</div></span><span class="v">${num(c.q)}</span></div>`).join('')||'<div class="empty">Sin registros.</div>'}</div></div>`,
+    {ok:async()=>{const nombre=$('cName').value.trim(),q=+$('cQty').value;if(!nombre||!(q>0))return;
+      const r=await act('addComida',[{d:$('cDate').value||TODAY,nombre,tipo:comidaTipo,cantidad:q,nota:$('cNote').value.trim()}]);
+      if(r){closeSheet();render();toast('Comida registrada')}},disabled:true,input:()=>{$('sheetOk').disabled=!($('cName').value.trim()&&+$('cQty').value>0)}});
+}
+
+// ===== PIN =====
+let pinBuf='';
+function paintPin(){document.querySelectorAll('#pDots i').forEach((x,k)=>x.classList.toggle('on',k<pinBuf.length))}
+function showPin(msg){
+  pinBuf='';$('boot').hidden=true;$('pin').hidden=false;paintPin();
+  const m=$('pMsg');m.textContent=msg||'Ingresa tu PIN';m.className='lede'+(msg?' err':'');
+  if(msg){const d=$('pDots');d.classList.remove('shake');void d.offsetWidth;d.classList.add('shake')}
+}
+function logout(msg){
+  PIN='';try{localStorage.removeItem('adv_ops_pin')}catch(e){}
+  S.date='';S.wk='';S.role='op';tab='op';stackView=null;closeSheet();$('app').innerHTML='';showPin(msg||'');
+}
+async function pinKey(k){
+  if($('pin').hidden||saving)return;
+  if(k==='del'){pinBuf=pinBuf.slice(0,-1);paintPin();return}
+  if(pinBuf.length>=4)return;
+  pinBuf+=k;paintPin();
+  if(pinBuf.length===4){const p=pinBuf;await tryLogin(p,false)}
+}
+async function tryLogin(pin,remembered){
+  setBusy(1);
+  try{
+    const r=await API('login',pin);
+    if(!r||!r.ok){setBusy(-1);if(remembered){try{localStorage.removeItem('adv_ops_pin')}catch(e){}}showPin(r&&r.error?r.error:'PIN incorrecto');return false}
+    PIN=pin;S.perms=r.perms;S.realRole=r.rol;S.role=r.rol;S.user=r.nombre;
+    try{localStorage.setItem('adv_ops_pin',pin)}catch(e){}
+    $('pMsg').textContent='Cargando…';
+    try{await load('','')}catch(e){setBusy(-1);bootError(errMsg(e));return false}
+    setBusy(-1);$('pin').hidden=true;$('boot').hidden=true;tab='op';stackView=null;render();return true;
+  }catch(e){setBusy(-1);bootError(errMsg(e));return false}
+}
+function bootError(m){
+  $('pin').hidden=true;$('boot').hidden=false;
+  $('boot').innerHTML=`<div><div class="logo" style="font-size:40px">⚠️</div><p>${esc(m)}</p><button class="btn" id="bootRetry">Reintentar</button></div>`;
+  $('bootRetry').onclick=()=>{$('boot').innerHTML='<div>Cargando…</div>';start()};
+}
+function start(){
+  let pin='';try{pin=localStorage.getItem('adv_ops_pin')||''}catch(e){}
+  if(pin)tryLogin(pin,true);else showPin();
+}
+
+// ===== Render + events =====
+function render(){
+  const app=$('app');
+  try{app.innerHTML=roleBar()+(stackView?V[stackView.name](stackView.arg):V[tab]())}
+  catch(err){app.innerHTML=roleBar()+`<div class="warn">No pude mostrar esta pantalla: ${esc(err.message)}</div>`;console.warn(err)}
+  document.querySelectorAll('.tab').forEach(b=>b.dataset.tab===tab?b.setAttribute('aria-current','page'):b.removeAttribute('aria-current'));
+  const q=$('q');if(q)q.oninput=()=>{S.q=q.value;const pos=q.selectionStart;render();const n=$('q');n.focus();n.setSelectionRange(pos,pos)};
+}
+const goTop=()=>window.scrollTo(0,0);
+async function setDate(d){S.date=d;if(d<S.win.from||d>S.win.to)await ensureRange(d,d);render()}
+async function setWk(ws){S.wk=ws;if(ws<S.win.from||addD(ws,6)>S.win.to)await ensureRange(ws,addD(ws,6));render()}
+async function calMonth(){
+  const a=cal.y+'-'+String(cal.m+1).padStart(2,'0')+'-01',b=cal.y+'-'+String(cal.m+1).padStart(2,'0')+'-'+String(new Date(cal.y,cal.m+1,0).getDate()).padStart(2,'0');
+  await ensureRange(a,b);openCal();
+}
+document.addEventListener('input',e=>{if(inFn)inFn(e)});
+document.addEventListener('change',e=>{if(inFn)inFn(e)});
+document.addEventListener('keydown',e=>{
+  if($('pin').hidden)return;
+  if(/^\d$/.test(e.key))pinKey(e.key);else if(e.key==='Backspace')pinKey('del');
+});
+// Al volver a la app, o cada 2 minutos, se actualizan los datos (si no hay un formulario abierto)
+function autoRefresh(){
+  if(!PIN||saving||document.hidden||$('sheetRoot').innerHTML||Date.now()-lastLoad<60000)return;
+  const a=document.activeElement;if(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName))return;
+  lastLoad=Date.now();refresh(true);
+}
+document.addEventListener('visibilitychange',autoRefresh);setInterval(autoRefresh,120000);
+document.addEventListener('click',e=>{
+  const t=e.target,on=s=>t.closest(s);
+  // PIN pad
+  const pk=on('[data-pk]');if(pk){pinKey(pk.dataset.pk);return}
+  // Sheet layer
+  if(on('#sheetRoot')){
+    if(t.matches('[data-scrim]')||on('[data-close]')){closeSheet();return}
+    const m=on('[data-m]');if(m){const k=m.dataset.m,pre=menuPre;closeSheet();
+      if(k==='inv'){counts={};invStep1()}else if(k==='aj')openAjuste(pre);else if(k==='edit')openEditCompra(pre);else if(k==='anul')openAnular(pre);return}
+    if(on('[data-addp]')){cart.lines.push(emptyLine());renderCart();const li=document.querySelector(`.li[data-k="${cart.lines.length-1}"]`);if(li)li.scrollIntoView({block:'nearest'});return}
+    const tr=on('[data-tkrm]');if(tr){setTicket(null);const f=$('tkFile');if(f)f.value='';return}
+    const cg=on('[data-chg]');if(cg){const l=cart.lines[+cg.dataset.chg];l.choosing=!l.choosing;renderCart();return}
+    const ch=on('[data-chip]');if(ch){const[k,id]=ch.dataset.chip.split(':'),old=cart.lines[+k];if(old.i!==id)cart.lines[+k]=newLine(id);else old.choosing=false;renderCart();return}
+    const ico=on('[data-ico]');if(ico&&!pe.ro){pe.icon=ico.dataset.ico;document.querySelectorAll('[data-ico]').forEach(b=>b.setAttribute('aria-pressed',b===ico));return}
+    const asw=on('[data-actsw]');if(asw&&!pe.ro){pe.act=!pe.act;asw.setAttribute('aria-checked',pe.act);return}
+    const rm=on('[data-rm]');if(rm){cart.lines.splice(+rm.dataset.rm,1);renderCart();return}
+    const md=on('[data-mode]');if(md){const[k,m2]=md.dataset.mode.split(':'),l=cart.lines[+k];
+      if(l.mode!==m2){l.qty=m2==='unidad'?r2(l.qty*l.pack):r2(l.qty/l.pack);l.mode=m2;setPref(l);renderCart()}return}
+    const st=on('[data-step]');if(st){const[k,d]=st.dataset.step.split(':'),l=cart.lines[+k];l.qty=Math.max(0,r2(l.qty+(+d)));
+      document.querySelector(`.cQ[data-k="${k}"]`).value=l.qty||'';updateTotals();return}
+    const ct=on('[data-ctl]');if(ct&&!pe.ro){pe.ctl=!pe.ctl;ct.setAttribute('aria-checked',pe.ctl);
+      document.querySelectorAll('[data-only="stock"]').forEach(x=>x.hidden=!pe.ctl);
+      $('ctlHint').textContent=(pe.ctl?'Se guarda en bodega y se descuenta con la bitácora.':'Se paga al usarlo y no se guarda en bodega. Solo se registra el costo.')+(pe.id?' Los productos inactivos no aparecen en el stock ni en las compras.':'');return}
+    const cn=on('[data-calnav]');if(cn){cal.m+=+cn.dataset.calnav;if(cal.m<0){cal.m=11;cal.y--}if(cal.m>11){cal.m=0;cal.y++}calMonth();return}
+    const cd=on('[data-calday]');if(cd){S.date=cd.dataset.calday;stackView=null;tab='op';closeSheet();render();goTop();return}
+    const cty=on('[data-ct]');if(cty){comidaTipo=cty.dataset.ct;document.querySelectorAll('[data-ct]').forEach(b=>b.setAttribute('aria-pressed',b===cty));return}
+    const tt=on('[data-tt]');if(tt){if(can('config')){(async()=>{const r=await act('saveTourBarco',[tt.dataset.ttn,tt.dataset.tt]);if(r){closeSheet();render();toast('Tipo de barco guardado')}})()}return}
+    return;
+  }
+  const rs=on('[data-rolesw]');if(rs){S.role=rs.dataset.rolesw;render();return}
+  const b=on('[data-tab]');if(b){tab=b.dataset.tab;stackView=null;render();goTop();return}
+  const bk=on('[data-back]');if(bk){if(bk.dataset.back)tab=bk.dataset.back;stackView=bk.dataset.backview?{name:bk.dataset.backview}:null;render();goTop();return}
+  const vw=on('[data-view]');if(vw){stackView={name:vw.dataset.view};render();goTop();return}
+  const mv=on('[data-movs]');if(mv){stackView={name:'movs'};render();goTop();return}
+  const ed=on('[data-edit]');if(ed){openProducto(ed.dataset.edit);return}
+  const go=on('[data-go]');if(go){tab=go.dataset.go;stackView=null;render();goTop();return}
+  const it=on('[data-item]');if(it){stackView={name:'item',arg:it.dataset.item};render();goTop();return}
+  const pu=on('[data-purchase]');if(pu){stackView={name:'purchase',arg:pu.dataset.purchase};render();goTop();return}
+  const rv=on('[data-roleview]');if(rv){stackView={name:'role',arg:rv.dataset.roleview};render();goTop();return}
+  const pm=on('[data-perm]');if(pm){const[r,p]=pm.dataset.perm.split(':');
+    if(can('config')&&!(r==='admin'&&p==='config')){const cur=!!S.perms[r][p];S.perms[r][p]=!cur;render();
+      srv('savePerm',r,p,!cur).catch(er=>{S.perms[r][p]=cur;render();toast(errMsg(er),'err')})}return}
+  if(on('[data-logout]')){logout();return}
+  if(on('[data-refresh]')){refresh();return}
+  const dy=on('[data-day]');if(dy){setDate(addD(S.date,+dy.dataset.day));return}
+  if(on('[data-cal]')){cal={y:pd(S.date).getFullYear(),m:pd(S.date).getMonth()};calMonth();return}
+  const rv2=on('[data-rev]');if(rv2){doRev(rv2.dataset.rev);return}
+  const dp=on('[data-dep]');if(dp){stackView={name:'dep',arg:dp.dataset.dep};render();goTop();return}
+  const wk=on('[data-wk]');if(wk){setWk(addD(S.wk,7*(+wk.dataset.wk)));return}
+  const pe2=on('[data-person]');if(pe2){stackView={name:'person',arg:pe2.dataset.person};render();goTop();return}
+  const py=on('[data-pay]');if(py){doPaid(py.dataset.pay);return}
+  const rt=on('[data-rate]');if(rt){openRate(rt.dataset.rate);return}
+  const tr2=on('[data-tour]');if(tr2){openTour(tr2.dataset.tour);return}
+  const a=on('[data-act]');if(!a)return;const act2=a.dataset.act,pre=a.dataset.pre;
+  if(act2==='compra'&&can('compras'))openCompra(pre);
+  if(act2==='addprod'&&can('config'))openProducto();
+  if(act2==='menu'&&menuOk())openMenu(pre);
+  if(act2==='pmenu'&&can('editar'))openPMenu(pre);
+  if(act2==='comida'&&can('comida'))openComida();
+});
+start();
+})();
+</script>
+</body>
+</html>
