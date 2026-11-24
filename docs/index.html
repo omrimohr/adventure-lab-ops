@@ -552,7 +552,10 @@ const CACHE_MAX=2000000;
 // Enlaces a FareHarbor. UN solo lugar para el formato de la URL de una disponibilidad (availability): si FareHarbor usa otro formato, se cambia aquí.
 // (Formato por verificar: https://fareharbor.com/thegaiaexperience/dashboard/?overlay=/items/<item pk>/availability/<availability pk>/ )
 const FH_DASH='https://fareharbor.com/thegaiaexperience/dashboard/';
-const fhAvailUrl=(itemPk,avPk)=>FH_DASH+'?overlay=/items/'+encodeURIComponent(itemPk)+'/availability/'+encodeURIComponent(avPk)+'/';
+// Formats confirmed from real FareHarbor dashboard links (grid view of the day + overlay)
+const fhAvailUrl=(itemPk,avPk,date)=>FH_DASH+'bookings/grid/'+encodeURIComponent(date||'')+'/?overlay=/items/'+encodeURIComponent(itemPk)+'/availabilities/'+encodeURIComponent(avPk)+'/';
+// booking.dashboard_url comes as …/dashboard/?overlay=/contacts/{pk}/bookings/{uuid}/ → open it on the day's grid
+const fhBookUrl=(url,date)=>!url?'':(date?String(url).replace(/\/dashboard\/\?overlay=/,'/dashboard/bookings/grid/'+date+'/?overlay='):String(url));
 // <a> que abre en pestaña nueva. text vacío → solo la flecha ↗. gray = enlace de reserva (no hay link del booking, se usa el de la disponibilidad)
 const fhA=(url,text,{gray,label}={})=>`<a class="fhl${gray?' gray':''}" href="${esc(url)}" target="_blank" rel="noopener"${label?` aria-label="${esc(label)}"`:''}>${text?esc(text)+' ':''}<span aria-hidden="true">↗</span></a>`;
 // Avisos de una salida (para el contador ⚠️ de la tarjeta): avisos del servidor + tripulación sin rol + alertas de pago
@@ -703,11 +706,11 @@ dep(id){
   const d=S.deps.find(x=>x.id===id);
   if(!d)return topBar('Salida',{back:'Operación',backTo:'op'})+'<div class="group"><div class="list"><div class="empty">No encontré esta salida.</div></div></div>';
   const st=status(d),c=cost(d),n=netOf(d),miss=missingRole(d),fut=st==='prog',est=d.netSource==='estimado';
-  const avUrl=d.itemPk?fhAvailUrl(d.itemPk,d.id):'';
-  let h=topBar(d.item,{back:'Operación',backTo:'op',lede:[d.time,d.boat?esc(d.boat):'',fd(d.date),d.label?esc(d.label):'',avUrl?fhA(avUrl,'FareHarbor',{label:'Abrir la salida en FareHarbor'}):''].filter(Boolean).join(' · ')});
+  const avUrl=d.itemPk?fhAvailUrl(d.itemPk,d.id,d.date):'';
+  let h=topBar(d.item,{back:'Operación',backTo:'op',lede:[d.time,d.boat?esc(d.boat):'',fd(d.date),d.label?esc(d.label):'',avUrl?fhA(avUrl,'#'+d.id,{label:'Abrir la salida '+d.id+' en FareHarbor'}):''].filter(Boolean).join(' · ')});
   if(d.alerts)h+=`<div class="group">${gh('alert','Avisos')}<div class="list">${d.alerts.split(' | ').map(a=>`<div class="cell w-orange"><span class="main"><span class="s" style="margin:0">${esc(a)}</span></span></div>`).join('')}</div></div>`;
   h+=`<div class="group">${gh('bookings','Bookings')}<div class="list">${d.bookings.map(b=>{const tl=typesLine(b.types);
-    return `<div class="cell"><span class="main"><span class="t">${esc(b.name||hid(b.id))}</span><div class="s">${esc(hid(b.id))} · ${personasTxt(b.pax)}${tl?' · '+esc(tl):''}</div></span>${avUrl||b.url?`<span class="fhx">${b.url?fhA(b.url,'',{label:'Abrir la reserva '+hid(b.id)+' en FareHarbor'}):fhA(avUrl,'',{gray:true,label:'Abrir la salida en FareHarbor (la reserva no tiene enlace)'})}</span>`:''}<span class="v">${money2(b.gross,fut?undefined:b.net,b.est)}</span></div>`}).join('')||'<div class="empty">Sin reservas activas.</div>'}
+    return `<div class="cell"><span class="main"><span class="t">${esc(b.name||hid(b.id))}</span><div class="s">${b.url?fhA(fhBookUrl(b.url,d.date),hid(b.id),{label:'Abrir la reserva '+hid(b.id)+' en FareHarbor'}):avUrl?fhA(avUrl,hid(b.id),{gray:true,label:'Abrir la salida en FareHarbor (la reserva no tiene enlace)'}):esc(hid(b.id))} · ${personasTxt(b.pax)}${tl?' · '+esc(tl):''}</div></span><span class="v">${money2(b.gross,fut?undefined:b.net,b.est)}</span></div>`}).join('')||'<div class="empty">Sin reservas activas.</div>'}
     ${d.bookings.length?`<div class="cell"><span class="main t"><b>Total · ${personasTxt(paxOf(d))}</b></span><span class="v">${money2(d.gross,fut?undefined:n,est)}</span></div>`:''}</div></div>`;
   h+=`<div class="group">${gh('resources','Resources')}<div class="list">${(d.res||[]).map(r=>`<div class="cell c"><span class="main t">${esc(r.name)}</span><span class="v">${num(r.n)}</span></div>`).join('')||'<div class="empty">Sin resources asignados.</div>'}</div></div>`;
   h+=bitSection(d,fut);
@@ -1103,10 +1106,10 @@ let bitOpen=null; // salida cuya tabla de bitácora está abierta
 const BIT_T={done:['ok','Hecha'],late:['late','Falta'],wait:['','Por hacer']};
 // Bitácora: UNA sola sección con Ida y Regreso lado a lado (punto + estado). Al tocar se abre la tabla de productos.
 function bitSection(d,fut){
-  const bp=bitParts(d,nowKey()),avUrl=d.itemPk?fhAvailUrl(d.itemPk,d.id):'';
+  const bp=bitParts(d,nowKey()),avUrl=d.itemPk?fhAvailUrl(d.itemPk,d.id,d.date):'';
   if(bp.na)return `<div class="group">${gh('bitacora','Bitácora')}<div class="list"><div class="cell c"><span class="main t mut">No aplica</span></div></div></div>`;
   // ↗ junto a Ida y Regreso: abre esa reserva OPS en FareHarbor; si no existe, gris y lleva a la salida
-  const lnk=(url,l)=>url?fhA(url,'',{label:'Abrir la bitácora de '+l.toLowerCase()+' en FareHarbor'}):avUrl?fhA(avUrl,'',{gray:true,label:'Falta la reserva de '+l.toLowerCase()+': abrir la salida en FareHarbor'}):'';
+  const lnk=(url,l)=>url?fhA(fhBookUrl(url,d.date),'',{label:'Abrir la bitácora de '+l.toLowerCase()+' en FareHarbor'}):avUrl?fhA(avUrl,'',{gray:true,label:'Falta la reserva de '+l.toLowerCase()+': abrir la salida en FareHarbor'}):'';
   const part=(l,k,url)=>`<span class="bpart"><i class="bdot ${BIT_T[k][0]}"></i><span><b>${l}</b><small>${BIT_T[k][1]}</small></span>${lnk(url,l)}</span>`;
   const has=!!(d.out||d.back),open=has&&bitOpen===d.id;
   let h=`<div class="group">${gh('bitacora','Bitácora')}<div class="list">`;

@@ -47,7 +47,7 @@ const FHB='https://fareharbor.com/thegaiaexperience/dashboard/?overlay=/contacts
 const PRICE={0:650,1:1200,2:4200,3:850,4:450};
 let seed=7;const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647};
 const pick=(a)=>a[Math.floor(rnd()*a.length)];
-let bkId=58200;
+let bkId=393004100; // realistic 9-digit FareHarbor-style numbers (demo only)
 function makeDeps(){
   const T=addDays(0),now=mins(hm());
   return SCHED.map((s,i)=>{
@@ -90,7 +90,7 @@ function makeDeps(){
     return {id:String(9000+i),itemPk:tour.pk,date:date,time:time,end:endKey,item:(off===0&&time==='14:00')?LONGNAME:tour.name,label:'',boat:BARCO[tour.barco]||'',barco:tour.barco,tipo:tour.tipo,
       crew:crew,bookings:bookings,out:out,back:back,extras:idaDone&&i%3===0?'Jugo y botanas':'',hx:0,rev:(off<0&&i%2===0)?{by:'Jesús',at:'16:20',day:date,hm:'16:20'}:null,
       bit:bit,alerts:'',netSource:bookings.some(b=>b.est)?'estimado':'',costs:costs,paxTxt:String(pax),
-      salidaPk:'',regresoPk:'',salidaId:idaDone?'#'+(60100+i):'',regresoId:regDone?'#'+(60300+i):'',salidaUrl:idaDone?FHB+(364800000+i)+'/bookings/ops-ida-'+i+'/':'',regresoUrl:regDone?FHB+(364900000+i)+'/bookings/ops-reg-'+i+'/':'',
+      salidaPk:'',regresoPk:'',salidaId:idaDone?'#'+(393010200+i):'',regresoId:regDone?'#'+(393010300+i):'',salidaUrl:idaDone?FHB+(364800000+i)+'/bookings/ops-ida-'+i+'/':'',regresoUrl:regDone?FHB+(364900000+i)+'/bookings/ops-reg-'+i+'/':'',
       gross:bookings.reduce((a,b)=>a+b.gross,0),res:resObjs};
   });
 }

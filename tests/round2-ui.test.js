@@ -3,7 +3,7 @@ const assert = require('assert'), fs = require('fs'), path = require('path'), vm
 const { test } = require('./lib');
 const html = fs.readFileSync(path.join(__dirname, '..', 'docs', 'index.html'), 'utf8');
 const m = /\/\/ ==PURE-BEGIN==[^\n]*\n([\s\S]*?)\/\/ ==PURE-END==/.exec(html);
-const names = 'fdate fdt fixDates wkLabel hid hids personasTxt typesLine relAgo advanceClock bitParts money2 cacheKey strHash addD wkStart fmt esc CACHE_MAX fhAvailUrl fhA depAlertN supFor supRemember'.split(' ');
+const names = 'fdate fdt fixDates wkLabel hid hids personasTxt typesLine relAgo advanceClock bitParts money2 cacheKey strHash addD wkStart fmt esc CACHE_MAX fhAvailUrl fhBookUrl fhA depAlertN supFor supRemember'.split(' ');
 const U = vm.runInNewContext(m[1] + '\n({' + names.join(',') + '})', {});
 
 test('UI: dates always "dom. 15/nov 2026" (3-letter weekday + dot, day/month, year)', () => {
@@ -92,7 +92,8 @@ test('UI: cache keys are per user (hash of the PIN) and range; the PIN itself is
 });
 
 test('UI round 3: fhAvailUrl is the single URL builder; fhA opens a new tab safely and escapes', () => {
-  assert.strictEqual(U.fhAvailUrl(258806, 9300), 'https://fareharbor.com/thegaiaexperience/dashboard/?overlay=/items/258806/availability/9300/');
+  assert.strictEqual(U.fhAvailUrl(258806, 9300, '2026-11-23'), 'https://fareharbor.com/thegaiaexperience/dashboard/bookings/grid/2026-11-23/?overlay=/items/258806/availabilities/9300/');
+  assert.strictEqual(U.fhBookUrl('https://fareharbor.com/thegaiaexperience/dashboard/?overlay=/contacts/364756034/bookings/abc/', '2026-11-27'), 'https://fareharbor.com/thegaiaexperience/dashboard/bookings/grid/2026-11-27/?overlay=/contacts/364756034/bookings/abc/');
   const a = U.fhA('https://fareharbor.com/x?a=1&b="2"', 'FareHarbor');
   assert.ok(/href="https:\/\/fareharbor\.com\/x\?a=1&amp;b=&quot;2&quot;"/.test(a) && /target="_blank"/.test(a) && /rel="noopener"/.test(a) && />FareHarbor <span aria-hidden="true">↗<\/span><\/a>$/.test(a));
   assert.ok(/class="fhl gray"/.test(U.fhA('u', '', { gray: true })) && !/class="fhl"[^>]*>\s*u/.test(U.fhA('u', '')));
