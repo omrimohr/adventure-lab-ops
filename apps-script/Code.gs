@@ -379,7 +379,8 @@ function resHeaderStale_(headerRow) {
 /** Pure: rentals (Tours tipo 'renta') are the only items without bitácora; the Tours column 'Lleva bitácora' is no longer read. */
 // Bitácora applies to every item except rentals and day passes (barco 'otro', e.g. 723914 Yak day pass, 721266 Carmelita Day Pass)
 function bitacoraNoAplica_(tipo, barco) { return String(tipo || '').toLowerCase().trim() === 'renta' || norm_(barco) === 'otro'; }
-const BITACORA_RULE_V = '3';
+// '4' (25 Nov 2026): Costos adicionales amounts (Costos salida col S, Externos col I) and the Bitácora text of costo adicional/extras fields → one full recompute
+const BITACORA_RULE_V = '4';
 // Items that got OPS · Salida/Regreso bitácora fields in FareHarbor on 24 Nov 2026 → Tours "Lleva bitácora" = sí (sheet record only)
 const BITACORA_SI_20261124 = [244134, 398421, 243654, 398153, 337343, 337931, 398154, 703654, 689738, 185852, 703536, 770935];
 function markBitacoraSi_(ss) {
@@ -442,8 +443,11 @@ function computeSalida_(avPk, list, tours, now, ing, M) {
       const n = cfvNumber_(c.v);
       const txt = (c.v.display_value !== undefined && c.v.display_value !== null) ? String(c.v.display_value) : String(c.v.value || '');
       if (n === null && !txt) return;
-      bit.push([avPk, fecha, hora, item.name || '', x.b.pk, tipo, cfName_(c.v), cfPk_(c.v),
-        n === null ? '' : n, n === null ? txt : '']);
+      const row = [avPk, fecha, hora, item.name || '', x.b.pk, tipo, cfName_(c.v), cfPk_(c.v),
+        n === null ? '' : n, n === null ? txt : ''];
+      // free text with digits ("Barco externo San Ángel: $2,500") must not be reduced to its first number (num_ → 2)
+      if (n !== null && txt && txt.trim() !== String(n) && /^(costo adicional|extras)$/.test(bitUso_(row, M).uso)) row[9] = txt;
+      bit.push(row);
     });
   });
 
@@ -923,10 +927,10 @@ const STOCK_HEADERS = ['Producto ID', 'Producto', 'Unidad', 'Compras', 'Consumo'
 const EV_HEADERS = ['Semana (jueves)', 'Fecha', 'Hora', 'Item', 'Availability pk', 'Nombre', 'Usuario', 'Rol', 'Barco',
   'Duración (h)', 'Tarifa (MXN)', 'Factor', 'Horas extra', 'Hora extra (MXN)', 'Total (MXN)', 'Regla', 'Alerta'];
 const RESUMEN_HEADERS = ['Semana (jueves)', 'Nombre', 'Salidas', 'Total (MXN)', 'Pagado (MXN)', 'Pendiente (MXN)', 'Alertas'];
-const EXT_HEADERS = ['Fecha', 'Hora', 'Item', 'Availability pk', 'Rol', 'Nombre', 'A quién se debe (nota)', 'Alerta'];
+const EXT_HEADERS = ['Fecha', 'Hora', 'Item', 'Availability pk', 'Rol', 'Nombre', 'A quién se debe (nota)', 'Alerta', 'Monto (MXN)'];
 const COSTO_HEADERS = ['Availability pk', 'Fecha', 'Hora', 'Item', 'Barco', 'Pax', 'Ingreso neto (MXN)', 'Fuente ingreso',
   'Bebidas (MXN)', 'Hielo (MXN)', 'Gasolina (MXN)', 'Fruta (MXN)', 'Desayuno (MXN)', 'Tripulación (MXN)', 'Costo total (MXN)',
-  'Costo %', 'Detalle consumo', 'Alertas'];
+  'Costo %', 'Detalle consumo', 'Alertas', 'Costos adicionales (MXN)'];
 
 // ----- pure helpers -----
 function norm_(s) {
@@ -970,8 +974,73 @@ function ruleValue_(rules, key, dflt) {
   return (x && x[6] !== '') ? Number(x[6]) : dflt;
 }
 
+/**
+ * Pure: free text of the "Costos adicionales" field → money amounts.
+ * Segments are separated by · • ; + / newline, and by "," or " y " when both sides carry a number (so "San Ángel, Juan: $2,500" stays one line).
+ * Amount of a segment: the token with "$", else the one followed by pesos/MXN, else the last number. "$2,500" / "2500" / "$2.500" (dot + exactly 3 digits = thousands) / "$ 300" / "300 pesos".
+ * Label = text before the amount (else after it), trimmed of : - – —. ext = the segment mentions "barco externo" (accents/case ignored).
+ * → {items:[{label, amount, ext}], total, unparsed:bool, rest:[segments without an amount], raw}
+ */
+function parseCostos_(text) {
+  const raw = String(text === null || text === undefined ? '' : text).trim();
+  const out = { items: [], total: 0, unparsed: false, rest: [], raw: raw };
+  if (!raw) return out;
+  const hasNum = x => /\d/.test(x);
+  let segs = [];
+  raw.split(/\s*(?:·|•|;|\+|\/|\r?\n)\s*/).forEach(strong => {
+    strong = strong.trim(); if (!strong) return;
+    const re = /,(?!\d)|\s+y\s+/g; let m, cur = 0;
+    while ((m = re.exec(strong)) !== null) {
+      const left = strong.slice(cur, m.index), right = strong.slice(m.index + m[0].length);
+      if (hasNum(left) && hasNum(right)) { segs.push(left.trim()); cur = m.index + m[0].length; }
+    }
+    segs.push(strong.slice(cur).trim());
+  });
+  segs = segs.filter(Boolean);
+  // "Barco externo San Ángel" · "$2,500": a label without number followed by a segment that starts with the amount
+  const merged = [];
+  for (let i = 0; i < segs.length; i++) {
+    if (!hasNum(segs[i]) && i + 1 < segs.length && /^[\s$]*\d/.test(segs[i + 1])) { merged.push(segs[i] + ' ' + segs[i + 1]); i++; } else merged.push(segs[i]);
+  }
+  const clean = x => String(x).replace(/^[\s:\-–—]+|[\s:\-–—]+$/g, '').replace(/\s+/g, ' ');
+  const toAmount = t => {
+    const dot = t.indexOf('.') >= 0, com = t.indexOf(',') >= 0;
+    if (dot && com) { const dec = t.lastIndexOf('.') > t.lastIndexOf(',') ? '.' : ','; const th = dec === '.' ? ',' : '.'; return Number(t.split(th).join('').replace(dec, '.')); }
+    if (dot || com) {
+      const parts = t.split(dot ? '.' : ','), last = parts[parts.length - 1];
+      if (parts.length > 2 || (last.length === 3 && parts[0] !== '0' && parts[0].length <= 3)) return Number(parts.join('')); // MX thousands
+      return Number(parts.join('.'));
+    }
+    return Number(t);
+  };
+  merged.forEach(seg => {
+    const re = /(\$\s*)?(\d[\d.,]*\d|\d)(\s*(?:pesos|mxn|mx|m\.n\.|mn)\b\.?)?/gi; let m; const toks = [];
+    while ((m = re.exec(seg)) !== null) toks.push({ i: m.index, len: m[0].length, dollar: !!m[1], unit: !!m[3], num: m[2] });
+    if (!toks.length) { out.rest.push(seg); return; }
+    const pick = toks.filter(t => t.dollar).pop() || toks.filter(t => t.unit).pop() || toks[toks.length - 1];
+    const amount = toAmount(pick.num);
+    if (isNaN(amount)) { out.rest.push(seg); return; }
+    let label = clean(seg.slice(0, pick.i));
+    if (!label) label = clean(seg.slice(pick.i + pick.len));
+    out.items.push({ label: label, amount: Math.round(amount * 100) / 100, ext: norm_(seg).indexOf('barco externo') >= 0 });
+  });
+  out.total = Math.round(out.items.reduce((a, x) => a + x.amount, 0) * 100) / 100;
+  out.unparsed = out.rest.length > 0;
+  return out;
+}
+/** Pure: the "Costos adicionales" text of ONE departure (all its bitácora lines whose field has Uso 'costo adicional'). Text fields keep their text; numeric ones give the number. */
+function costoAdicionalText_(bitRows, M) {
+  const parts = [];
+  bitRows.forEach(b => {
+    if (bitUso_(b, M).uso !== 'costo adicional') return;
+    const t = (b[9] !== '' && b[9] !== null && b[9] !== undefined) ? String(b[9]).trim() : (b[8] !== '' && b[8] !== null && b[8] !== undefined ? String(b[8]) : '');
+    if (t) parts.push(t);
+  });
+  return parts.join(' · ');
+}
+
 /** Eventuales for one departure. sal: Salidas row (array), crew: rows, bitRows: rows of that departure */
-function payForSalida_(sal, crew, bitRows, rules, barco, M) {
+function payForSalida_(sal, crew, bitRows, rules, barco, M, now) {
   const out = [], ext = [];
   const fecha = fmtDate_(sal[6], 'yyyy-MM-dd') || ymd_(sal[4]), hora = fmtDate_(sal[6], 'HH:mm'), horas = hoursBetween_(sal[6], sal[7]);
   const activas = Number(sal[8]) || 0;
@@ -985,7 +1054,7 @@ function payForSalida_(sal, crew, bitRows, rules, barco, M) {
     if (rolT === 'ignorar') return;
     // a person named/user-named "Externo" is external whatever their role (users are not a FareHarbor config entity)
     if (/extern/i.test(nombre + ' ' + usuario) || rolT === 'externo') {
-      ext.push([fecha, hora, sal[2], sal[0], rol, nombre, c[7] || '', c[7] ? '' : 'Falta nota: ¿a quién se debe?']);
+      ext.push([fecha, hora, sal[2], sal[0], rol, nombre, c[7] || '', c[7] ? '' : 'Falta nota: ¿a quién se debe?', '']);
       return;
     }
     const rate = findRate_(rules, rolT, barco, horas, sal[2], nombre);
@@ -1000,6 +1069,18 @@ function payForSalida_(sal, crew, bitRows, rules, barco, M) {
     out.push([weekStart_(fecha), fecha, hora, sal[2], sal[0], nombre, usuario, rol, barco, horas, tarifa, factor,
       extra, extraMx, Math.round((tarifa * factor + extraMx) * 100) / 100, rate ? 'Tarifas fila ' + rate.regla : '', alerta]);
   });
+  // Externos: the amount comes from the "barco externo" lines of Costos adicionales (OPS · Regreso bookings); one external → all of it, several → total on the first
+  if (ext.length) {
+    const cos = parseCostos_(costoAdicionalText_(bitRows, M));
+    const monto = Math.round(cos.items.filter(x => x.ext).reduce((a, x) => a + x.amount, 0) * 100) / 100;
+    const endMs = sal[7] ? new Date(sal[7]).getTime() : (sal[6] ? new Date(sal[6]).getTime() + 3 * 3600000 : NaN);
+    const ended = !isNaN(endMs) && endMs < (now instanceof Date ? now.getTime() : (now ? new Date(now).getTime() : Date.now()));
+    const add = (row, a) => { row[7] = row[7] ? row[7] + ' | ' + a : a; };
+    ext.forEach((row, i) => {
+      if (monto > 0) { if (i === 0) row[8] = monto; } else if (ended) add(row, 'Falta monto en Costos adicionales');
+      if (ext.length > 1 && i === 0) add(row, 'Varios externos: repartir');
+    });
+  }
   return { pay: out, ext: ext };
 }
 
@@ -1058,7 +1139,12 @@ function seedTab_(ss, name, headers, seed) {
 }
 function readTab_(ss, name, headers) {
   const sh = sheet_(ss, name, headers);
-  return sh.getLastRow() >= 2 ? sh.getRange(2, 1, sh.getLastRow() - 1, headers.length).getValues() : [];
+  if (sh.getLastRow() < 2) return [];
+  // a calculated tab written before a column was appended is narrower than `headers` until the next rebuild: read what exists and pad
+  const w = Math.min(headers.length, sh.getMaxColumns());
+  const v = sh.getRange(2, 1, sh.getLastRow() - 1, w).getValues();
+  if (w < headers.length) v.forEach(r => { while (r.length < headers.length) r.push(''); });
+  return v;
 }
 // Adds column G "Barco" to Tours (once) and fills it from BARCO_SEED where empty
 function ensureBarco_(ss) {
@@ -1159,7 +1245,7 @@ function rebuildFinanzas_() {
     const pk = String(s[0]);
     const barco = barcos[String(s[1])] || '';
     const b = bitBy[pk] || [];
-    const p = payForSalida_(s, crewBy[pk] || [], b, rules, barco, M);
+    const p = payForSalida_(s, crewBy[pk] || [], b, rules, barco, M, new Date());
     p.pay.forEach(x => ev.push(x)); p.ext.forEach(x => ext.push(x));
     const cons = consumoSalida_(b, productos, M);
     Object.keys(cons).forEach(id => { consumoTot[id] = (consumoTot[id] || 0) + cons[id]; });
@@ -1174,13 +1260,15 @@ function rebuildFinanzas_() {
     const desayuno = (barco === 'sup' && tipo !== 'renta') ? paxN * cost('des') : 0;
     const fru = fruta.porSalida[pk] || 0;
     const trip = p.pay.reduce((a, x) => a + (Number(x[14]) || 0), 0);
-    const total = beb + hie + gas + fru + desayuno + trip;
+    const cos = parseCostos_(costoAdicionalText_(b, M)); // Costos adicionales (free text in the OPS · Regreso bookings)
+    const total = beb + hie + gas + fru + desayuno + trip + cos.total;
     const ingreso = Number(s[17]) || 0;
     const alerts = [];
     if (/sin bit/i.test(String(s[11])) || /falta/i.test(String(s[11]))) alerts.push('Bitácora: ' + s[11]);
     p.pay.forEach(x => { if (x[16]) alerts.push(x[5] + ': ' + x[16]); });
+    if (cos.unparsed) alerts.push('Costo adicional sin monto: ' + cos.rest.join(' · '));
     costos.push([pk, fmtDate_(s[6], 'yyyy-MM-dd'), fmtDate_(s[6], 'HH:mm'), s[2], barco, s[9], ingreso, s[18] || '', r2_(beb), r2_(hie), r2_(gas), r2_(fru), r2_(desayuno),
-      r2_(trip), r2_(total), ingreso ? Math.round(total / ingreso * 1000) / 10 : '', det.join(', '), alerts.join(' | ')]);
+      r2_(trip), r2_(total), ingreso ? Math.round(total / ingreso * 1000) / 10 : '', det.join(', '), alerts.join(' | '), cos.total]);
   });
 
   // Stock
@@ -1641,4 +1729,4 @@ function sheet_(ss, name, headers) {
 if (typeof module !== 'undefined') module.exports = { ctKey_, cfKey_, roleKey_, guessCtype_, guessFieldUso_, guessRolTarifa_, camposMap_, typeUso_, fieldUso_, bitUso_, crewTarifa_,
   mapeosFromRows_, observe_, collectUnknowns_, seedMapeos_, validateMapeo_, toursFromRows_, tourEstado_, TOURS_SEED_ROWS: TOURS_SEED, USOS_CT, USOS_CF,
   CT_HEADERS, CF_HEADERS, ROL_HEADERS, CREW_HEADERS, BIT_HEADERS, ESTADO_NUEVO, ESTADO_OK, rawRowFor_, doPost, rebuildFinanzas, rebuildAll, ensureMapeos_, loadMapeos_,
-  registerUnknowns_, prepararMapeos, bitacoraNoAplica_, bitacoraRuleStale_, markBitacoraSi_, BITACORA_RULE_V, reservaRow_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };
+  registerUnknowns_, prepararMapeos, parseCostos_, costoAdicionalText_, EXT_HEADERS, COSTO_HEADERS, bitacoraNoAplica_, bitacoraRuleStale_, markBitacoraSi_, BITACORA_RULE_V, reservaRow_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };

@@ -92,7 +92,7 @@ test('payForSalida_ identical (rates, hora extra, externos, role without short_n
     const o = O.ex.computeSalida_(d.av, d.list, tours, NOW, {}), n = N.ex.computeSalida_(d.av, d.list, tours, NOW, {}, M);
     const barco = BARCO_SEED[o.salida[1]] || '';
     const po = O.ex.payForSalida_(o.salida, o.crew, o.bit, TAR_SEED, barco), pn = N.ex.payForSalida_(n.salida, n.crew, n.bit, TAR_SEED, barco, M);
-    same(pn.pay, po.pay, 'pay ' + d.av); same(pn.ext, po.ext, 'ext ' + d.av);
+    same(pn.pay, po.pay, 'pay ' + d.av); same(pn.ext.map(r => r.slice(0, 7)), po.ext.map(r => r.slice(0, 7)), 'ext ' + d.av); // cols 8-9 (alerts about Costos adicionales, Monto) are new in round 5
     pays += po.pay.length; exts += po.ext.length;
   });
   assert.ok(pays >= 6 && exts >= 2, 'scenarios cover pay (' + pays + ') and externos (' + exts + ')');

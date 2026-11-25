@@ -9,4 +9,6 @@ if (html.indexOf(marker) < 0) throw new Error('main <script> marker not found in
 const built = html.replace(marker, '<script>\n' + stub + '\n</script>\n' + marker).replace('<title>Adventure Lab Ops</title>', '<title>Adventure Lab Ops · Demo</title>');
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, built);
+// PWA files next to the demo so the <link>s resolve (no console errors)
+for (const f of ['manifest.webmanifest', 'icon-192.png', 'apple-touch-icon.png']) fs.copyFileSync(path.join(__dirname, '..', 'docs', f), path.join(path.dirname(out), f));
 console.log('demo written:', out, (built.length / 1024).toFixed(0) + ' KB');

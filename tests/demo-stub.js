@@ -68,6 +68,13 @@ function makeDeps(){
       const nm=CREW_NAMES[r][(i+j)%CREW_NAMES[r].length];const base=(PAY[r]||{})[tour.barco]||250;
       return {n:nm,r:ROLE_LABEL[r],pay:{base:base,hx:0,tot:base},alert:''};
     });
+    // round 5: crew notes (boat) + external captain with amount + Costos adicionales (parsed / unparsed)
+    if(res.length>1)crew.forEach((c,j)=>{c.nt='Barco: '+res[j%res.length]});
+    let ca={items:[],total:0,unparsed:false,rest:[],raw:''};
+    if(i===0){crew.push({n:'Capitan Externo',r:'Capitán',nt:'San Ángel – Juan Pérez',ext:true,note:'San Ángel – Juan Pérez',monto:2500,pay:{base:0,hx:0,tot:0},alert:''});
+      ca={items:[{label:'Barco externo San Ángel – Juan Pérez',amount:2500,ext:true},{label:'gasolina extra',amount:300,ext:false}],total:2800,unparsed:false,rest:[],raw:'Barco externo San Ángel – Juan Pérez: $2,500 · gasolina extra $300'}}
+    if(i===3)ca={items:[{label:'hielo extra',amount:90,ext:false}],total:90,unparsed:true,rest:['lo paga la oficina'],raw:'hielo extra $90 · lo paga la oficina'};
+    if(i===6)crew.push({n:'Capitan Externo',r:'Capitán',nt:'',ext:true,note:'',monto:null,pay:{base:0,hx:0,tot:0},alert:'Falta nota: ¿a quién se debe? | Falta monto en Costos adicionales'});
     if(off===0&&time==='13:00')crew.push({n:'Beto (externo)',r:'',ext:true,note:'Pagar a Carmelita',pay:{base:0,hx:0,tot:0},alert:''});
     if(off===0&&time==='14:00')crew.push({n:'Ana Rosado',r:'',pay:{base:0,hx:0,tot:0},alert:''});
     const carries=ti!==4;                   // bitácora applies to every item except rentals (round 4 rule)
@@ -84,12 +91,12 @@ function makeDeps(){
     const back=regDone?{cer:Math.round(pax*0.9),agu:pax,ref:Math.round(pax*0.3)}:null;
     let costs=null;
     if(idaDone&&regDone){const b=out.cer*17.5-back.cer*17.5+(out.agu-back.agu)*9+(out.ref-back.ref)*14,g=out.gas*24.8,h=90,ev=crew.reduce((a,c)=>a+c.pay.tot,0);
-      const f=pax*18,tot=b+g+h+f+ev;const gr=bookings.reduce((a,x)=>a+x.net,0);costs={b:b,g:g,h:h,f:f,des:0,ev:ev,tot:tot,pct:gr?tot/gr*100:null}}
+      const f=pax*18,tot=b+g+h+f+ev+ca.total;const gr=bookings.reduce((a,x)=>a+x.net,0);costs={b:b,g:g,h:h,f:f,des:0,ev:ev,ca:ca.total,tot:tot,pct:gr?tot/gr*100:null}}
     const resObjs=res.map(n=>({pk:String(RPK[n]),name:n,n:ti===2?pax:ti>=3?pax:Math.min(pax,10)}));
     // second resource gets the overflow
     if(resObjs.length>1){resObjs[1].n=Math.max(1,Math.floor(pax/3));resObjs[0].n=pax-resObjs[1].n}
     return {id:String(9000+i),itemPk:tour.pk,date:date,time:time,end:endKey,item:(off===0&&time==='14:00')?LONGNAME:tour.name,label:'',boat:BARCO[tour.barco]||'',barco:tour.barco,tipo:tour.tipo,
-      crew:crew,bookings:bookings,out:out,back:back,extras:idaDone&&i%3===0?'Jugo y botanas':'',hx:0,rev:(off<0&&i%2===0)?{by:'Jesús',at:'16:20',day:date,hm:'16:20'}:null,
+      crew:crew,bookings:bookings,out:out,back:back,extras:idaDone&&i%3===0?'Jugo y botanas':'',ca:ca,hx:0,rev:(off<0&&i%2===0)?{by:'Jesús',at:'16:20',day:date,hm:'16:20'}:null,
       bit:bit,alerts:'',netSource:bookings.some(b=>b.est)?'estimado':'',costs:costs,paxTxt:String(pax),
       salidaPk:'',regresoPk:'',salidaId:idaDone?'#'+(393010200+i):'',regresoId:regDone?'#'+(393010300+i):'',salidaUrl:idaDone?FHB+(364800000+i)+'/bookings/ops-ida-'+i+'/':'',regresoUrl:regDone?FHB+(364900000+i)+'/bookings/ops-reg-'+i+'/':'',
       gross:bookings.reduce((a,b)=>a+b.gross,0),res:resObjs};
@@ -121,7 +128,9 @@ function init(){
    {id:6,l:'Instructor líder',amt:400,u:'salida',note:'',pending:false},{id:7,l:'Hora extra (capitán y marinero)',amt:100,u:'hora',note:'',pending:false},
    {id:8,l:'Día festivo',amt:'',u:'salida',note:'Por definir',pending:true}];
   D.paid={};D.weekly=[];
-  D.externos=[{d:T,time:'13:00',item:'Shared Sailing Tour',pk:'9010',r:'Marinero',n:'Beto (externo)',note:'Pagar a Carmelita',alert:''}];
+  D.externos=[{d:T,time:'13:00',item:'Shared Sailing Tour',pk:'9010',r:'Marinero',n:'Beto (externo)',note:'Pagar a Carmelita',alert:'',monto:null},
+    {d:addDays(-1),time:'09:00',item:'Bacalar Lagoon Boat Tour',pk:'9000',r:'Capitan',n:'Capitan Externo',note:'San Ángel – Juan Pérez',alert:'',monto:2500},
+    {d:T,time:'09:00',item:'Bacalar Lagoon Boat Tour',pk:'9006',r:'Capitan',n:'Capitan Externo',note:'',alert:'Falta nota: ¿a quién se debe? | Falta monto en Costos adicionales',monto:null}];
   D.control=[];
   for(let k=0;k<12;k++){const d=addDays(-k),n=D.deps.filter(x=>x.date===d).length||(k%7===0?0:4);
     D.control.push({d:d,dia:'',sal:n,res:n*3,ex:k>1?n*2100:0,est:k<=1?n*2300:0,estado:k===0?'⏳ Hoy':k===1?'⚠️ Falta reporte de Comercial':'✅ Exacto'})}

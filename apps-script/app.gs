@@ -268,12 +268,13 @@ function bitQty_(bitRows, productos, M) {
   });
   return { out: out, back: back };
 }
-function extrasText_(bitRows, M) {
+function extrasText_(bitRows, M, skipAdic) {
   const parts = [];
   bitRows.forEach(b => {
     const c = String(b[6] || ''), uso = bitUso_(b, M).uso;
     if (uso !== 'extras' && uso !== 'costo adicional') return;
     const adic = uso === 'costo adicional';
+    if (adic && skipAdic) return; // shown (parsed) under Costos
     if (b[9] !== '' && b[9] !== null) parts.push(adic ? c + ': ' + b[9] : String(b[9]));
     else if (b[8] !== '' && Number(b[8])) parts.push(c + ': ' + (adic || /costo/i.test(c) ? '$' : '') + b[8]);
   });
@@ -319,9 +320,10 @@ function buildDeps_(inp) {
     let hx = 0; bits.forEach(b => { if (bitUso_(b, inp.M).uso === 'hora extra' && b[8] !== '') hx += Number(b[8]) || 0; });
     const crew = (crewBy[pk] || []).map(c => {
       const n = String(c[5] || c[6] || ''), e = evBy[pk + '|' + String(c[5])], x = extBy[pk + '|' + String(c[5])];
-      if (e) return { n: n, r: roleLabel_(c[4]), pay: { base: r2_(Number(e[10]) * Number(e[11])), hx: r2_(e[13]), tot: r2_(e[14]) }, alert: String(e[16] || '') };
-      if (x) return { n: n, r: roleLabel_(c[4]), ext: true, note: String(x[6] || ''), pay: { base: 0, hx: 0, tot: 0 }, alert: String(x[7] || '') };
-      return { n: n, r: roleLabel_(c[4]), pay: { base: 0, hx: 0, tot: 0 }, alert: '' };
+      const nt = String(c[7] || ''); // crew Note in FareHarbor, e.g. "Barco: El Cormoran" (externo: "San Ángel – Juan Pérez")
+      if (e) return { n: n, r: roleLabel_(c[4]), nt: nt, pay: { base: r2_(Number(e[10]) * Number(e[11])), hx: r2_(e[13]), tot: r2_(e[14]) }, alert: String(e[16] || '') };
+      if (x) return { n: n, r: roleLabel_(c[4]), nt: nt, ext: true, note: String(x[6] || ''), monto: x[8] === '' || x[8] === undefined ? null : r2_(x[8]), pay: { base: 0, hx: 0, tot: 0 }, alert: String(x[7] || '') };
+      return { n: n, r: roleLabel_(c[4]), nt: nt, pay: { base: 0, hx: 0, tot: 0 }, alert: '' };
     });
     const bookings = (resBy[pk] || []).filter(r => r[3] === 'sí' && !r[13]).sort((a, b) => Number(a[0]) - Number(b[0])).map(r => ({
       id: String(r[1] || r[0]), name: String(r[17] || ''), pax: numOr_(r[14], 0), types: String(r[16] || ''),
@@ -336,9 +338,9 @@ function buildDeps_(inp) {
       id: pk, itemPk: String(s[1]), date: fmtDate_(s[6], 'yyyy-MM-dd'), time: fmtDate_(s[6], 'HH:mm'), end: s[7] ? fmtDate_(s[7], 'yyyy-MM-dd HH:mm') : '', item: String(s[2]), label: '',
       gross: r2_(bookings.reduce((a, x) => a + x.gross, 0)), res: resFromText_(s[20]),
       boat: BARCO_LABEL[barco] || '', barco: barco, tipo: String(s[3] || ''), crew: crew, bookings: bookings,
-      out: hasOut ? bq.out : null, back: hasBack ? bq.back : null, extras: extrasText_(bits, inp.M), hx: hx,
+      out: hasOut ? bq.out : null, back: hasBack ? bq.back : null, extras: extrasText_(bits, inp.M, true), ca: parseCostos_(costoAdicionalText_(bits, inp.M)), hx: hx,
       rev: inp.revs[pk] || null, bit: st, alerts: String(s[15] || ''), netSource: String(s[18] || ''),
-      costs: k ? { b: r2_(k[8]), g: r2_(k[10]), h: r2_(k[9]), f: r2_(k[11]), des: r2_(k[12]), ev: r2_(k[13]), tot: r2_(k[14]), pct: k[15] === '' ? null : Number(k[15]) } : null,
+      costs: k ? { b: r2_(k[8]), g: r2_(k[10]), h: r2_(k[9]), f: r2_(k[11]), des: r2_(k[12]), ev: r2_(k[13]), tot: r2_(k[14]), pct: k[15] === '' ? null : Number(k[15]), ca: r2_(k[18]) } : null,
       paxTxt: String(s[9]), salidaUrl: firstUrl(ids(s[12])), regresoUrl: firstUrl(ids(s[13])), salidaPk: ids(s[12]).join(', '), regresoPk: ids(s[13]).join(', '),
       salidaId: ids(s[12]).map(x => disp[x] || x).join(', '), regresoId: ids(s[13]).map(x => disp[x] || x).join(', ')
     };
@@ -560,7 +562,7 @@ function getData(pin, desde, hasta) {
   const paid = {};
   readTab_(ss, 'Pagos', PAGO_HEADERS).filter(r => r[1] !== '').forEach(r => { paid[ymd_(r[0]) + '|' + r[1]] = ymd_(r[3]); });
   const weekly = readTab_(ss, 'Resumen semanal', RESUMEN_HEADERS).map(r => ({ w: ymd_(r[0]), n: String(r[1]), s: Number(r[2]) || 0, t: Number(r[3]) || 0, paid: Number(r[4]) || 0, pend: Number(r[5]) || 0, alerts: String(r[6] || '') }));
-  const externos = extRows.map(r => ({ d: ymd_(r[0]), time: String(r[1]), item: String(r[2]), pk: String(r[3]), r: String(r[4]), n: String(r[5]), note: String(r[6] || ''), alert: String(r[7] || '') }));
+  const externos = extRows.map(r => ({ d: ymd_(r[0]), time: String(r[1]), item: String(r[2]), pk: String(r[3]), r: String(r[4]), n: String(r[5]), note: String(r[6] || ''), alert: String(r[7] || ''), monto: r[8] === '' || r[8] === undefined ? null : r2_(r[8]) }));
   const control = readTab_(ss, 'Control días', CTRL_HEADERS).map(r => ({ d: ymd_(r[0]), dia: String(r[1]), sal: Number(r[2]) || 0, res: Number(r[3]) || 0, ex: Number(r[4]) || 0, est: Number(r[5]) || 0, estado: String(r[6]) }));
   const toursRows = readTab_(ss, 'Tours', TOURS_HEADERS.concat(['Barco', TOURS_ESTADO_HDR, TOURS_VISTO_HDR])).filter(r => r[0] !== '');
   const tours = toursRows.map(r => ({ pk: String(r[0]), name: String(r[1]), tipo: String(r[2]), barco: norm_(r[6]) || barcos[String(r[0])] || '' }));

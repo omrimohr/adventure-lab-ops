@@ -18,10 +18,23 @@ Owner: Omri (Adventure Lab, Bacalar). FareHarbor company `thegaiaexperience`. Sp
 - Pax: shared tours = customer-type count; private = "Number of people" custom field (Tours tab, field pks); rentals = people field or 1.
 - Income: webhook estimate (label "estimado") until Comercial's report gives "Net Revenue Collected" (no label).
 - Departures keyed by FareHarbor availability pk. Salida/Regreso are separate OPS bookings. Crew role/name come from FareHarbor.
-- Bitácora applies to EVERY item except rentals (Tours tipo = `renta`) and day passes (Tours Barco = `otro`); "No aplica" only then, and only without OPS bookings. Rule v3 also marked "Lleva bitácora = sí" (sheet record only) for the items that got bitácora fields on 24 Nov: 244134, 398421, 243654, 398153, 337343, 337931, 398154, 703654, 689738, 185852, 703536, 770935. The Tours column "Lleva bitácora" is still in the sheet but is **no longer read** (computeSalida_, saludAlerts_). Departures with customer bookings but no resource get the alert "Sin recurso asignado". Script property `BITACORA_RULE_V` ('2'): the first `rebuildFinanzas` of this version sets REBUILD_PENDING once so Salidas are recomputed.
+- Bitácora applies to EVERY item except rentals (Tours tipo = `renta`) and day passes (Tours Barco = `otro`); "No aplica" only then, and only without OPS bookings. Rule v3 also marked "Lleva bitácora = sí" (sheet record only) for the items that got bitácora fields on 24 Nov: 244134, 398421, 243654, 398153, 337343, 337931, 398154, 703654, 689738, 185852, 703536, 770935. The Tours column "Lleva bitácora" is still in the sheet but is **no longer read** (computeSalida_, saludAlerts_). Departures with customer bookings but no resource get the alert "Sin recurso asignado". Script property `BITACORA_RULE_V` ('4'): the first `rebuildFinanzas` of this version sets REBUILD_PENDING once so Salidas, Costos salida and Externos are recomputed (bump it whenever history must be recalculated).
 - Rates live in tab Tarifas (first matching row wins). Pay week Thursday→Wednesday.
 - Ask Omri before risky/irreversible actions; concise answers; always give FareHarbor IDs with their names.
 - FareHarbor configuration changes are logged in the Claude Docs "Adventure Lab — FareHarbor Setup Definition" (Change log tab), not here.
+
+## Installable app (PWA)
+`docs/manifest.webmanifest` + icons (`icon-192.png`, `icon-512.png`, `icon-512-maskable.png`, `apple-touch-icon.png`; regenerate with Pillow, teal lagoon + white boat/"AL") + `docs/sw.js`. Staff install it so it opens without the browser bar:
+- iPhone: Safari → Compartir → "Agregar a inicio".
+- Android: Chrome → ⋮ → "Instalar app".
+The service worker caches only the shell (index.html, manifest, icons; cache-first) and never touches the Apps Script API (other origin / POST → network only). **Bump `CACHE` in `docs/sw.js` on EVERY change under `docs/`**, otherwise installed phones keep the old shell. A new `CACHE` makes the phone install the new worker, drop old caches and reload the page once.
+
+## Costos adicionales and Externos (ops manual, 24 Nov 2026)
+- Crew are added by hand per availability with a role; the crew Note is the boat ("Barco: El Cormoran") or, for the external captain (user "Capitan Externo"), "boat – person" = who is owed. Tripulación col H (Nota) → app crew `nt`.
+- `parseCostos_(text)` (Code.gs, pure) reads amounts from the free text of the field with Campos Uso `costo adicional` (OPS · Regreso booking): `$2,500`, `2500`, `$2.500`, `$ 300`, `300 pesos`; segments split by `· ; + /` newline, and by `,` / ` y ` only when both sides have a number; segments mentioning "barco externo" get `ext:true`; segments without amount → `unparsed`. Costos salida gets the last column `Costos adicionales (MXN)` (included in Costo total / Costo %); Alertas: "Costo adicional sin monto: …".
+- Bitácora keeps the full text of `costo adicional` / `extras` fields (col J) even when it contains digits (`num_` alone would keep only the first number).
+- Externos: `Monto (MXN)` (last column) = sum of the `barco externo` items (one external → all; several → total on the first + "Varios externos: repartir"); alerts "Falta nota: ¿a quién se debe?" (empty crew note) and "Falta monto en Costos adicionales" (after the departure ended). Externos are not paid as staff.
+- App: a departure with Ida and/or Regreso overdue (same rule as the red dots) gets the warning "Falta bitácora de ida / de regreso / de ida y regreso" in the ⚠️ count, the "Con advertencias" filter and Avisos.
 
 ## Testing
 The app can be tested locally with a stubbed `fetch`; server pure functions export via `module.exports` guard for node tests.

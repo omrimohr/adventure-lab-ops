@@ -6,7 +6,13 @@
 <title>Adventure Lab Ops</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="AL Ops">
-<meta name="theme-color" content="#f2f2f7">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <style>
 /* reset that the claude.ai page skeleton used to provide */
 [hidden]{display:none!important}
@@ -208,6 +214,7 @@ button.cell:active{background:var(--fill)}
 .d1 .chev{margin-top:5px}
 .lbl{font-weight:400;color:var(--ink2)}
 .crew{font-size:14px;color:var(--ink2);margin:6px 0 0;line-height:1.5}
+.sn{font-size:13px;color:var(--ink2);margin-top:1px;opacity:.9}
 .rb{display:inline-block;font-size:12px;font-weight:600;padding:0 6px;border-radius:6px;background:var(--lagoon-soft);color:var(--lagoon);margin-right:4px}
 .rb.w{background:color-mix(in srgb,var(--orange) 18%,transparent);color:var(--orange)}
 .d3{font-size:14px;margin:6px 0 0}
@@ -380,6 +387,14 @@ a.fhl:focus-visible{outline:3px solid var(--lagoon);outline-offset:-2px;border-r
 <div class="pinwrap" id="pin" hidden><div class="pinbox"><div class="logo">⛵</div><h1>Adventure Lab Ops</h1><p class="lede" id="pMsg" role="status">Ingresa tu PIN</p>
 <div class="pdots" id="pDots" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
 <div class="keys" role="group" aria-label="Teclado numérico"><button type="button" data-pk="1">1</button><button type="button" data-pk="2">2</button><button type="button" data-pk="3">3</button><button type="button" data-pk="4">4</button><button type="button" data-pk="5">5</button><button type="button" data-pk="6">6</button><button type="button" data-pk="7">7</button><button type="button" data-pk="8">8</button><button type="button" data-pk="9">9</button><span></span><button type="button" data-pk="0">0</button><button type="button" class="ghost" data-pk="del" aria-label="Borrar">⌫</button></div></div></div>
+<script>
+// App instalable: service worker solo para el cascarón (la API nunca se guarda). Al tomar el control una versión nueva, se recarga una sola vez.
+try{if('serviceWorker' in navigator&&location.protocol!=='file:'){
+  var hadSW=!!navigator.serviceWorker.controller,reloaded=false;
+  navigator.serviceWorker.addEventListener('controllerchange',function(){if(!hadSW){hadSW=true;return}if(reloaded)return;reloaded=true;location.reload()});
+  window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})});
+}}catch(e){}
+</script>
 <script>
 window.addEventListener('error',function(e){try{var b=document.getElementById('boot');if(b){b.hidden=false;b.innerHTML='<div style="padding:20px;font:13px monospace;white-space:pre-wrap">Error: '+String(e.message)+'\nlínea '+e.lineno+':'+e.colno+'</div>'}}catch(x){}});
 window.addEventListener('unhandledrejection',function(e){try{var b=document.getElementById('boot');if(b&&!b.hidden){b.innerHTML+='<div style="padding:20px;font:13px monospace">Promesa: '+String((e.reason&&e.reason.message)||e.reason)+'</div>'}}catch(x){}});
@@ -591,8 +606,14 @@ const fhA=(url,text,{gray,label}={})=>`<a class="fhl${gray?' gray':''}" href="${
 const isRenta=d=>String((d&&d.tipo)||'').toLowerCase().trim()==='renta';
 // "Sin recurso": salida con reservas activas de clientes y ningún recurso (se calcula aquí también, así no espera al recálculo del servidor)
 const noRes=d=>!!(((d&&d.bookings)||[]).length&&!((d&&d.res)||[]).length);
-const depAlerts=d=>String((d&&d.alerts)||'').split(' | ').filter(a=>a&&!/^Sin recurso asignado/.test(a)).concat(noRes(d)?['Sin recurso asignado']:[]);
-const depAlertN=d=>depAlerts(d).length+(d.crew||[]).filter(c=>(!c.r&&!c.ext)||c.alert).length;
+// Falta bitácora: misma regla que los puntos rojos (ida vencida al empezar, regreso vencido al terminar). Sin nowKey no se evalúa. No aplica / sin reservas / aún no toca: nada.
+const bitAlert=(d,nowKey)=>{if(!d||!nowKey)return '';const p=bitParts(d,nowKey);if(p.na)return '';const a=p.ida==='late',r=p.reg==='late';return a&&r?'Falta bitácora de ida y regreso':a?'Falta bitácora de ida':r?'Falta bitácora de regreso':''};
+const depAlerts=(d,nowKey)=>String((d&&d.alerts)||'').split(' | ').filter(a=>a&&!/^Sin recurso asignado/.test(a)).concat(noRes(d)?['Sin recurso asignado']:[]).concat(bitAlert(d,nowKey)||[]);
+const depAlertN=(d,nowKey)=>depAlerts(d,nowKey).length+(d.crew||[]).filter(c=>(!c.r&&!c.ext)||c.alert).length;
+// Costos adicionales (texto libre ya leído por el servidor: ca = {items:[{label,amount,ext}], total, unparsed, rest:[..], raw})
+// Alertas de un externo sin la de nota (esa se pinta aparte)
+const extAlerts=x=>String((x&&x.alert)||'').split(' | ').filter(a=>a&&!/^Falta nota/.test(a));
+const caHas=d=>!!(d&&d.ca&&(d.ca.items.length||d.ca.rest.length));
 // Por revisar: solo si el día ya terminó (fecha anterior a hoy) y nadie la marcó revisada
 const needsReview=(d,today)=>d.date<today&&!d.rev;
 // Sección de la lista: done (terminada) · live (en curso) · next (próxima). Sin hora de fin se supone 3 h.
@@ -606,7 +627,7 @@ function depSection(d,today,now){
 const DEP_FILTERS=[
   {key:'todas',label:'Todas',test:()=>true},
   {key:'revisar',label:'Por revisar',test:(d,c)=>needsReview(d,c.today)},
-  {key:'avisos',label:'Con advertencias',test:d=>depAlertN(d)>0},
+  {key:'avisos',label:'Con advertencias',test:(d,c)=>depAlertN(d,c&&c.nowKey)>0},
   {key:'tours',label:'Tours',test:d=>!isRenta(d)},
   {key:'rentas',label:'Rentas',test:d=>isRenta(d)}];
 const depFilter=k=>DEP_FILTERS.find(f=>f.key===k)||DEP_FILTERS[0];
@@ -759,7 +780,7 @@ op(){
       ${netMiss||costMiss?`<div class="fn">${netMiss?`Neto pendiente en ${netMiss} ${netMiss===1?'salida':'salidas'}. El Costo % se calcula sobre el neto, solo con las ${both} que ya tienen neto y bitácora completa.`:''}${costMiss?` El costo suma solo salidas con bitácora completa.`:''}</div>`:''}
       ${dsum}${pills}</section>`;
   }
-  const f=depFilter(S.filter),list=ds.filter(d=>f.test(d,{today:TODAY}));
+  const f=depFilter(S.filter),list=ds.filter(d=>f.test(d,{today:TODAY,nowKey:nowKey()}));
   if(!list.length)return h+`<div class="group"><div class="list"><div class="empty">Ninguna salida con este filtro.</div></div></div>`;
   const SEC=[['done','Terminadas'],['live','En curso'],['next','Próximas']],by={done:[],live:[],next:[]};
   list.forEach(d=>by[depSection(d,TODAY,NOW)].push(d));
@@ -772,14 +793,15 @@ dep(id){
   const st=status(d),c=cost(d),n=netOf(d),miss=missingRole(d),fut=st==='prog',est=d.netSource==='estimado';
   const avUrl=d.itemPk?fhAvailUrl(d.itemPk,d.id,d.date):'';
   let h=topBar(d.item,{back:'Operación',backTo:'op',lede:[d.time,d.boat?esc(d.boat):'',fd(d.date),d.label?esc(d.label):'',avUrl?fhA(avUrl,'#'+d.id,{label:'Abrir la salida '+d.id+' en FareHarbor'}):''].filter(Boolean).join(' · ')});
-  if(depAlerts(d).length)h+=`<div class="group">${gh('alert','Avisos')}<div class="list">${depAlerts(d).map(a=>`<div class="cell w-orange"><span class="main"><span class="s" style="margin:0">${esc(a)}</span></span></div>`).join('')}</div></div>`;
+  const dal=depAlerts(d,nowKey());
+  if(dal.length)h+=`<div class="group">${gh('alert','Avisos')}<div class="list">${dal.map(a=>`<div class="cell w-orange"><span class="main"><span class="s" style="margin:0">${esc(a)}</span></span></div>`).join('')}</div></div>`;
   h+=`<div class="group">${gh('bookings','Bookings')}<div class="list">${d.bookings.map(b=>{const tl=typesLine(b.types);
     return `<div class="cell"><span class="main"><span class="t">${esc(b.name||hid(b.id))}</span><div class="s">${b.url?fhA(fhBookUrl(b.url,d.date),hid(b.id),{label:'Abrir la reserva '+hid(b.id)+' en FareHarbor'}):avUrl?fhA(avUrl,hid(b.id),{gray:true,label:'Abrir la salida en FareHarbor (la reserva no tiene enlace)'}):esc(hid(b.id))} · ${personasTxt(b.pax)}${tl?' · '+esc(tl):''}</div></span><span class="v">${money2(b.gross,fut?undefined:b.net,b.est)}</span></div>`}).join('')||'<div class="empty">Sin reservas activas.</div>'}
     ${d.bookings.length?`<div class="cell"><span class="main t"><b>Total · ${personasTxt(paxOf(d))}</b></span><span class="v">${money2(d.gross,fut?undefined:n,est)}</span></div>`:''}</div></div>`;
   h+=`<div class="group">${gh('resources','Resources')}<div class="list">${(d.res||[]).map(r=>`<div class="cell c"><span class="main t">${esc(r.name)}</span><span class="v">${num(r.n)}</span></div>`).join('')||'<div class="empty">Sin resources asignados.</div>'}</div></div>`;
   h+=bitSection(d,fut);
   h+=`<div class="group">${gh('crew','Crew')}<div class="list">${d.crew.map(x=>{const p=payLine(d,x);
-    return `<div class="cell"><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${x.ext?'<span class="rb">Ext.</span>Externo'+(x.note?' · '+esc(x.note):''):x.r?`<span class="rb">${esc(rb(x.r))}</span>${esc(x.r)}`:'⚠️ Falta rol'}${p.hx?` · hora extra ${fmt(p.hx)}`:''}</div>${x.alert?`<div class="s" style="color:var(--orange)">⚠️ ${esc(x.alert)}</div>`:''}</span>${x.ext||!x.r?'':`<span class="v">${fmt(p.tot)}</span>`}</div>`}).join('')||'<div class="empty">Sin tripulación asignada.</div>'}${miss.length?`<div class="cell"><span class="main"><span class="t" style="color:var(--orange)">⚠️ Falta rol en FareHarbor</span></span></div>`:''}</div>
+    return `<div class="cell"><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${x.ext?'<span class="rb">Ext.</span>Externo'+(x.note?' · '+esc(x.note):''):x.r?`<span class="rb">${esc(rb(x.r))}</span>${esc(x.r)}`:'⚠️ Falta rol'}${p.hx?` · hora extra ${fmt(p.hx)}`:''}</div>${!x.ext&&x.nt?`<div class="sn">${esc(x.nt)}</div>`:''}${x.alert?`<div class="s" style="color:var(--orange)">⚠️ ${esc(x.alert)}</div>`:''}</span>${x.ext?(x.monto?`<span class="v">${fmt(x.monto)}</span>`:''):!x.r?'':`<span class="v">${fmt(p.tot)}</span>`}</div>`}).join('')||'<div class="empty">Sin tripulación asignada.</div>'}${miss.length?`<div class="cell"><span class="main"><span class="t" style="color:var(--orange)">⚠️ Falta rol en FareHarbor</span></span></div>`:''}</div>
 </div>`;
   if(c)h+=`<div class="group">${gh('costos','Costos')}<div class="list">
     <div class="cell"><span class="main t">Bebidas</span><span class="v">${fmt(c.b)}</span></div>
@@ -787,9 +809,11 @@ dep(id){
     <div class="cell"><span class="main t">Hielo</span><span class="v">${fmt(c.h)}</span></div>
     ${c.f?`<div class="cell"><span class="main t">Fruta</span><span class="v">${fmt(c.f)}</span></div>`:''}${c.des?`<div class="cell"><span class="main t">Desayuno</span><span class="v">${fmt(c.des)}</span></div>`:''}
     <div class="cell"><span class="main t">Eventuales</span><span class="v">${fmt(c.ev)}</span></div>
+    ${caRows(d)}
     <div class="cell"><span class="main t"><b>Costo total</b></span><span class="big" style="font-size:17px">${fmt(c.tot)}</span></div>
     <div class="cell"><span class="main t">Ingreso</span><span class="v">${money2(d.gross,n,est)}</span></div>
     <div class="cell"><span class="main t">Costo %</span><span class="v">${n?Math.round(c.tot/n*100)+'%':'—'}</span></div></div></div>`;
+  else if(caHas(d))h+=`<div class="group">${gh('costos','Costos')}<div class="list">${caRows(d)}</div></div>`;
   else if(!fut)h+=`<div class="group">${gh('costos','Costos')}<div class="list"><div class="empty">El costo se calcula cuando la bitácora tiene salida y regreso.</div></div></div>`;
   if(!fut){
     if(d.rev)h+=`<div class="group"><div class="list"><div class="cell"><span class="main t" style="color:var(--green)">✅ Revisado · ${esc(d.rev.by)} ${esc(revAt(d.rev))}</span></div></div></div>`;
@@ -806,7 +830,7 @@ ev(){
   if(!ps.length&&!ext.length)return h+`<div class="group"><div class="list"><div class="empty">Sin salidas en esta semana.</div></div></div>`;
   if(ps.length)h+=`<section class="today"><div class="kpis" style="grid-template-columns:1.4fr 1fr 1fr"><div class="kpi"><div class="k">Total a pagar</div><div class="n">${fmt(tot)}</div></div><div class="kpi"><div class="k">Personas</div><div class="n">${ps.length}</div></div><div class="kpi"><div class="k">Pagados</div><div class="n">${paid}</div></div></div></section>
   <div class="group"><div class="list">${ps.map(p=>{const pg=S.paid[ws+'|'+p.n];return `<button class="cell" data-person="${esc(p.n)}"><span class="main"><span class="t">${esc(p.n)}</span><div class="s">${[...p.roles].join(', ')||'Sin rol'} · ${p.lines.length} ${p.lines.length===1?'salida':'salidas'}${p.hx?` · ${p.hx} h extra`:''}</div>${p.miss?'<div class="s" style="color:var(--orange)">⚠️ Falta rol en una salida</div>':''}${p.rate?'<div class="s" style="color:var(--orange)">⚠️ Tarifa pendiente o sin tarifa</div>':''}</span><span class="v" style="text-align:right">${fmt(p.tot)}${pg?'<div class="s" style="color:var(--green)">Pagado</div>':''}</span>${chev}</button>`}).join('')}</div></div>`;
-  if(ext.length)h+=`<div class="group">${gh('crew','Externos (se pagan aparte)')}<div class="list">${ext.map(x=>`<div class="cell"><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${sd(x.d)} · ${esc(x.time)} · ${esc(x.item)}</div>${x.note?`<div class="s">Se debe a: ${esc(x.note)}</div>`:`<div class="s" style="color:var(--orange)">⚠️ Falta nota: ¿a quién se debe?</div>`}</span></div>`).join('')}</div></div>`;
+  if(ext.length)h+=`<div class="group">${gh('crew','Externos (se pagan aparte)')}<div class="list">${ext.map(x=>`<div class="cell"><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${sd(x.d)} · ${esc(x.time)} · ${esc(x.item)}</div>${x.note?`<div class="s">Se debe a: ${esc(x.note)}</div>`:`<div class="s" style="color:var(--orange)">⚠️ Falta nota: ¿a quién se debe?</div>`}${extAlerts(x).map(a=>`<div class="s" style="color:var(--orange)">⚠️ ${esc(a)}</div>`).join('')}</span>${x.monto?`<span class="v">${fmt(x.monto)}</span>`:''}</div>`).join('')}</div></div>`;
   return h;
 },
 person(name){
@@ -1169,6 +1193,13 @@ const nowKey=()=>TODAY+' '+NOW;
 let bitOpen=null; // salida cuya tabla de bitácora está abierta
 const BIT_T={done:['ok','Hecha'],late:['late','Falta'],wait:['','Por hacer']};
 // Bitácora: UNA sola sección con Ida y Regreso lado a lado (punto + estado). Al tocar se abre la tabla de productos.
+// Costos adicionales: cada renglón leído del texto (etiqueta + monto); lo que no tiene monto se muestra tal cual con aviso
+function caRows(d){
+  if(!caHas(d))return '';const ca=d.ca;
+  const lines=ca.items.map(x=>`<div class="sn">${x.ext?'<span class="rb">Ext.</span>':''}${esc(x.label||'Costo adicional')} · ${fmt(x.amount)}</div>`).join('');
+  const warn=ca.unparsed?`<div class="s" style="color:var(--orange)">⚠️ Sin monto: ${esc(ca.rest.join(' · '))}</div>`:'';
+  return `<div class="cell"><span class="main"><span class="t">Costos adicionales</span>${lines}${warn}</span>${ca.items.length?`<span class="v">${fmt(ca.total)}</span>`:''}</div>`;
+}
 function bitSection(d,fut){
   const bp=bitParts(d,nowKey()),avUrl=d.itemPk?fhAvailUrl(d.itemPk,d.id,d.date):'';
   if(bp.na)return `<div class="group">${gh('bitacora','Bitácora')}<div class="list"><div class="cell c"><span class="main t mut">No aplica</span></div></div></div>`;
@@ -1200,7 +1231,7 @@ function depCard(d,sec){
   const rent=isRenta(d);
   const dot=(l,k)=>`<span class="bd"><i class="bdot ${BIT_T[k][0]}"></i>${l}<span class="sr">${BIT_T[k][1]}</span></span>`;
   const bits=bp.na?'<span class="bd">No aplica</span>':`<span class="bds">${dot('Ida',bp.ida)}${dot('Regreso',bp.reg)}</span>`;
-  const an=depAlertN(d),nores=noRes(d);
+  const an=depAlertN(d,nowKey()),nores=noRes(d);
   let tags='';
   if(an)tags+=`<span class="tg w" aria-label="${an} ${an===1?'aviso':'avisos'}">⚠️ ${an}</span>`;
   // Revisión: solo un ícono. Amarillo = el día ya terminó y nadie la marcó; verde = revisada. Hoy y días futuros: nada.
