@@ -48,7 +48,7 @@ The service worker caches only the shell (index.html, manifest, icons; cache-fir
 
 ## Round 9 (25 Nov 2026)
 - Ajustes: Apariencia (Automático | Claro | Oscuro) per device (localStorage, `data-theme` on <html>); `semana_pago` (Config, any weekday, default jueves) drives Eventuales / Resumen semanal / Pagos (`weekStart_`, `payDow_`); `semana_inicio` only the stock report.
-- Section gap 28px; tour hour 16/500. Departure detail lists (Bookings, Crew, Costos) use the compact `.dlist` rows with a rule line before totals. Day passes (barco otro) are excluded from Tours, Rentas and day pax (`isPase`). Rentals (tipo renta) and day passes (barco otro) render as compact 2-line rows (kayak icon, "Renta"/"Pase" tag, no bitácora line).
+- Section gap 28px; tour hour 16/500. Departure detail lists (Bookings, Crew, Costos) use the compact `.dlist` rows with a rule line before totals. Day passes (barco otro) are excluded from Tours, Rentas and day pax (`isPase`). Rentals (tipo renta) and day passes (barco otro) render as ONE quiet gray line (round 11, `.dquiet`): kayak icon, hour, name, pax ... gross; no resources, no check-in; only the ⚠ count keeps colour.
 
 ## Testing
 The app can be tested locally with a stubbed `fetch`; server pure functions export via `module.exports` guard for node tests.
