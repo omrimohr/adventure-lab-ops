@@ -103,6 +103,7 @@ h1+.group{margin-top:24px}
 button.cell{cursor:pointer}
 button.cell:active,.cell.tap:active,.drow:active{background:var(--fill)}
 .cell .main{flex:1;min-width:0}
+.dlist .cell{min-height:40px;padding-top:7px;padding-bottom:7px}.dlist .cell .t{line-height:1.25}.dlist .cell .s,.dlist .cell .sn{margin-top:1px;line-height:1.3}.dlist .cell .fhl{padding-top:0;padding-bottom:0;margin-top:0;margin-bottom:0;min-height:0}.dlist .cell.tot{border-top:1px solid var(--rule,#DCD2C0)}
 .cell .t,.t{font-size:16px}
 .cell .s{font-size:12px;color:var(--ink2);margin-top:2px;overflow-wrap:anywhere}
 .cell .v{font-size:14px;font-variant-numeric:tabular-nums;color:var(--ink2);text-align:right;white-space:nowrap}
@@ -757,6 +758,7 @@ const fhBookUrl=(url,date)=>!url?'':(date?String(url).replace(/\/dashboard\/\?ov
 const fhA=(url,text,{gray,label}={})=>`<a class="fhl${gray?' gray':''}" href="${esc(url)}" target="_blank" rel="noopener"${label?` aria-label="${esc(label)}"`:''}>${text?esc(text)+' ':''}<span aria-hidden="true">↗</span></a>`;
 // Avisos de una salida (para el contador de avisos de la fila): avisos del servidor + tripulación sin rol + alertas de pago
 const isRenta=d=>String((d&&d.tipo)||'').toLowerCase().trim()==='renta';
+const isPase=d=>String((d&&d.barco)||'').toLowerCase().trim()==='otro'; // day passes: no cuentan en Tours, Rentas ni pax del día
 // "Sin recurso": salida con reservas activas de clientes y ningún recurso (se calcula aquí también, así no espera al recálculo del servidor)
 const noRes=d=>!!(((d&&d.bookings)||[]).length&&!((d&&d.res)||[]).length);
 // Falta bitácora: misma regla que los puntos rojos (ida vencida al empezar, regreso vencido al terminar). Sin nowKey no se evalúa. No aplica / sin reservas / aún no toca: nada.
@@ -808,7 +810,7 @@ const depFilter=k=>DEP_FILTERS.find(f=>f.key===k)||DEP_FILTERS[0];
 // Resumen del día: solo salidas con reservas activas. Tours = todo lo que no es renta.
 function dayCounts(ds){
   const o={t:{n:0,pax:0},r:{n:0,pax:0}};
-  (ds||[]).forEach(d=>{const bk=d.bookings||[];if(!bk.length)return;const c=isRenta(d)?o.r:o.t;c.n++;c.pax+=bk.reduce((a,b)=>a+(Number(b.pax)||0),0)});
+  (ds||[]).forEach(d=>{const bk=d.bookings||[];if(!bk.length||isPase(d))return;const c=isRenta(d)?o.r:o.t;c.n++;c.pax+=bk.reduce((a,b)=>a+(Number(b.pax)||0),0)});
   return o;
 }
 // Resumen del día (tarjeta de Operación). Todo se cuenta SOLO sobre salidas con reservas activas.
@@ -1062,22 +1064,22 @@ dep(id){
   const dal=depAlerts(d,nowKey());
   if(dal.length)h+=`<div class="group">${gh('alert','Avisos')}<div class="list">${dal.map(a=>`<div class="cell ${/^No show/.test(a)?'w-red':'w-orange'}"><span class="main"><span class="s" style="margin:0">${esc(a)}</span></span></div>`).join('')}</div></div>`;
   const started=depStarted(d,nowKey());
-  h+=`<div class="group">${gh('bookings','Bookings')}<div class="list">${d.bookings.map(b=>{const tl=typesLine(b.types),bst=ciState(b.ci,started);
+  h+=`<div class="group">${gh('bookings','Bookings')}<div class="list dlist">${d.bookings.map(b=>{const tl=typesLine(b.types),bst=ciState(b.ci,started);
     return `<div class="cell tap" role="button" tabindex="0" data-bk="${esc(d.id)}|${esc(b.pk)}" aria-label="Ver detalle de la reserva ${esc(hid(b.id))}"><span class="main"><span class="t">${esc(b.name||hid(b.id))}</span><div class="s">${b.url?fhA(fhBookUrl(b.url,d.date),hid(b.id),{label:'Abrir la reserva '+hid(b.id)+' en FareHarbor'}):avUrl?fhA(avUrl,hid(b.id),{gray:true,label:'Abrir la salida en FareHarbor (la reserva no tiene enlace)'}):esc(hid(b.id))} · ${personasTxt(b.pax)}${tl?' · '+esc(tl):''}</div>${bst||b.note?`<div class="s bkx">${ciChip(b.ci,bst,b.ci&&b.ci.ns?' · No show':'')}${b.note?`<span class="ni" role="img" aria-label="Tiene nota">${svgI('note',16)}</span>`:''}</div>`:''}</span><span class="v">${money2(b.gross,fut?undefined:b.net,b.est)}</span></div>`}).join('')||'<div class="empty">Sin reservas activas.</div>'}
-    ${d.bookings.length?`<div class="cell"><span class="main t"><b>Total · ${personasTxt(paxOf(d))}</b></span><span class="v">${money2(d.gross,fut?undefined:n,est)}</span></div>`:''}</div></div>`;
+    ${d.bookings.length?`<div class="cell tot"><span class="main t"><b>Total · ${personasTxt(paxOf(d))}</b></span><span class="v">${money2(d.gross,fut?undefined:n,est)}</span></div>`:''}</div></div>`;
   h+=`<div class="group">${gh('resources','Resources')}<div class="list">${(d.res||[]).map(r=>`<div class="cell c"><span class="main t">${esc(r.name)}</span><span class="v">${num(r.n)}</span></div>`).join('')||'<div class="empty">Sin resources asignados.</div>'}</div></div>`;
   h+=bitSection(d,fut);
-  h+=`<div class="group">${gh('crew','Crew')}<div class="list">${d.crew.map(x=>{const p=payLine(d,x);
+  h+=`<div class="group">${gh('crew','Crew')}<div class="list dlist">${d.crew.map(x=>{const p=payLine(d,x);
     return `<div class="cell"><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${x.ext?'<span class="rb">Ext.</span>Externo'+(x.note?' · '+esc(x.note):''):x.r?`<span class="rb">${esc(rb(x.r))}</span>${esc(x.r)}`:WI+'Falta rol'}${p.hx?` · hora extra ${fmt(p.hx)}`:''}</div>${!x.ext&&x.nt?`<div class="sn">${esc(x.nt)}</div>`:''}${x.alert?`<div class="s" style="color:var(--orange)">${WI}${esc(x.alert)}</div>`:''}</span>${x.ext?(x.monto?`<span class="v">${fmt(x.monto)}</span>`:''):!x.r?'':`<span class="v">${fmt(p.tot)}</span>`}</div>`}).join('')||'<div class="empty">Sin tripulación asignada.</div>'}${miss.length?`<div class="cell"><span class="main"><span class="t" style="color:var(--orange)">${WI}Falta rol en FareHarbor</span></span></div>`:''}</div>
 </div>`;
-  if(c)h+=`<div class="group">${gh('costos','Costos')}<div class="list">
+  if(c)h+=`<div class="group">${gh('costos','Costos')}<div class="list dlist">
     <div class="cell"><span class="main t">Bebidas</span><span class="v">${fmt(c.b)}</span></div>
     <div class="cell"><span class="main t">Gasolina</span><span class="v">${fmt(c.g)}</span></div>
     <div class="cell"><span class="main t">Hielo</span><span class="v">${fmt(c.h)}</span></div>
     ${c.f?`<div class="cell"><span class="main t">Fruta</span><span class="v">${fmt(c.f)}</span></div>`:''}${c.des?`<div class="cell"><span class="main t">Desayuno</span><span class="v">${fmt(c.des)}</span></div>`:''}
     <div class="cell"><span class="main t">Eventuales</span><span class="v">${fmt(c.ev)}</span></div>
     ${caRows(d)}
-    <div class="cell"><span class="main t"><b>Costo total</b></span><span class="big">${fmt(c.tot)}</span></div>
+    <div class="cell tot"><span class="main t"><b>Costo total</b></span><span class="big">${fmt(c.tot)}</span></div>
     <div class="cell"><span class="main t">Ingreso</span><span class="v">${money2(d.gross,n,est)}</span></div>
     <div class="cell"><span class="main t">Costo %</span><span class="v">${n?Math.round(c.tot/n*100)+'%':'—'}</span></div></div></div>`;
   else if(caHas(d))h+=`<div class="group">${gh('costos','Costos')}<div class="list">${caRows(d)}</div></div>`;

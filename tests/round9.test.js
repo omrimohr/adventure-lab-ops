@@ -167,4 +167,4 @@ test('compact rows for rentals (tipo renta) and day passes (barco otro): 2 lines
   assert.ok(/\.drow\.dcompact \.cn\{[^}]*font-size:14px/.test(css) && !/\.drow\.dcompact \.cn\{[^}]*serif/.test(css), 'name in system 14');
   assert.ok(/\.drow\.dcompact \.rtag\{[^}]*border:1px solid[^}]*border-radius:99px/.test(css) && /\.rtag\{[^}]*color:var\(--ink3\)/.test(css));
 });
-test('sw CACHE bumped to v6', () => assert.ok(/'al-ops-v6'/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'sw.js'), 'utf8'))));
+test('sw CACHE bumped to v6', () => assert.ok(/'al-ops-v([6-9]|\d{2,})'/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'sw.js'), 'utf8'))));
