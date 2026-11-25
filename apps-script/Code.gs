@@ -126,6 +126,7 @@ function doPost(e) {
     if (parsed.type === 'reporte') { // upload from the app (not FareHarbor): never goes to Raw
       const key = PropertiesService.getScriptProperties().getProperty('APP_KEY');
       if (key && parsed.key !== key) return ContentService.createTextOutput('{"ok":false,"error":"clave"}');
+      archiveReport_(ss, String(parsed.csv || ''), String(parsed.archivo || 'app')); // copy to Drive › Importados (never blocks the import)
       const res = importReport_(ss, String(parsed.csv || ''), String(parsed.archivo || 'app'));
       return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
     }
@@ -871,6 +872,25 @@ function importFromDrive() {
     if (r.ok) f.moveTo(done);
   }
   return out.length ? out.join('\n') : 'No hay reportes nuevos';
+}
+
+/** Pure: file name for an uploaded report (strips path chars, appends .csv if missing). */
+function reportFileName_(name) {
+  let n = String(name || 'app').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'app';
+  return /\.csv$/i.test(n) ? n : n + '.csv';
+}
+/** Saves the uploaded CSV text in Drive › REPORTS_FOLDER › Importados unless a file with that exact name is already there. Errors go to Errores, never thrown. */
+function archiveReport_(ss, csv, archivo) {
+  try {
+    const name = reportFileName_(archivo);
+    const it = DriveApp.getFoldersByName(REPORTS_FOLDER);
+    const folder = it.hasNext() ? it.next() : DriveApp.createFolder(REPORTS_FOLDER);
+    const di = folder.getFoldersByName('Importados');
+    const done = di.hasNext() ? di.next() : folder.createFolder('Importados');
+    if (done.getFilesByName(name).hasNext()) return false;
+    done.createFile(name, csv, 'text/csv');
+    return true;
+  } catch (e) { try { logError_(ss, 'Archivar reporte', e, archivo); } catch (e2) {} return false; }
 }
 
 // ---------------- Control días (gaps) ----------------
@@ -1803,6 +1823,6 @@ function sheet_(ss, name, headers) {
 }
 
 if (typeof module !== 'undefined') module.exports = { ctKey_, cfKey_, roleKey_, guessCtype_, guessFieldUso_, guessRolTarifa_, camposMap_, typeUso_, fieldUso_, bitUso_, crewTarifa_,
-  mapeosFromRows_, observe_, collectUnknowns_, seedMapeos_, validateMapeo_, toursFromRows_, tourEstado_, TOURS_SEED_ROWS: TOURS_SEED, USOS_CT, USOS_CF,
+  reportFileName_, archiveReport_, mapeosFromRows_, observe_, collectUnknowns_, seedMapeos_, validateMapeo_, toursFromRows_, tourEstado_, TOURS_SEED_ROWS: TOURS_SEED, USOS_CT, USOS_CF,
   CT_HEADERS, CF_HEADERS, ROL_HEADERS, CREW_HEADERS, BIT_HEADERS, ESTADO_NUEVO, ESTADO_OK, rawRowFor_, doPost, rebuildFinanzas, rebuildAll, ensureMapeos_, loadMapeos_,
   registerUnknowns_, prepararMapeos, parseCostos_, costoAdicionalText_, EXT_HEADERS, COSTO_HEADERS, bitacoraNoAplica_, bitacoraRuleStale_, markBitacoraSi_, BITACORA_RULE_V, checkinOf_, checkinSummary_, checkinText_, parseCheckin_, camposText_, phoneOf_, reservaRow_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payDow_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };

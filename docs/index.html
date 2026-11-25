@@ -80,6 +80,7 @@ b,strong{font-weight:500}
 .rbr{display:inline-flex;align-items:center;flex:none}
 .rbr .stat{margin-right:0!important}
 .bell{position:relative;width:44px;height:44px;margin-right:-10px;border:0;background:none;color:var(--ink2);cursor:pointer;display:grid;place-items:center;padding:0}
+.rpt{margin-right:0}
 .bell:focus-visible{outline:2px solid var(--acc);outline-offset:-6px;border-radius:10px}
 .bell .nb{position:absolute;top:5px;right:3px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--badge);color:#fff;font:500 11px/16px var(--font);font-style:normal;text-align:center;font-variant-numeric:tabular-nums}
 .drow.hl{animation:hl 2s ease-out}
@@ -368,6 +369,12 @@ a.fhl:focus-visible{outline:2px solid var(--acc);outline-offset:-2px;border-radi
 .cell.c{min-height:44px;padding-block:8px}
 .addnote{width:100%;min-height:44px;background:none;border:0;font:inherit;color:var(--acc);text-align:left;padding:0 var(--px);cursor:pointer}
 .supl{font-size:12px;color:var(--ink2)}
+.ferr{color:var(--red);font-size:12px;padding:6px 0 0}.note.bad{border-top-color:var(--red);border-bottom-color:var(--red)}
+.fbctx{color:var(--ink2);font-size:12px;margin:12px 0 16px}
+.fbt{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:14px;line-height:1.35}
+.fbs{font-size:12px;font-weight:500;padding:2px 8px;border-radius:99px;background:var(--fill);color:var(--ink2);white-space:nowrap;flex:none}
+.fbs.n{background:var(--acc-soft);color:var(--acc)}.fbs.g{color:var(--green)}.fbs.o{color:var(--orange)}
+.fbfull{white-space:pre-wrap;overflow-wrap:anywhere;font-size:16px}
 .tkrow{display:flex;justify-content:flex-start;margin:0 0 4px}
 .tkrow label{display:inline-flex;align-items:center;gap:8px;min-height:44px;color:var(--acc);font-weight:500;cursor:pointer}
 .tkrow label svg{width:20px;height:20px}
@@ -514,9 +521,10 @@ const TYPES=[['ponton','Pontón'],['catamaran','Catamarán'],['monocasco','Monoc
 const RB={'Capitán':'Cap.','Marinero':'Mar.','Instructor':'Inst.','Auxiliar':'Aux.','Guía':'Guía'};
 const rb=r=>RB[r]||(r.length>5?r.slice(0,4)+'.':r);
 const S={role:'op',realRole:'op',user:'',date:'',wk:'',
-  perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},pend:[],salud:[],rebuildPending:false,fhOk:true,offline:false,dataAt:0,
+  perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},pend:[],salud:[],feedback:[],fbf:'nuevo',fbEdit:null,rebuildPending:false,fhOk:true,offline:false,dataAt:0,
   win:{from:'',to:''},fetchedAt:'',q:'',filter:'todas',fopen:false,config:{semana_inicio:'jueves',semana_pago:'jueves'}};
 let PIN='';
+const APP_VER='v12';   // = sufijo de CACHE en docs/sw.js ('al-ops-v12'); se manda con cada reporte
 
 // ===== Servidor =====
 // Servidor: Apps Script web app (misma URL que el webhook de FareHarbor). POST text/plain = sin preflight CORS.
@@ -548,7 +556,7 @@ function flushRender(){if(pendingRender)softRender()}
 let lastLoad=Date.now(),finBusy=false,finLast=0;
 function applyData(d,at){lastLoad=Date.now();S.dataAt=at||Date.now();S.fhOk=d.fhOk!==false;
   ['items','purchases','moves','priceLog','deps','rates','paid','weekly','externos','control','tours','comidas','fh','pend','salud','rebuildPending'].forEach(k=>{S[k]=d[k]});
-  S.pend=d.pend||[];S.salud=d.salud||[];S.config=Object.assign({semana_inicio:'jueves',semana_pago:'jueves'},d.config||{});S.rebuildPending=!!d.rebuildPending;
+  S.pend=d.pend||[];S.salud=d.salud||[];S.feedback=d.feedback||[];S.config=Object.assign({semana_inicio:'jueves',semana_pago:'jueves'},d.config||{});S.rebuildPending=!!d.rebuildPending;
   S.perms=d.perms;S.realRole=d.user.rol;S.user=d.user.nombre;
   if(S.realRole!=='admin'||!S.date)S.role=S.realRole;
   TODAY=d.today;NOW=d.now;S.clk={today:d.today,now:d.now,at:Date.now()};S.fetchedAt=d.now;S.win={from:d.desde,to:d.hasta};
@@ -704,6 +712,7 @@ const IC={
  okc:'<circle cx="12" cy="12" r="8.5"/><path d="M8 12.5l3 3 5-6"/>',
  kayak:'<path d="M3 15.5c4-3.2 14-3.2 18 0-4 3.2-14 3.2-18 0z"/><path d="M6.5 5.5l11 11"/><path d="M4.8 8.2l3-3M16.2 18.8l3-3"/>',
  boat:'<path d="M12 3v12"/><path d="M12 4.5l6 9.5h-6"/><path d="M12 8L7 14h5"/><path d="M4 17.5h16l-2.2 3.2H6.2z"/>',
+ report:'<path d="M4 5.5A1.5 1.5 0 015.5 4h13A1.5 1.5 0 0120 5.5v9a1.5 1.5 0 01-1.5 1.5H10l-4.5 4v-4h0A1.5 1.5 0 014 14.5z"/><path d="M12 7.5v4M12 13.6v.1"/>',
  bell:'<path d="M6 16v-5a6 6 0 1112 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 004 0"/>'};
 const svgI=(k,sz)=>`<svg class="gi" viewBox="0 0 24 24" width="${sz||16}" height="${sz||16}" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg>`;
 const WI=svgI('alert',14).replace('class="gi"','class="wi"');   // aviso inline (sin emoji)
@@ -884,7 +893,7 @@ const Q_DELAYS=[2,5,15,30,60];                         // segundos entre reinten
 const qBackoff=n=>(Q_DELAYS[Math.min(Math.max(n,1),Q_DELAYS.length)-1])*1000;
 const Q_MAX=Q_DELAYS.length+1;                        // intentos antes de avisar "No se guardó"
 const qClass=m=>/PIN incorrecto|Demasiados intentos/.test(m)?'auth':/Sin conexi|Servidor \d|Failed|Network|timed? ?out|Lock|Exception|Service|Intenta de nuevo/i.test(m)?'retry':'final';
-const Q_LABEL={addCompra:'Compra',addAjuste:'Ajuste',addConteo:'Inventario',markRev:'Revisión',markPaid:'Pago',setMapeo:'Configuración'};
+const Q_LABEL={addCompra:'Compra',addAjuste:'Ajuste',addConteo:'Inventario',markRev:'Revisión',markPaid:'Pago',setMapeo:'Configuración',addFeedback:'Reporte',setFeedbackEstado:'Estado de reporte'};
 // Efecto optimista de una escritura en el estado S (mismo resultado que verá el servidor). q={id,fn,args,fail}; ctx={today,hm,user}. Idempotente: si los datos ya traen ese id no hace nada.
 function optApply(S,q,ctx){
   const mark=q.fail?'no se guardó':'guardando…',a=q.args||[],has=k=>S.moves.some(m=>m.k===k||(m.k||'').indexOf(k+'.')===0);
@@ -908,6 +917,11 @@ function optApply(S,q,ctx){
     const k=a[0]+'|'+a[1];if(!S.paid[k]){S.paid[k]=ctx.today;S.paidPend=S.paidPend||{};S.paidPend[k]={pend:mark,pf:!!q.fail}}
   }else if(q.fn==='setMapeo'){
     (S.pend||[]).forEach(x=>{if(x.kind===a[0]&&String(x.clave)===String(a[1])){x.pend=mark;x.pf=!!q.fail}});
+  }else if(q.fn==='addFeedback'){
+    const p=a[0]||{};S.feedback=S.feedback||[];
+    if(!S.feedback.some(x=>x.cid===q.id))S.feedback.unshift({id:'q:'+q.id,cid:q.id,fecha:ctx.today+' '+ctx.hm,usuario:ctx.user,tipo:p.tipo==='Sugerencia'?'Sugerencia':'Error',texto:p.texto||'',pantalla:p.pantalla||'',fechaApp:p.fecha||'',version:p.version||'',url:'',estado:'Nuevo',notas:'',img:!!p.img,pend:mark,pf:!!q.fail});
+  }else if(q.fn==='setFeedbackEstado'){
+    const r=(S.feedback||[]).find(x=>x.id===String(a[0]));if(r){r.estado=a[1];if(typeof a[2]==='string')r.notas=a[2];r.pend=mark;r.pf=!!q.fail}
   }
 }
 // Cambia la etiqueta ("guardando…" ↔ "no se guardó") de lo que ya se pintó de forma optimista
@@ -918,18 +932,34 @@ function optMark(S,q){
   if(q.fn==='markRev'){const d=S.deps.find(x=>x.id===String(a[0]));if(d&&d.rev&&d.rev.pend){d.rev.pend=mark;d.rev.pf=pf}}
   if(q.fn==='markPaid'){const p=(S.paidPend||{})[a[0]+'|'+a[1]];if(p){p.pend=mark;p.pf=pf}}
   if(q.fn==='setMapeo')(S.pend||[]).forEach(x=>{if(x.pend&&x.kind===a[0]&&String(x.clave)===String(a[1])){x.pend=mark;x.pf=pf}});
+  if(q.fn==='addFeedback')(S.feedback||[]).forEach(x=>{if(x.pend&&x.cid===q.id){x.pend=mark;x.pf=pf}});
+  if(q.fn==='setFeedbackEstado')(S.feedback||[]).forEach(x=>{if(x.pend&&x.id===String(a[0])){x.pend=mark;x.pf=pf}});
 }
 // Notificaciones del sistema: [{id, kind, text, go}] (go: {t:'dep',date,av} | {t:'pend'} | {t:'fh'} | null). Para sumar otra clase de aviso, agrega aquí un push con su {kind,text,go}.
-function notifBuild(salud,pend,role){
-  const out=[],adm=role==='admin',pn=adm?(pend||[]).length:0;
+function notifBuild(salud,pend,role,fb){
+  const out=[],adm=role==='admin',pn=adm?(pend||[]).length:0,fn=adm?fbNew(fb):0;
   (salud||[]).filter(a=>adm||a.rol==='todos').forEach((a,i)=>{
     if(a.tipo==='config'&&pn)return; // ya sale como "N elementos por configurar"
     const go=a.fecha&&a.av?{t:'dep',date:a.fecha,av:String(a.av)}:a.tipo==='config'?{t:'pend'}:(a.tipo==='webhook'||a.tipo==='reporte'||a.tipo==='errores')?{t:'fh'}:null;
     out.push({id:'s'+i,kind:a.tipo||'aviso',text:fixDates(a.texto),go:go});
   });
+  if(fn)out.unshift({id:'feedback',kind:'feedback',text:fn+(fn===1?' reporte nuevo':' reportes nuevos'),go:{t:'fb'}});
   if(pn)out.unshift({id:'pend',kind:'pend',text:pn+(pn===1?' elemento por configurar':' elementos por configurar'),go:{t:'pend'}});
   return out;
 }
+// --- Reportar (errores y sugerencias) ---
+const FB_ESTADOS=['Nuevo','En curso','Resuelto','Descartado'];
+const FB_FILTERS=[['nuevo','Nuevos',['Nuevo']],['curso','En curso',['En curso']],['resuelto','Resueltos',['Resuelto','Descartado']]];
+const fbNew=l=>(l||[]).filter(r=>r.estado==='Nuevo').length;
+const fbFilter=(l,key)=>{const f=FB_FILTERS.find(x=>x[0]===key)||FB_FILTERS[0];return (l||[]).filter(r=>f[2].indexOf(r.estado)>=0)};
+const fbCount=(l,key)=>fbFilter(l,key).length;
+const FB_MAX_IMG=3500000;                                   // caracteres del data URL en base64 (≈ 2.5 MB de imagen)
+const fbImgOk=u=>!u||String(u).length<=FB_MAX_IMG;
+const fbScale=(w,h,max)=>{const k=Math.min(1,(max||1600)/Math.max(w,h,1));return {w:Math.max(1,Math.round(w*k)),h:Math.max(1,Math.round(h*k))}};
+const SCREENS={dep:'Detalle de salida',pend:'Por configurar',fh:'Conexión FareHarbor',feedback:'Feedback',fbd:'Reporte',productos:'Productos',tarifas:'Tarifas eventuales',tours:'Items',permisos:'Permisos',ajustes:'Ajustes',item:'Producto',purchase:'Compra',movs:'Movimientos',person:'Eventual',role:'Permisos'};
+const screenName=(tab,view,tabs)=>view?(SCREENS[view]||view):((tabs||{})[tab]||tab);
+const fbContext=(screen,date,user,ver)=>'Se envía con: pantalla '+screen+' · '+date+' · '+user+' · versión '+ver;
+function fbPayload(f,ctx){return {cid:ctx.cid,tipo:f.tipo==='Sugerencia'?'Sugerencia':'Error',texto:String(f.texto||'').trim(),pantalla:ctx.screen,fecha:ctx.date,version:ctx.ver,img:f.img||''}}
 // ==PURE-END==
 try{S.filter=depFilter(localStorage.getItem('adv_ops_depfilter')||'todas').key}catch(e){} // último filtro usado
 
@@ -1005,7 +1035,7 @@ function topBar(title,{back,backTo,backView,acts=[],lede}={}){
   const nav=(back||a)?`<div class="nav">${back?`<button class="back" data-back="${backTo||''}" ${backView?`data-backview="${backView}"`:''}>${svgI('left',18)}${esc(back)}</button>`:'<span></span>'}<span class="acts">${a}</span></div>`:'';
   return nav+`<h1>${esc(title)}</h1>${lede?`<p class="lede">${lede}</p>`:''}`;
 }
-function roleBar(){const n=notifList().length;return `<div class="rolebar"><span>Hola, ${esc(S.user)}</span><span class="rbr">${statusHtml()}<button type="button" class="bell" data-bell aria-label="${n?'Notificaciones, '+n:'Notificaciones'}">${svgI('bell',20)}${n?`<i class="nb">${n>9?'9+':n}</i>`:''}</button></span></div>`}
+function roleBar(){const n=notifList().length;return `<div class="rolebar"><span>Hola, ${esc(S.user)}</span><span class="rbr">${statusHtml()}<button type="button" class="bell rpt" data-report aria-label="Reportar error o sugerencia">${svgI('report',20)}</button><button type="button" class="bell" data-bell aria-label="${n?'Notificaciones, '+n:'Notificaciones'}">${svgI('bell',20)}${n?`<i class="nb">${n>9?'9+':n}</i>`:''}</button></span></div>`}
 // Control de estado (arriba a la derecha): punto de conexión con FareHarbor, botón de actualizar y hora de los datos mostrados
 function statusHtml(){
   const ok=S.fhOk!==false&&!S.offline,ago=S.dataAt?relAgo(S.dataAt,Date.now()):'';
@@ -1053,7 +1083,7 @@ const PEND_GROUPS=[['tipo','Customer types','tag'],['campo','Custom fields','sli
 const PEND_TITLE={tipo:'Customer type',campo:'Custom field',rol:'Crew role',item:'Item nuevo'};
 const pendN=()=>S.role==='admin'?S.pend.length:0;
 const saludList=()=>(S.salud||[]).filter(a=>S.role==='admin'||a.rol==='todos');
-const notifList=()=>notifBuild(S.salud,S.pend,S.role);
+const notifList=()=>notifBuild(S.salud,S.pend,S.role,S.feedback);
 function saludRows(){
   const l=saludList();
   return l.map(a=>`<div class="cell w-orange"><span class="main"><span class="s" style="margin:0">${WI}${esc(fixDates(a.texto))}</span></span></div>`).join('')||`<div class="cell"><span class="main t okc">${svgI('okc',18).replace('class="gi"','class="wi"')}Todo en orden</span></div>`;
@@ -1228,10 +1258,13 @@ purchase(id){
 mas(){
   const n=S.items.length,pn=pendN(),adm=S.role==='admin';
   const row=(view,ic,t,sub,extra)=>`<button class="cell" data-view="${view}"><span class="ic acc">${svgI(ic,20)}</span><span class="main"><span class="t">${t}</span>${sub?`<div class="s">${sub}</div>`:''}</span>${extra||''}${chev}</button>`;
+  const fn=adm?fbNew(S.feedback):0,
+    fbRow=row('feedback','report',adm?'Feedback':'Mis reportes',adm?(fn?'Errores y sugerencias':'Todo al día'):((S.feedback||[]).length+' enviados'),fn?`<span class="badge red">${fn}</span>`:'');
   return topBar('Más')+(adm?`
   <div class="group"><div class="list">
     ${row('pend','inbox','Por configurar',pn?'Cosas nuevas de FareHarbor':'Todo al día',pn?`<span class="badge red">${pn}</span>`:'')}
-  </div></div>`:'')+`
+    ${fbRow}
+  </div></div>`:`<div class="group"><div class="list">${fbRow}</div></div>`)+`
   <div class="group"><div class="list">
     ${row('productos','item','Productos',`${n} ${n===1?'producto':'productos'}`)}
     ${row('tarifas','costos','Tarifas eventuales','Pago por rol y tipo de barco')}
@@ -1288,6 +1321,25 @@ fh(){
   <div class="group"><div class="ghead">Últimos eventos</div><div class="list">${(f.eventos||[]).map(e=>`<div class="cell"><span class="main"><span class="t">${esc(e.t)}</span><div class="s">${esc(e.s.replace(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}/g,fdt))}</div></span><span class="v" style="white-space:normal;text-align:right">${esc(fdt(e.at))}</span></div>`).join('')||'<div class="empty">Sin eventos.</div>'}</div></div>
   <div class="group"><div class="ghead">Control de días</div><div class="list">${ctl.map(c=>`<div class="cell ${/⚠/.test(c.estado)?'w-orange':''}"><span class="main"><span class="t">${sd(c.d)}</span><div class="s">${c.res} reservas · ${c.sal} salidas</div></span><span class="v" style="white-space:normal;text-align:right;max-width:55%">${esc(c.estado)}</span></div>`).join('')||'<div class="empty">Sin datos.</div>'}</div>
   <div class="gfoot">El ingreso exacto llega con el reporte diario de Comercial.</div></div>`;
+},
+feedback(){
+  const adm=S.role==='admin',all=S.feedback||[],fk=S.fbf||'nuevo',l=adm?fbFilter(all,fk):all;
+  const ic=r=>r.tipo==='Sugerencia'?'note':'alert',pill=r=>{const c=r.estado==='Nuevo'?'n':r.estado==='Resuelto'?'g':r.estado==='En curso'?'o':'';return `<span class="fbs ${c}">${esc(r.estado)}</span>`};
+  return topBar(adm?'Feedback':'Mis reportes',{back:'Más',backTo:'mas',lede:adm?'Errores y sugerencias del equipo.':'Lo que has enviado con el botón Reportar.'})+
+  (adm?`<div class="chips fchips" role="group" aria-label="Filtro de reportes">${FB_FILTERS.map(f=>`<button type="button" class="chip" data-fbf="${f[0]}" aria-pressed="${fk===f[0]}">${f[1]} ${fbCount(all,f[0])}</button>`).join('')}</div>`:'')+
+  `<div class="group"><div class="list">${l.map(r=>`<button class="cell" data-fb="${esc(r.id)}"><span class="ic acc">${svgI(ic(r),20)}</span><span class="main"><span class="t fbt">${esc(r.texto)}</span><div class="s">${esc(r.usuario)} · ${esc(fdt(r.fecha))}${r.pend?` · <span class="sv${r.pf?' bad':''}">${r.pend}</span>`:''}</div></span>${pill(r)}${chev}</button>`).join('')||'<div class="empty">Sin reportes aquí.</div>'}</div></div>`;
+},
+fbd(id){
+  const r=(S.feedback||[]).find(x=>x.id===id),adm=S.role==='admin';
+  if(!r)return topBar('Reporte',{back:'Feedback',backTo:'mas',backView:'feedback'})+'<div class="group"><div class="list"><div class="empty">No encontré este reporte.</div></div></div>';
+  const est=S.fbEdit&&S.fbEdit.id===id?S.fbEdit.estado:r.estado,kv=(k,v)=>v?`<div class="cell"><span class="main t">${k}</span><span class="v" style="white-space:normal;text-align:right">${v}</span></div>`:'';
+  return topBar(r.tipo==='Sugerencia'?'Sugerencia':'Error',{back:'Feedback',backTo:'mas',backView:'feedback',lede:esc(r.usuario)+' · '+esc(fdt(r.fecha))+(r.pend?` · <span class="sv${r.pf?' bad':''}">${r.pend}</span>`:'')})+
+  `<div class="group"><div class="list"><div class="cell"><span class="main t fbfull">${esc(r.texto)}</span></div></div></div>
+  <div class="group"><div class="list">${kv('Pantalla',esc(r.pantalla))}${kv('Fecha en la app',r.fechaApp?esc(fdate(r.fechaApp)):'')}${kv('Versión',esc(r.version))}${kv('Estado',esc(r.estado))}
+    ${r.url?(adm?kv('Captura',`<a href="${esc(r.url)}" target="_blank" rel="noopener" style="color:var(--acc)">Ver captura</a>`):kv('Captura','Adjunta')):''}${!adm&&r.notas?kv('Respuesta',esc(r.notas)):''}</div></div>`+
+  (adm?`<div class="group"><div class="ghead">Estado</div><div class="chips" role="group" aria-label="Estado del reporte">${FB_ESTADOS.map(e=>`<button type="button" class="chip" data-fbe="${e}" aria-pressed="${est===e}">${e}</button>`).join('')}</div>
+    <textarea id="fbNote" class="note" placeholder="Nota (opcional)" aria-label="Nota">${esc(r.notas||'')}</textarea>
+    <div style="margin-top:16px"><button type="button" class="btn" data-fbsave="${esc(r.id)}"${String(r.id).indexOf('q:')===0?' disabled':''}>Guardar</button></div></div>`:'');
 },
 pend(){
   const l=S.pend;
@@ -1388,6 +1440,41 @@ function setTicket(f){
   if(f){try{cart.ticketUrl=URL.createObjectURL(f)}catch(e){}}
   renderTicket();
 }
+// --- Reportar: hoja con tipo, texto, captura opcional y contexto ---
+let fb=null;
+const fbScreen=()=>screenName(tab,stackView&&stackView.name,Object.fromEntries(TABS.map(t=>[t[0],t[1]])));
+function renderFbImg(){
+  $('fbImgName').textContent=fb.img?'Cambiar captura':'Agregar captura de pantalla';
+  $('fbBox').innerHTML=fb.img?`<div class="tk"><img class="thumb" src="${fb.img}" alt="Captura de pantalla"><span class="nm">${esc(fb.imgName||'Captura')}</span><button type="button" data-fbrm>Quitar</button></div>`:'';
+}
+function openFeedback(){
+  fb={tipo:'Error',img:'',imgName:''};
+  sheet('Reportar',`<div class="group"><div class="seg" role="group" aria-label="Tipo de reporte">${['Error','Sugerencia'].map(k=>`<button type="button" data-fbt="${k}" aria-pressed="${k==='Error'}">${k}</button>`).join('')}</div></div>
+    <textarea id="fbText" class="note" placeholder="¿Qué pasó o qué te gustaría?" aria-label="Qué pasó o qué te gustaría" aria-describedby="fbErr"></textarea>
+    <div id="fbErr" class="ferr" role="alert" hidden>Escribe qué pasó</div>
+    <div class="tkrow"><label>${svgI('camera',20)}<span id="fbImgName">Agregar captura de pantalla</span><input id="fbFile" type="file" accept="image/*" hidden></label></div><div id="fbBox"></div>
+    <p class="fbctx">${esc(fbContext(fbScreen(),S.date||TODAY,S.user,APP_VER))}</p>
+    <div class="group"><button type="button" class="btn" id="fbSend">Enviar</button></div>`,{input:fbInput});
+}
+async function fbInput(e){
+  const t=e.target;
+  if(t.id==='fbText'){if(t.value.trim()){$('fbErr').hidden=true;t.classList.remove('bad')}return}
+  if(t.id==='fbFile'){
+    const f=t.files&&t.files[0];if(!f)return;
+    const u=await shrink(f,1600,.8);
+    if(!fb||!$('fbBox'))return;
+    if(!u){toast('No pude leer la imagen','err');return}
+    if(!fbImgOk(u)){$('fbErr').textContent='La imagen es muy grande';$('fbErr').hidden=false;return}
+    fb.img=u;fb.imgName=f.name;renderFbImg();
+  }
+}
+function sendReport(){
+  const tx=$('fbText');
+  if(!tx.value.trim()){$('fbErr').textContent='Escribe qué pasó';$('fbErr').hidden=false;tx.classList.add('bad');tx.focus();return}
+  if(!fbImgOk(fb.img)){$('fbErr').textContent='La imagen es muy grande';$('fbErr').hidden=false;return}
+  const p=fbPayload({tipo:fb.tipo,texto:tx.value,img:fb.img},{cid:uuid(),screen:fbScreen(),date:S.date||TODAY,ver:APP_VER});
+  closeSheet();enqueue('addFeedback',[p]);toast('Enviado. Gracias');fb=null;
+}
 let supMap={};
 function supLoad(){try{supMap=JSON.parse(localStorage.getItem('adv_ops_sup')||'{}')||{}}catch(e){supMap={}}}
 function supSave(){try{localStorage.setItem('adv_ops_sup',JSON.stringify(supMap))}catch(e){}}
@@ -1424,10 +1511,10 @@ function cartInput(e){
   updateTotals();
 }
 // Foto del ticket: se reduce en el teléfono (máx. 1000 px, JPEG) y el servidor la guarda en Drive
-function shrink(file){return new Promise(res=>{try{
+function shrink(file,max,qual){max=max||1000;qual=qual||.7;return new Promise(res=>{try{
   const url=URL.createObjectURL(file),img=new Image();
-  img.onload=()=>{try{const k=Math.min(1,1000/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);
-    c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);res(c.toDataURL('image/jpeg',.7))}catch(e){res('')}};
+  img.onload=()=>{try{const z=fbScale(img.width,img.height,max),c=document.createElement('canvas');c.width=z.w;c.height=z.h;
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);res(c.toDataURL('image/jpeg',qual))}catch(e){res('')}};
   img.onerror=()=>{URL.revokeObjectURL(url);res('')};img.src=url}catch(e){res('')}})}
 async function saveCompra(){
   const ls=cart.lines.filter(l=>units(l)>0);if(!ls.length)return;
@@ -1868,7 +1955,7 @@ const goList=()=>requestAnimationFrame(()=>{const el=document.querySelector('.li
 function flashDep(av){requestAnimationFrame(()=>{const el=[...document.querySelectorAll('.drow[data-dep]')].find(x=>x.dataset.dep===String(av));if(!el)return;el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.add('hl');setTimeout(()=>el.classList.remove('hl'),2000)})}
 function openNotifs(){
   const l=notifList();
-  sheet('Notificaciones',`<div class="group"><div class="list">${l.map(n=>{const ic=n.kind==='pend'?'inbox':'alert',inner=`<span class="ic acc">${svgI(ic,20)}</span><span class="main t" style="white-space:normal">${esc(n.text)}</span>`;
+  sheet('Notificaciones',`<div class="group"><div class="list">${l.map(n=>{const ic=n.kind==='pend'?'inbox':n.kind==='feedback'?'report':'alert',inner=`<span class="ic acc">${svgI(ic,20)}</span><span class="main t" style="white-space:normal">${esc(n.text)}</span>`;
     return n.go?`<button class="cell" data-notif="${esc(n.id)}">${inner}${chev}</button>`:`<div class="cell">${inner}</div>`}).join('')||'<div class="empty">Sin notificaciones</div>'}</div></div>`,{closeLabel:'Cerrar'});
 }
 async function notifGo(id){
@@ -1880,6 +1967,7 @@ async function notifGo(id){
     render();flashDep(g.av);return;
   }
   if(g.t==='pend'){tab='mas';stackView={name:'pend'};render();goTop();return}
+  if(g.t==='fb'){tab='mas';stackView={name:'feedback'};render();goTop();return}
   if(g.t==='fh'){tab='mas';stackView={name:'fh'};render();goTop()}
 }
 // Cambiar de día o semana nunca espera al servidor: se pinta ya y, si falta rango, llega en segundo plano
@@ -1917,6 +2005,9 @@ document.addEventListener('click',e=>{
     const m=on('[data-m]');if(m){const k=m.dataset.m,pre=menuPre;closeSheet();
       if(k==='inv'){counts={};invStep1()}else if(k==='aj')openAjuste(pre);else if(k==='edit')openEditCompra(pre);else if(k==='anul')openAnular(pre);return}
     if(on('[data-addp]')){cart.lines.push(emptyLine());renderCart();const li=document.querySelector(`.li[data-k="${cart.lines.length-1}"]`);if(li)li.scrollIntoView({block:'nearest'});return}
+    const ft=on('[data-fbt]');if(ft&&fb){fb.tipo=ft.dataset.fbt;document.querySelectorAll('[data-fbt]').forEach(b=>b.setAttribute('aria-pressed',b===ft));return}
+    if(on('[data-fbrm]')&&fb){fb.img='';fb.imgName='';const f=$('fbFile');if(f)f.value='';renderFbImg();return}
+    if(on('#fbSend')&&fb){sendReport();return}
     const tr=on('[data-tkrm]');if(tr){setTicket(null);const f=$('tkFile');if(f)f.value='';return}
     const qr=on('[data-qretry]');if(qr){qRetry(qr.dataset.qretry);openQueue();return}
     const qd=on('[data-qdrop]');if(qd){const i=Q.findIndex(x=>x.id===qd.dataset.qdrop);if(i>=0){Q.splice(i,1);qSave();load(S.win.from,S.win.to).then(softRender).catch(()=>{});pump()}openQueue();paintStatus();render();return}
@@ -1955,6 +2046,10 @@ document.addEventListener('click',e=>{
   const mv=on('[data-movs]');if(mv){stackView={name:'movs'};render();goTop();return}
   const ed=on('[data-edit]');if(ed){openProducto(ed.dataset.edit);return}
   const go=on('[data-go]');if(go){tab=go.dataset.go;stackView=null;render();goTop();return}
+  const fbo=on('[data-fb]');if(fbo){S.fbEdit=null;stackView={name:'fbd',arg:fbo.dataset.fb};render();goTop();return}
+  const fbfl=on('[data-fbf]');if(fbfl){S.fbf=fbfl.dataset.fbf;render();return}
+  const fbe=on('[data-fbe]');if(fbe){S.fbEdit={id:stackView.arg,estado:fbe.dataset.fbe};document.querySelectorAll('[data-fbe]').forEach(b=>b.setAttribute('aria-pressed',b===fbe));return}
+  const fbs=on('[data-fbsave]');if(fbs){const id=fbs.dataset.fbsave,r=S.feedback.find(x=>x.id===id);if(r){const est=S.fbEdit&&S.fbEdit.id===id?S.fbEdit.estado:r.estado,nt=$('fbNote').value.trim();S.fbEdit=null;enqueue('setFeedbackEstado',[id,est,nt]);toast('Guardado')}return}
   const it=on('[data-item]');if(it){stackView={name:'item',arg:it.dataset.item};render();goTop();return}
   const pu=on('[data-purchase]');if(pu){stackView={name:'purchase',arg:pu.dataset.purchase};render();goTop();return}
   const rv=on('[data-roleview]');if(rv){stackView={name:'role',arg:rv.dataset.roleview};render();goTop();return}
@@ -1966,6 +2061,7 @@ document.addEventListener('click',e=>{
   const cfb=on('[data-cfg]');if(cfb){const i=cfb.dataset.cfg.indexOf(':');setCfg(cfb.dataset.cfg.slice(0,i),cfb.dataset.cfg.slice(i+1));return}
   if(on('[data-logout]')){logout();return}
   if(on('[data-refresh]')){refresh();return}
+  if(on('[data-report]')){openFeedback();return}
   if(on('[data-bell]')){openNotifs();return}
   if(on('[data-fopen]')){S.fopen=!S.fopen;render();return}
   const fl=on('[data-filter]');if(fl){S.filter=depFilter(fl.dataset.filter).key;S.fopen=false;try{localStorage.setItem('adv_ops_depfilter',S.filter)}catch(e){}render();goList();return}

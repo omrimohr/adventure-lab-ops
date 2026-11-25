@@ -31,13 +31,19 @@ const PERM_SEED = [
 const BARCO_LABEL = { ponton: 'Pontón', catamaran: 'Catamarán', monocasco: 'Monocasco', hobie: 'Hobie', sup: 'Tablas SUP', kayak: 'Kayaks', otro: 'Otro' };
 const ROL_LABEL = { 'capitan': 'Capitán', 'marinero': 'Marinero', 'guia': 'Guía', 'instructor lider': 'Instructor líder', 'instructor asistente': 'Instructor asistente', 'instructor': 'Instructor', 'auxiliar': 'Auxiliar' };
 const TICKETS_FOLDER = 'Adventure Lab Ops – Tickets';
+const FEEDBACK_FOLDER = 'Adventure Lab Ops – Feedback';
+const FEEDBACK_HEADERS = ['ID', 'Fecha', 'Usuario', 'Rol', 'Tipo', 'Texto', 'Pantalla', 'Fecha app', 'Versión', 'Captura', 'Estado', 'Notas', 'Actualizado', 'ID cliente'];
+const FB_ESTADOS = ['Nuevo', 'En curso', 'Resuelto', 'Descartado'];
+const FB_TIPOS = ['Error', 'Sugerencia'];
+const FB_MAX_IMG = 3500000; // characters of the base64 data URL (≈2.5 MB of image)
 
 // ---------------- API entry (called from Code.gs doPost) ----------------
 // The app (GitHub Pages) POSTs {type:'api', fn, args}; every function re-checks the PIN itself.
 function apiResponse_(p) {
   const map = { login: login, getData: getData, addCompra: addCompra, anularCompra: anularCompra, editCompra: editCompra,
     addAjuste: addAjuste, addConteo: addConteo, addComida: addComida, markPaid: markPaid, markRev: markRev,
-    saveProducto: saveProducto, saveTarifa: saveTarifa, savePerm: savePerm, saveTourBarco: saveTourBarco, setMapeo: setMapeo, refreshFin: refreshFin, stockReport: stockReport };
+    saveProducto: saveProducto, saveTarifa: saveTarifa, savePerm: savePerm, saveTourBarco: saveTourBarco, setMapeo: setMapeo, refreshFin: refreshFin, stockReport: stockReport,
+    addFeedback: addFeedback, setFeedbackEstado: setFeedbackEstado };
   let out;
   try {
     const f = map[String(p.fn)];
@@ -639,7 +645,7 @@ function getData(pin, desde, hasta) {
     ok: true, user: { nombre: u.nombre, rol: u.rol }, perms: perms, today: today, now: now, desde: desde, hasta: hasta,
     items: items, purchases: compras, moves: moves, priceLog: priceLogFrom_(compras), deps: deps,
     rates: buildRates_(readTab_(ss, 'Tarifas', TAR_HEADERS)), paid: paid, weekly: weekly, externos: externos, control: control,
-    tours: tours, comidas: comidas, fh: fh, pend: u.rol === 'admin' ? pend : [], salud: salud, fhOk: fhOk, config: readConfig_(ss), stale: stale, rebuildPending: isRebuildPending_()
+    tours: tours, comidas: comidas, fh: fh, pend: u.rol === 'admin' ? pend : [], salud: salud, feedback: feedbackData_(ss, u), fhOk: fhOk, config: readConfig_(ss), stale: stale, rebuildPending: isRebuildPending_()
   };
 }
 
@@ -1067,8 +1073,77 @@ function migrate20261124() {
   });
 }
 
+// ---------------- Feedback ("Reportar": errores y sugerencias) ----------------
+/** Pure: validates the payload of addFeedback. Throws a Spanish error. */
+function normFeedback_(p) {
+  p = p || {};
+  const texto = clean_(String(p.texto === undefined || p.texto === null ? '' : p.texto).replace(/\s+/g, ' '), 2000);
+  if (!texto) throw new Error('Escribe qué pasó');
+  const img = String(p.img || '');
+  if (img && img.length > FB_MAX_IMG) throw new Error('La imagen es muy grande');
+  return { tipo: /^s/i.test(String(p.tipo || '')) ? 'Sugerencia' : 'Error', texto: texto, pantalla: clean_(p.pantalla, 80), fecha: validYmd_(p.fecha),
+    version: clean_(p.version, 40), img: img };
+}
+/** Pure: Drive file name `fb_<yyyyMMdd_HHmm>_<user>.jpg` (stamp = 'yyyy-MM-dd HH:mm' or 'yyyyMMdd_HHmm'). */
+function feedbackFileName_(stamp, user) {
+  const st = String(stamp || '').replace(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}).*/, '$1$2$3_$4$5');
+  const u = String(user || 'user').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'user';
+  return 'fb_' + st + '_' + u + '.jpg';
+}
+function validEstado_(e) { const x = FB_ESTADOS.find(v => v.toLowerCase() === String(e || '').trim().toLowerCase()); if (!x) throw new Error('Estado inválido'); return x; }
+/** Pure: Feedback rows → app list. Admin: all (last `max`, newest first); others: only their own rows. */
+function feedbackFromRows_(rows, user, max) {
+  const adm = user.rol === 'admin', me = String(user.nombre || '').trim().toLowerCase();
+  const own = (rows || []).filter(r => r[0] !== '' && (adm || String(r[2]).trim().toLowerCase() === me));
+  return own.slice(-(max || 100)).reverse().map(r => ({ id: String(r[0]), fecha: str_(r[1]).slice(0, 16), usuario: String(r[2]), tipo: String(r[4]) === 'Sugerencia' ? 'Sugerencia' : 'Error',
+    texto: String(r[5]), pantalla: String(r[6]), fechaApp: str_(r[7]), version: String(r[8]), url: String(r[9] || ''), estado: String(r[10] || 'Nuevo'), notas: String(r[11] || ''), cid: String(r[13] || '') }));
+}
+function feedbackData_(ss, u) {
+  try {
+    if (!ss.getSheetByName('Feedback')) return [];
+    return feedbackFromRows_(readTab_(ss, 'Feedback', FEEDBACK_HEADERS).map(r => r.map(v => v instanceof Date ? fmtDate_(v, 'yyyy-MM-dd HH:mm') : v)), u, 100);
+  } catch (e) { return []; }
+}
+function saveFeedbackImg_(dataUrl, name) {
+  const m = /^data:(image\/[a-z]+);base64,(.+)$/i.exec(String(dataUrl || ''));
+  if (!m) return '';
+  const it = DriveApp.getFoldersByName(FEEDBACK_FOLDER);
+  const folder = it.hasNext() ? it.next() : DriveApp.createFolder(FEEDBACK_FOLDER);
+  return folder.createFile(Utilities.newBlob(Utilities.base64Decode(m[2]), m[1], name)).getUrl();
+}
+/** Any logged-in user. p = {tipo, texto, pantalla, fecha, version, img (data URL or ''), cid}. Idempotent by cid (last column). */
+function addFeedback(pin, p) {
+  const u = auth_(pin), f = normFeedback_(p);
+  return withLock_(() => {
+    const ss = ss_(), sh = sheet_(ss, 'Feedback', FEEDBACK_HEADERS), cid = cidOf_((p || {}).cid);
+    ensureCidCol_(sh, FEEDBACK_HEADERS);
+    const r0 = cidRow_(sh, FEEDBACK_HEADERS.length, cid);
+    if (r0) return { ok: true, id: String(sh.getRange(r0, 1).getValue()), dup: true };
+    const now = new Date(), id = 'F' + now.getTime();
+    let url = '';
+    if (f.img) { try { url = saveFeedbackImg_(f.img, feedbackFileName_(Utilities.formatDate(now, TZ, 'yyyy-MM-dd HH:mm'), u.nombre)); } catch (e) { logError_(ss, 'feedback', e, id); } }
+    sh.appendRow([id, now, u.nombre, u.rol, f.tipo, f.texto, f.pantalla, f.fecha, f.version, url, 'Nuevo', '', now, cid]);
+    return { ok: true, id: id };
+  });
+}
+/** Admin only: estado ∈ Nuevo | En curso | Resuelto | Descartado (+ optional note). Never deletes. */
+function setFeedbackEstado(pin, id, estado, nota) {
+  const u = auth_(pin);
+  if (u.rol !== 'admin') throw new Error('Solo el admin puede cambiar el estado');
+  const est = validEstado_(estado);
+  return withLock_(() => {
+    const ss = ss_(), sh = sheet_(ss, 'Feedback', FEEDBACK_HEADERS), r = cidRow_(sh, 1, String(id || ''));
+    if (!r) throw new Error('No encontré el reporte');
+    sh.getRange(r, 11).setValue(est);
+    if (nota !== undefined && nota !== null && typeof nota === 'string') sh.getRange(r, 12).setValue(clean_(nota, 500));
+    sh.getRange(r, 13).setValue(new Date());
+    return { ok: true, estado: est };
+  });
+}
+
 if (typeof module !== 'undefined') module.exports = {
   pinStr_, findUser_, permsFromRows_, permOk_, guessIcon_, buildItems_, groupCompras_, lastCostFrom_, priceLogFrom_, buildMoves_, stockMap_, countDiffs_,
   cleanLines_, slugId_, rateLabel_, buildRates_, latestRevs_, roleLabel_, bitQty_, extrasText_, ciFrom_, buildDeps_, buildPend_, fieldsFromBookings_, saludAlerts_, setMapeo, planTarifasMigration_, pluralEs_, appendNote_,
-  login, getData, refreshFin, windowTest_, staleFin_, addCompra, anularCompra, editCompra, addAjuste, addConteo, addComida, markPaid, markRev, saveProducto, saveTarifa, savePerm, saveTourBarco, setConfig, validateConfig_, configFromRows_, migrate20261124, stockReport_, stockReport, loadMoves_, cidRow_, cidOf_, ensureCidCol_
+  login, getData, refreshFin, windowTest_, staleFin_, addCompra, anularCompra, editCompra, addAjuste, addConteo, addComida, markPaid, markRev, saveProducto, saveTarifa, savePerm, saveTourBarco, setConfig, validateConfig_, configFromRows_, migrate20261124, stockReport_, stockReport, loadMoves_, cidRow_, cidOf_, ensureCidCol_,
+  normFeedback_, feedbackFileName_, feedbackFromRows_, validEstado_, addFeedback, setFeedbackEstado, FEEDBACK_HEADERS
 };

@@ -66,5 +66,5 @@ test('round 14: UI wiring — bell in top bar, no role switcher / health box, fi
   assert.ok(/Sin notificaciones/.test(html) && /'Notificaciones'/.test(html));
   assert.ok(/data-filter\]'\);if\(fl\)\{[^\n]*render\(\);goList\(\)/.test(html), 'summary taps and chips smooth-scroll to the departures list');
   assert.ok(/const goList=/.test(html) && /function flashDep/.test(html));
-  assert.ok(/CACHE = 'al-ops-v11'/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'sw.js'), 'utf8')));
+  assert.ok(/CACHE = 'al-ops-v\d+'/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'sw.js'), 'utf8')));
 });

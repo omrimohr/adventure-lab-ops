@@ -174,6 +174,9 @@ function init(){
            {nivel:'warn',tipo:'config',texto:'1 cosa por configurar desde hace más de 2 días',rol:'admin'}];
   D.perms={admin:{compras:true,revisar:true,pagar:true,inventario:true,ajuste:true,editar:true,comida:true,config:true},
            op:{compras:true,revisar:true,pagar:false,inventario:false,ajuste:false,editar:false,comida:true,config:false}};
+  D.feedback=[
+   {id:'F1',cid:'d1',fecha:addDays(-1)+' 18:42',usuario:'Jesús',tipo:'Error',texto:'Al abrir la bitácora de la salida de las 14:00 la lista de tripulación aparece vacía hasta que actualizo la pantalla dos veces.',pantalla:'Detalle de salida',fechaApp:addDays(-1),version:'v12',url:'https://drive.google.com/demo-captura',estado:'Nuevo',notas:''},
+   {id:'F2',cid:'d2',fecha:addDays(-2)+' 09:15',usuario:'Edder',tipo:'Sugerencia',texto:'Sería útil poder filtrar las salidas por barco.',pantalla:'Operación',fechaApp:addDays(-2),version:'v12',url:'',estado:'En curso',notas:'Lo vemos en la próxima ronda'}];
   D.calls=0;D.staleOnce=true;D.config={semana_inicio:'jueves',semana_pago:'jueves'};
 }
 init();
@@ -186,7 +189,7 @@ const API={
    const stale=D.staleOnce;D.staleOnce=false;
    return JSON.parse(JSON.stringify({ok:true,user:{nombre:'Omri',rol:'admin'},perms:D.perms,today:today,now:hm(),desde:from||addDays(-21),hasta:to||addDays(7),
      items:D.items,purchases:D.purchases,moves:D.moves,priceLog:D.priceLog,deps:D.deps,rates:D.rates,paid:D.paid,weekly:D.weekly,externos:D.externos,control:D.control,
-     tours:D.tours,comidas:D.comidas,fh:D.fh,pend:D.pend,salud:D.salud,fhOk:true,config:D.config,stale:stale,rebuildPending:false}));
+     tours:D.tours,comidas:D.comidas,fh:D.fh,pend:D.pend,salud:D.salud,feedback:D.feedback,fhOk:true,config:D.config,stale:stale,rebuildPending:false}));
  },
  refreshFin:()=>({ran:true}),
  addCompra:(pin,p)=>{const dup=D.purchases.find(x=>p.cid&&x.cid===p.cid);if(dup)return {ok:true,id:dup.id,dup:true};
@@ -214,9 +217,12 @@ const API={
  savePerm:(pin,rol,perm,val)=>{D.perms[rol][perm]=!!val;return {ok:true}},
  saveTourBarco:(pin,pk,b)=>{const t=D.tours.find(x=>x.pk===String(pk));if(t)t.barco=b;return {ok:true}},
  setConfig:(pin,k,v)=>{const okv=k==='semana_inicio'?(v==='jueves'||v==='lunes'):k==='semana_pago'?['lunes','martes','miercoles','jueves','viernes','sabado','domingo'].includes(v):false;if(!okv)throw new Error('Ajuste inválido');D.config[k]=v;return {ok:true,config:D.config}},
+ addFeedback:(pin,p)=>{if(!p.texto||!String(p.texto).trim())throw new Error('Escribe qué pasó');const dup=D.feedback.find(x=>p.cid&&x.cid===p.cid);if(dup)return {ok:true,id:dup.id,dup:true};
+   const id='F'+(D.feedback.length+1)+Date.now()%1000;D.feedback.unshift({id:id,cid:p.cid||'',fecha:addDays(0)+' '+hm(),usuario:'Omri',tipo:p.tipo,texto:p.texto,pantalla:p.pantalla,fechaApp:p.fecha,version:p.version,url:p.img?'https://drive.google.com/demo-captura':'',estado:'Nuevo',notas:''});return {ok:true,id:id}},
+ setFeedbackEstado:(pin,id,est,nota)=>{const r=D.feedback.find(x=>x.id===id);if(!r)throw new Error('No encontré el reporte');r.estado=est;if(typeof nota==='string')r.notas=nota;return {ok:true,estado:est}},
  setMapeo:(pin,kind,clave)=>{D.pend=D.pend.filter(x=>!(x.kind===kind&&x.clave===clave));return {ok:true,rebuildPending:false}}
 };
-const WRITES={addCompra:1,addAjuste:1,addConteo:1,markRev:1,markPaid:1,setMapeo:1};
+const WRITES={addFeedback:1,setFeedbackEstado:1,addCompra:1,addAjuste:1,addConteo:1,markRev:1,markPaid:1,setMapeo:1};
 window.fetch=function(url,opts){
   let delay=350,fail='';try{delay=Number(localStorage.getItem('demo_delay'))||350;fail=localStorage.getItem('demo_fail')||''}catch(e){}   // demo_delay (ms) / demo_fail ('net' | 'final') para ver "guardando…" y el error
   return new Promise((res,rej)=>setTimeout(()=>{
