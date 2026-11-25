@@ -99,6 +99,7 @@ h1+.group{margin-top:24px}
 .list{background:var(--paper);margin:0 calc(-1*var(--px));border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
 .list>*+*{border-top:1px solid var(--sep2)}
 .list.fin{background:var(--paper2)}
+.list.deps{background:none;border:0}.list.deps>*+*{border-top:0}.list.deps>.drow{background:var(--paper);margin-bottom:8px}.list.deps>.drow:last-child{margin-bottom:0}.list.deps.fin>.drow,.list.deps>.drow.dquiet{background:var(--paper2)}
 .cell{display:flex;align-items:center;gap:12px;min-height:48px;padding:12px var(--px);position:relative;width:100%;background:none;border:0;font:inherit;color:inherit;text-align:left}
 button.cell{cursor:pointer}
 button.cell:active,.cell.tap:active,.drow:active{background:var(--fill)}
@@ -1053,7 +1054,7 @@ op(){
   const SEC=[['done','Terminadas'],['live','En curso'],['next','Próximas']],by={done:[],live:[],next:[]};
   list.forEach(d=>by[depSection(d,TODAY,NOW)].push(d));
   const used=SEC.filter(x=>by[x[0]].length);
-  return h+used.map(([k,l])=>`<section class="sec">${used.length>1?`<div class="sech ${k}">${l}</div>`:''}<div class="list${k==='done'?' fin':''}">${by[k].map(d=>depCard(d,k)).join('')}</div></section>`).join('');
+  return h+used.map(([k,l])=>`<section class="sec">${used.length>1?`<div class="sech ${k}">${l}</div>`:''}<div class="list deps${k==='done'?' fin':''}">${by[k].map(d=>depCard(d,k)).join('')}</div></section>`).join('');
 },
 dep(id){
   const d=S.deps.find(x=>x.id===id);
