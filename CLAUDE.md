@@ -19,7 +19,7 @@ Owner: Omri (Adventure Lab, Bacalar). FareHarbor company `thegaiaexperience`. Sp
 - Income: webhook estimate (label "estimado") until Comercial's report gives "Net Revenue Collected" (no label).
 - Departures keyed by FareHarbor availability pk. Salida/Regreso are separate OPS bookings. Crew role/name come from FareHarbor.
 - Bitácora applies to EVERY item except rentals (Tours tipo = `renta`) and day passes (Tours Barco = `otro`); "No aplica" only then, and only without OPS bookings. Rule v3 also marked "Lleva bitácora = sí" (sheet record only) for the items that got bitácora fields on 24 Nov: 244134, 398421, 243654, 398153, 337343, 337931, 398154, 703654, 689738, 185852, 703536, 770935. The Tours column "Lleva bitácora" is still in the sheet but is **no longer read** (computeSalida_, saludAlerts_). Departures with customer bookings but no resource get the alert "Sin recurso asignado". Script property `BITACORA_RULE_V` ('4'): the first `rebuildFinanzas` of this version sets REBUILD_PENDING once so Salidas, Costos salida and Externos are recomputed (bump it whenever history must be recalculated).
-- Rates live in tab Tarifas (first matching row wins). Pay week Thursday→Wednesday.
+- Rates live in tab Tarifas (first matching row wins). Pay week start = Config `semana_pago` (default jueves; Ajustes in the app). Changing it sets REBUILD_PENDING; Pagos rows keep their stored date and attach to the week that contains it.
 - Ask Omri before risky/irreversible actions; concise answers; always give FareHarbor IDs with their names.
 - FareHarbor configuration changes are logged in the Claude Docs "Adventure Lab — FareHarbor Setup Definition" (Change log tab), not here.
 
@@ -45,6 +45,10 @@ The service worker caches only the shell (index.html, manifest, icons; cache-fir
 - Replaces the old turquoise / inset rounded groups / 34pt title rules. CSS variables in `docs/index.html` (light + dark): sand page, paper rows, hairlines, salvia accent `--acc`, status colours (`--green` money/ok, `--orange` warning, `--red` error, never themed except lightness in dark). Serif (Lora from Google Fonts, Georgia fallback) for titles and tour names; sizes 26 / 16 / 14 / 12 (+ 11 neto, 22 big figures); weights 400/500; line icons (`svgI`), no colour emoji in chrome. Flat lists: `.list` bleeds full width with hairline top/bottom, no radius. ONE filled `.btn` per screen, others soft/plain accent text.
 - Operación: date nav above the serif title, flat day summary (`.dsum`), departure row `.drow` with 4 fixed lines.
 - Setting `semana_inicio` (jueves | lunes) in tab **Config** (Clave | Valor | Actualizado | Por). `getData().config`; `setConfig(pin,key,value)` admin only (role, not just permission), validated by `validateConfig_`. Used only by the stock report presets (`weekStartOf`); the crew pay week (`wkStart`) stays Thursday→Wednesday. Add new settings in `CONFIG_DEFAULTS_` + `validateConfig_`.
+
+## Round 9 (25 Nov 2026)
+- Ajustes: Apariencia (Automático | Claro | Oscuro) per device (localStorage, `data-theme` on <html>); `semana_pago` (Config, any weekday, default jueves) drives Eventuales / Resumen semanal / Pagos (`weekStart_`, `payDow_`); `semana_inicio` only the stock report.
+- Section gap 28px; tour hour 16/500. Rentals (tipo renta) and day passes (barco otro) render as compact 2-line rows (kayak icon, "Renta"/"Pase" tag, no bitácora line).
 
 ## Testing
 The app can be tested locally with a stubbed `fetch`; server pure functions export via `module.exports` guard for node tests.

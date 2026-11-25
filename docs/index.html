@@ -1555,7 +1555,7 @@ function depCard(d,sec){
   const netT=fut?'':n===null?'<span class="nt pend">neto pendiente</span>':`<span class="nt">neto ${fmt(n)}${est?' est.':''}</span>`;
   if(rent||d.barco==='otro'){
     const pax=(d.bookings||[]).reduce((a,b)=>a+(Number(b.pax)||0),0);
-    const lf=[res||(nores?`<span class="nores">${WI}Sin recurso</span>`:''),pax?`${pax} ${pax===1?'persona':'personas'}`:''].filter(Boolean).join(' · ');
+    const lf=[res||(nores?`<span class="nores">${WI}Sin recurso</span>`:''),pax?personasTxt(pax):''].filter(Boolean).join(' · ');
     return `<button class="drow dcompact dcard s-${sec||'x'}" data-dep="${d.id}">
     <span class="l1"><span class="ln"><span class="ki">${svgI('kayak',16)}</span><span class="hr">${d.time}</span>${sec==='live'?`<span class="st-w">· <span class="st now">${word}</span></span>`:''}<span class="cn">${esc(d.item)}${d.label?` · ${esc(d.label)}`:''}</span><span class="rtag">${rent?'Renta':'Pase'}</span></span><span class="mg">${d.gross===null||d.gross===undefined||d.gross===''?'—':fmt(d.gross)}</span></span>
     <span class="l2"><span class="lf">${lf||'&nbsp;'}</span><span class="rt">${rt}${netT}</span></span></button>`;
