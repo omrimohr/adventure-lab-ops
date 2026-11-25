@@ -152,19 +152,15 @@ test('spacing: 28px between sections (group / sec / summaries / stack); hour 16p
   assert.ok(/\.drow \.l1 \.hr\{font-size:16px;font-weight:500;color:var\(--ink\)/.test(css), 'hour 16/500 ink');
   assert.ok(/\.drow \.l1 \.st\.now|\.drow \.l1\{[^}]*font-size:12px/.test(css), 'status word stays 12');
 });
-test('compact rows for rentals (tipo renta) and day passes (barco otro): 2 lines, kayak icon, Renta tag, system 14 name, no bitácora line; tours keep 4 lines', () => {
+test('rentals and day passes are one quiet gray line (round 11): kayak icon, hour, name, pax, gross; no resources, no check-in; only ⚠ keeps colour', () => {
   const i = html.indexOf('function depCard'), j = html.indexOf('// --- Detalle de una reserva');
   const src = html.slice(i, j);
-  assert.ok(/rent\|\|d\.barco==='otro'/.test(src), 'rentals and day passes');
   const compact = src.slice(src.indexOf("if(rent||d.barco==='otro')"), src.indexOf("return `<button class=\"drow dcard"));
-  assert.ok(/dcompact/.test(compact) && /svgI\('kayak'/.test(compact) && /class="rtag"/.test(compact) && /Renta/.test(compact));
-  assert.ok(!/class="l3"|class="l4"|bits|bdot/.test(compact), 'no bitácora line in compact rows');
-  assert.strictEqual((compact.match(/class="l[0-9]"/g) || []).length, 2, 'two lines');
-  assert.ok(/personas/.test(compact) && /\$\{rt\}\$\{netT\}/.test(compact), 'pax and check-in/neto on line 2');
+  assert.ok(/dquiet/.test(compact) && /svgI\('kayak'/.test(compact) && /personasTxt\(pax\)/.test(compact));
+  assert.strictEqual((compact.match(/class="l[0-9]"/g) || []).length, 1, 'one line');
+  assert.ok(!/ciChip|\bres\b|nores|\$\{rt\}|netT/.test(compact), 'no resources / check-in / neto');
   assert.ok(/class="l3"/.test(src) && /class="l4"/.test(src), 'tour rows keep 4 lines');
-  assert.ok(/IC=\{[\s\S]*kayak:/.test(html));
-  const css = html.slice(html.indexOf('<style>\n/* Design system'));
-  assert.ok(/\.drow\.dcompact \.cn\{[^}]*font-size:14px/.test(css) && !/\.drow\.dcompact \.cn\{[^}]*serif/.test(css), 'name in system 14');
-  assert.ok(/\.drow\.dcompact \.rtag\{[^}]*border:1px solid[^}]*border-radius:99px/.test(css) && /\.rtag\{[^}]*color:var\(--ink3\)/.test(css));
+  const css = html.slice(html.indexOf('<style>'));
+  assert.ok(/\.drow\.dquiet\{[^}]*background:var\(--paper2\)/.test(css) && /\.drow\.dquiet \.cn,[^{]*\{color:var\(--ink3\)/.test(css));
 });
 test('sw CACHE bumped to v6', () => assert.ok(/'al-ops-v([6-9]|\d{2,})'/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'sw.js'), 'utf8'))));

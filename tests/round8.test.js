@@ -67,7 +67,7 @@ test('design tokens: Arena · salvia light + dark, Lora loaded, no turquoise, no
   assert.ok(!/#00939c|#2cc4cc|--lagoon/.test(html), 'no turquoise left');
   assert.ok(!/font-size:34px/.test(css) && !/font-weight:(600|700|bold)/.test(css) && !/font-weight:[6-9]00/.test(html.slice(html.indexOf('<body>'))), 'weights 400/500 only');
   const sizes = [...new Set([...css.matchAll(/font-size:(\d+)px/g)].map(x => +x[1]))].sort((a, b) => a - b);
-  assert.deepStrictEqual(sizes, [11, 12, 14, 16, 20, 22, 26], 'type scale: 26 · 16 · 14 · 12 (+ 11 neto, 22 figures, 20 product icons)');
+  assert.deepStrictEqual(sizes, [11, 12, 13, 14, 16, 20, 22, 26], 'type scale: 26 · 16 · 14 · 12 (+ 11 neto, 13 quiet rental rows, 22 figures, 20 product icons)');
 });
 test('flat layout: no radius on lists / rows / summaries; ONE filled button class; no colour emoji in UI chrome', () => {
   const css = html.slice(html.indexOf('<style>\n/* Design system'), html.indexOf('</style>', html.indexOf('<style>\n/* Design system')));

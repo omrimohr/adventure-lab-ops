@@ -296,6 +296,7 @@ button.live{width:100%;background:none;border:0;font:inherit;font-size:12px;colo
 .ri svg{width:18px;height:18px}.ri.ok{color:var(--green)}
 /* Rentas y pases de día: fila compacta de 2 líneas (ícono + hora + nombre en sistema 14 + etiqueta «Renta»); los tours conservan las 4 líneas con serif */
 .drow.dcompact{padding-block:8px}
+.drow.dquiet{padding-block:6px;background:var(--paper2)}.drow.dquiet .cn,.drow.dquiet .mq,.drow.dquiet .ki{color:var(--ink3);font-size:13px}.drow.dquiet .mq{flex:none;display:inline-flex;gap:8px;align-items:center;font-variant-numeric:tabular-nums}.drow.dquiet .aw{color:var(--orange);display:inline-flex;align-items:center;gap:2px}.drow.dquiet .l1{min-height:20px}.drow.dquiet .px{flex:none;color:var(--ink3);font-size:13px;white-space:nowrap}
 .drow.dcompact .l1,.drow.dcompact .l2{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .drow.dcompact .l1{min-height:24px}
 .drow.dcompact .ln{flex:1;min-width:0;display:flex;align-items:center;gap:8px}
@@ -1556,11 +1557,11 @@ function depCard(d,sec){
   const l3=[res||(nores?`<span class="nores">${WI}Sin recurso</span>`:''),crew||(rent?'':'Sin tripulación')].filter(Boolean).join(' · ');
   const netT=fut?'':n===null?'<span class="nt pend">neto pendiente</span>':`<span class="nt">neto ${fmt(n)}${est?' est.':''}</span>`;
   if(rent||d.barco==='otro'){
+    // Rentas y pases: una sola línea gris (hora · nombre · pax ..... bruto). Solo el ⚠ conserva color.
     const pax=(d.bookings||[]).reduce((a,b)=>a+(Number(b.pax)||0),0);
-    const lf=[res||(nores?`<span class="nores">${WI}Sin recurso</span>`:''),pax?personasTxt(pax):''].filter(Boolean).join(' · ');
-    return `<button class="drow dcompact dcard s-${sec||'x'}" data-dep="${d.id}">
-    <span class="l1"><span class="ln"><span class="ki">${svgI('kayak',16)}</span><span class="hr">${d.time}</span>${sec==='live'?`<span class="st-w">· <span class="st now">${word}</span></span>`:''}<span class="cn">${esc(d.item)}${d.label?` · ${esc(d.label)}`:''}</span><span class="rtag">${rent?'Renta':'Pase'}</span></span><span class="mg">${d.gross===null||d.gross===undefined||d.gross===''?'—':fmt(d.gross)}</span></span>
-    <span class="l2"><span class="lf">${lf||'&nbsp;'}</span><span class="rt">${rt}${netT}</span></span></button>`;
+    const an=depAlertN(d,nowKey());
+    return `<button class="drow dcompact dquiet dcard s-${sec||'x'}" data-dep="${d.id}">
+    <span class="l1"><span class="ln"><span class="ki">${svgI('kayak',16)}</span><span class="cn">${d.time} ${esc(d.item)}${d.label?` · ${esc(d.label)}`:''}</span>${pax?`<span class="px">· ${personasTxt(pax)}</span>`:''}</span><span class="mq">${an?`<span class="aw">${WI}${an}</span>`:''}${d.gross===null||d.gross===undefined||d.gross===''?'—':fmt(d.gross)}</span></span></button>`;
   }
   return `<button class="drow dcard s-${sec||'x'}" data-dep="${d.id}">
     <span class="l1"><span class="st-w"><span class="hr">${d.time}</span> · <span class="st${sec==='live'?' now':''}">${word}</span></span><span class="mg">${d.gross===null||d.gross===undefined||d.gross===''?'—':fmt(d.gross)}</span></span>
