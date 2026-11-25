@@ -15,6 +15,9 @@ const USR_HEADERS = ['Nombre', 'PIN', 'Rol (admin/op)', 'Activo'];
 const PERM_HEADERS = ['Permiso', 'Descripción', 'admin', 'op'];
 const REV_HEADERS = ['Availability pk', 'Por', 'Fecha/hora', 'ID cliente'];
 const CID_HDR = 'ID cliente';
+const CONFIG_HEADERS = ['Clave', 'Valor', 'Actualizado', 'Por'];
+// App settings kept in tab "Config" (Clave | Valor). Add a key here + in validateConfig_ and it is validated, stored and returned by getData.
+const CONFIG_DEFAULTS_ = { semana_inicio: 'jueves' };
 const PERM_SEED = [
   ['compras', 'Agregar compras', 'sí', 'sí'],
   ['revisar', 'Marcar revisado', 'sí', 'sí'],
@@ -531,6 +534,40 @@ function login(pin) {
   } catch (e) { return { ok: false, error: String(e.message || e) }; }
 }
 
+/** Pure: validates one app setting → normalized value, or throws a Spanish error. semana_inicio: jueves | lunes (stock report weeks; crew pay week is always Thursday→Wednesday). */
+function validateConfig_(key, value) {
+  const k = String(key === null || key === undefined ? '' : key).trim();
+  if (!Object.prototype.hasOwnProperty.call(CONFIG_DEFAULTS_, k)) throw new Error('Ajuste desconocido');
+  const v = norm_(value);
+  if (k === 'semana_inicio') {
+    if (v !== 'jueves' && v !== 'lunes') throw new Error('Inicio de semana inválido (jueves o lunes)');
+    return { key: k, value: v };
+  }
+  throw new Error('Ajuste desconocido');
+}
+/** Pure: settings from the Config tab rows ([Clave, Valor, ...]); unknown keys / invalid values fall back to the defaults. */
+function configFromRows_(rows) {
+  const cfg = Object.assign({}, CONFIG_DEFAULTS_);
+  (rows || []).forEach(r => { try { const x = validateConfig_(r[0], r[1]); cfg[x.key] = x.value; } catch (e) { /* ignore bad rows */ } });
+  return cfg;
+}
+function readConfig_(ss) {
+  return ss.getSheetByName('Config') ? configFromRows_(readTab_(ss, 'Config', CONFIG_HEADERS)) : Object.assign({}, CONFIG_DEFAULTS_);
+}
+/** Admin only (not just the "config" permission): sets one app setting. Returns the whole config. */
+function setConfig(pin, key, value) {
+  const u = auth_(pin, 'config');
+  if (u.rol !== 'admin') throw new Error('Solo el admin puede cambiar los ajustes');
+  const x = validateConfig_(key, value);
+  return withLock_(() => {
+    const ss = ss_(), sh = sheet_(ss, 'Config', CONFIG_HEADERS), n = sh.getLastRow() - 1;
+    const k = n >= 1 ? sh.getRange(2, 1, n, 1).getValues().findIndex(r => String(r[0]) === x.key) : -1;
+    const row = [x.key, x.value, new Date(), u.nombre];
+    if (k >= 0) sh.getRange(k + 2, 1, 1, 4).setValues([row]); else sh.appendRow(row);
+    return { ok: true, config: readConfig_(ss) };
+  });
+}
+
 /** Everything the app needs, in the shape of the prototype's S. desde/hasta: 'yyyy-MM-dd' window for departures. */
 function getData(pin, desde, hasta) {
   const u = auth_(pin);
@@ -595,7 +632,7 @@ function getData(pin, desde, hasta) {
     ok: true, user: { nombre: u.nombre, rol: u.rol }, perms: perms, today: today, now: now, desde: desde, hasta: hasta,
     items: items, purchases: compras, moves: moves, priceLog: priceLogFrom_(compras), deps: deps,
     rates: buildRates_(readTab_(ss, 'Tarifas', TAR_HEADERS)), paid: paid, weekly: weekly, externos: externos, control: control,
-    tours: tours, comidas: comidas, fh: fh, pend: u.rol === 'admin' ? pend : [], salud: salud, fhOk: fhOk, stale: stale, rebuildPending: isRebuildPending_()
+    tours: tours, comidas: comidas, fh: fh, pend: u.rol === 'admin' ? pend : [], salud: salud, fhOk: fhOk, config: readConfig_(ss), stale: stale, rebuildPending: isRebuildPending_()
   };
 }
 
@@ -1025,5 +1062,5 @@ function migrate20261124() {
 if (typeof module !== 'undefined') module.exports = {
   pinStr_, findUser_, permsFromRows_, permOk_, guessIcon_, buildItems_, groupCompras_, lastCostFrom_, priceLogFrom_, buildMoves_, stockMap_, countDiffs_,
   cleanLines_, slugId_, rateLabel_, buildRates_, latestRevs_, roleLabel_, bitQty_, extrasText_, ciFrom_, buildDeps_, buildPend_, fieldsFromBookings_, saludAlerts_, setMapeo, planTarifasMigration_, pluralEs_, appendNote_,
-  login, getData, refreshFin, windowTest_, staleFin_, addCompra, anularCompra, editCompra, addAjuste, addConteo, addComida, markPaid, markRev, saveProducto, saveTarifa, savePerm, saveTourBarco, migrate20261124, stockReport_, stockReport, loadMoves_, cidRow_, cidOf_, ensureCidCol_
+  login, getData, refreshFin, windowTest_, staleFin_, addCompra, anularCompra, editCompra, addAjuste, addConteo, addComida, markPaid, markRev, saveProducto, saveTarifa, savePerm, saveTourBarco, setConfig, validateConfig_, configFromRows_, migrate20261124, stockReport_, stockReport, loadMoves_, cidRow_, cidOf_, ensureCidCol_
 };

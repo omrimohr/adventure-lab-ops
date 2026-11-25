@@ -8,428 +8,412 @@
 <meta name="apple-mobile-web-app-title" content="AL Ops">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F7F3EC" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1E1C18" media="(prefers-color-scheme: dark)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500&display=swap">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <style>
 /* reset that the claude.ai page skeleton used to provide */
 [hidden]{display:none!important}
-body{margin:0;font:14px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+body{margin:0}
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 img{max-width:100%}
 </style>
 <style>
-/* Layout: iOS-style phone app — large title per screen, inset grouped lists, bottom tab bar, bottom sheets for forms.
-   Type: the device's own system face (SF on iPhone) on purpose, so it feels native. One accent: Bacalar lagoon turquoise. */
+/* Design system "Arena · salvia" (round 8). Flat lists on paper (full-width rows, hairlines, no cards), sand page, one salvia accent, serif for titles and tour names.
+   Type: 4 sizes only — 26 title · 16 name · 14 body · 12 small (+ 11 for "neto" under bruto, + 22 for the few big figures). Weights 400/500 only. Spacing in multiples of 4.
+   Tokens are CSS variables: light + dark. Status colours (green / warning / error / neutral) keep their meaning in both themes; only their lightness changes in dark. */
 :root{
-  --ground:#f2f2f7; --row:#ffffff; --ink:#111418; --ink2:#6b7076; --sep:#d8d8de; --fill:#e9e9ee;
-  --lagoon:#00939c; --lagoon-ink:#ffffff; --lagoon-soft:#d6eff0;
-  --red:#d93a2f; --orange:#d27a00; --yellow:#c79500; --green:#2a9d4b;
-  --bar:rgba(249,249,251,.92); --scrim:rgba(0,0,0,.32);
-  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
-  --font-d:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --sand:#F7F3EC; --paper:#FFFDF8; --paper2:#FBF8F2; --hair:#EAE2D4; --sep2:#F0E9DC; --rule:#DCD2C0;
+  --ink:#2B2620; --ink2:#7A6F60; --ink3:#9C9183;
+  --acc:#3E4A3D; --acc-ink:#F7F3EC; --acc-soft:#E6ECE2; --fill:#EFE9DD;
+  --green:#3E6B48; --dotg:#5C8A5F; --orange:#A8742A; --red:#B5532F; --neutral:#D6CCBB; --badge:#B5532F;
+  --scrim:rgba(43,38,32,.34);
+  --serif:'Lora',Georgia,'Times New Roman',serif;
+  --font:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  --px:max(16px,env(safe-area-inset-left,0px),env(safe-area-inset-right,0px));
+  --ground:var(--sand); --row:var(--paper); --sep:var(--hair); --yellow:var(--orange);
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --ground:#000000; --row:#1c1c1e; --ink:#f2f2f5; --ink2:#9a9aa1; --sep:#38383c; --fill:#2c2c2e;
-  --lagoon:#2cc4cc; --lagoon-ink:#00262a; --lagoon-soft:#0f3a3d;
-  --red:#ff5a4f; --orange:#ff9f0a; --yellow:#ffd60a; --green:#32d164; --bar:rgba(22,22,24,.92); --scrim:rgba(0,0,0,.55); color-scheme:dark}}
+  --sand:#1E1C18; --paper:#2A2722; --paper2:#25221E; --hair:#3A352E; --sep2:#322E28; --rule:#4A443A;
+  --ink:#E8E0D2; --ink2:#B3A895; --ink3:#8C826F;
+  --acc:#8FAF8C; --acc-ink:#1E1C18; --acc-soft:#2F3A2E; --fill:#34302A;
+  --green:#7FB08A; --dotg:#7FB08A; --orange:#D4A257; --red:#E0805F; --neutral:#4A443A;
+  --scrim:rgba(0,0,0,.55); color-scheme:dark}}
 :root[data-theme="dark"]{
-  --ground:#000000; --row:#1c1c1e; --ink:#f2f2f5; --ink2:#9a9aa1; --sep:#38383c; --fill:#2c2c2e;
-  --lagoon:#2cc4cc; --lagoon-ink:#00262a; --lagoon-soft:#0f3a3d;
-  --red:#ff5a4f; --orange:#ff9f0a; --yellow:#ffd60a; --green:#32d164; --bar:rgba(22,22,24,.92); --scrim:rgba(0,0,0,.55); color-scheme:dark}
+  --sand:#1E1C18; --paper:#2A2722; --paper2:#25221E; --hair:#3A352E; --sep2:#322E28; --rule:#4A443A;
+  --ink:#E8E0D2; --ink2:#B3A895; --ink3:#8C826F;
+  --acc:#8FAF8C; --acc-ink:#1E1C18; --acc-soft:#2F3A2E; --fill:#34302A;
+  --green:#7FB08A; --dotg:#7FB08A; --orange:#D4A257; --red:#E0805F; --neutral:#4A443A;
+  --scrim:rgba(0,0,0,.55); color-scheme:dark}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 [hidden]{display:none!important}
-html,body{background:var(--ground)}
-body{color:var(--ink);font-family:var(--font);font-size:17px;line-height:1.3;margin:0}
-.app{max-width:560px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:6px 110px}
-/* Top */
-.rolebar{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:50px;font-size:13px;color:var(--ink2)}
-.rolebar .seg{width:200px;flex:none}
+html,body{background:var(--sand)}
+body{color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.4;margin:0;font-weight:400}
+b,strong{font-weight:500}
+.app{max-width:560px;margin:0 auto;padding:0 var(--px) 112px}
+.mut{color:var(--ink2)}
+/* Top: status row, then (per screen) nav + serif title */
+.rolebar{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:44px;font-size:12px;color:var(--ink2)}
+.rolebar .seg{width:168px;flex:none}
 .nav{display:flex;justify-content:space-between;align-items:center;min-height:44px}
-.nav .back{color:var(--lagoon);background:none;border:0;font:inherit;padding:10px 0;min-height:44px;cursor:pointer}
+.nav .back{display:inline-flex;align-items:center;gap:4px;color:var(--acc);background:none;border:0;font:inherit;font-weight:500;padding:0 8px 0 0;min-height:44px;cursor:pointer}
+.nav .back svg{width:18px;height:18px}
 .nav .acts{display:flex;margin-right:-10px}
-.nav .act{color:var(--lagoon);background:none;border:0;font:inherit;font-size:28px;line-height:1;width:44px;height:44px;cursor:pointer}
-h1{font-family:var(--font-d);font-size:34px;font-weight:700;letter-spacing:.01em;margin:2px 0 4px}
-.lede{color:var(--ink2);font-size:15px;margin:0 0 18px}
-/* Grouped lists */
-.group{margin:0 0 26px}
-.ghead{font-size:13px;color:var(--ink2);margin:0 0 7px 16px}
-.gfoot{font-size:13px;color:var(--ink2);margin:7px 16px 0}
-.list{background:var(--row);border-radius:12px;overflow:hidden}
-.cell{display:flex;align-items:center;gap:12px;min-height:48px;padding:10px 16px;position:relative;width:100%;background:none;border:0;font:inherit;color:inherit;text-align:left}
-.cell+.cell::before{content:"";position:absolute;top:0;left:16px;right:0;border-top:1px solid var(--sep)}
+.nav .act{display:grid;place-items:center;color:var(--acc);background:none;border:0;font:inherit;font-weight:500;min-width:44px;height:44px;padding:0 10px;cursor:pointer}
+.nav .act svg{width:20px;height:20px}
+h1{font-family:var(--serif);font-size:26px;font-weight:500;line-height:32px;margin:0 0 4px}
+.lede{color:var(--ink2);font-size:14px;margin:0 0 16px}
+.rolebar+h1{margin-top:4px}
+.ttl{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:44px;margin:0 0 12px}
+.ttl h1{margin:0}
+.tlink{background:none;border:0;font:inherit;font-weight:500;color:var(--acc);min-height:44px;padding:0 0 0 12px;cursor:pointer;white-space:nowrap}
+/* Flat lists: full-width rows on paper, hairline top/bottom on the group, thin separators between rows. No radius. */
+.group{margin:0 0 16px}
+.ghead{font-size:12px;color:var(--ink3);margin:0 0 8px}
+.gfoot{font-size:12px;color:var(--ink3);margin:8px 0 0}
+.list{background:var(--paper);margin:0 calc(-1*var(--px));border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
+.list>*+*{border-top:1px solid var(--sep2)}
+.list.fin{background:var(--paper2)}
+.cell{display:flex;align-items:center;gap:12px;min-height:48px;padding:12px var(--px);position:relative;width:100%;background:none;border:0;font:inherit;color:inherit;text-align:left}
 button.cell{cursor:pointer}
-button.cell:active{background:var(--fill)}
+button.cell:active,.cell.tap:active,.drow:active{background:var(--fill)}
 .cell .main{flex:1;min-width:0}
-.cell .t{font-size:17px}
-.cell .s{font-size:14px;color:var(--ink2);margin-top:2px}
-.cell .v{font-variant-numeric:tabular-nums;color:var(--ink2);text-align:right;white-space:nowrap}
-.cell .v.neg{color:var(--red)}.cell .v.pos{color:var(--green)}
-.cell .big{font-size:22px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
-.cell .big small{display:block;font-size:13px;font-weight:400;color:var(--ink2)}
-.ic{font-size:22px;width:28px;text-align:center;flex:none;line-height:1}
-.chev{width:8px;height:13px;flex:none;color:var(--sep)}
-.dot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--green)}
+.cell .t,.t{font-size:16px}
+.cell .s{font-size:12px;color:var(--ink2);margin-top:2px;overflow-wrap:anywhere}
+.cell .v{font-size:14px;font-variant-numeric:tabular-nums;color:var(--ink2);text-align:right;white-space:nowrap}
+.cell .v.neg,.neg{color:var(--red)}.cell .v.pos,.pos{color:var(--green)}
+.cell .big{font-size:16px;font-weight:500;color:var(--ink);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.cell .big small{display:block;font-size:12px;font-weight:400;color:var(--ink2)}
+.big.sm{font-size:16px}
+.ic{font-size:20px;width:28px;text-align:center;flex:none;line-height:1;display:inline-flex;justify-content:center}
+.ic.acc{color:var(--acc)}.ic svg{width:20px;height:20px}
+.chev{width:8px;height:13px;flex:none;color:var(--rule)}
+.dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--dotg)}
 .dot.low{background:var(--red)}.dot.mid{background:var(--orange)}
-.badge{font-size:13px;font-weight:600;padding:3px 9px;border-radius:99px;background:var(--lagoon-soft);color:var(--lagoon);white-space:nowrap}
-.badge.red{background:color-mix(in srgb,var(--red) 16%,transparent);color:var(--red)}
-/* Today hero */
-.today{background:var(--row);border-radius:16px;padding:18px 18px 16px;margin:0 0 26px}
-.today .state{font-size:15px;color:var(--ink2)}
-.today .head{font-family:var(--font-d);font-size:24px;font-weight:700;margin:4px 0 14px}
-.btn{display:flex;justify-content:center;align-items:center;gap:8px;width:100%;min-height:50px;border-radius:12px;border:0;font:inherit;font-weight:600;cursor:pointer;background:var(--lagoon);color:var(--lagoon-ink)}
-.btn.plain{background:var(--fill);color:var(--lagoon)}
-.btn.red{background:var(--red);color:#fff}
-.btn:disabled{opacity:.45;cursor:default}
-.btn:focus-visible,.cell:focus-visible,.tab:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,.seg button:focus-visible,.sw:focus-visible{outline:3px solid var(--lagoon);outline-offset:2px}
-.stack{display:grid;gap:10px}
-/* Detail hero */
-.hero{text-align:center;padding:6px 0 22px}
-.hero .n{font-family:var(--font-d);font-size:56px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
-.hero .u{color:var(--ink2);font-size:15px;margin-top:6px}
+.badge{font-size:12px;font-weight:500;padding:2px 8px;border-radius:99px;background:var(--acc-soft);color:var(--acc);white-space:nowrap}
+.badge.red{background:var(--badge);color:#fff}
+.badge.ok{background:color-mix(in srgb,var(--green) 14%,transparent);color:var(--green)}
+.badge.warn{background:color-mix(in srgb,var(--orange) 16%,transparent);color:var(--orange)}
+/* Buttons: min 44px; ONE filled (accent) per screen, the rest soft or plain accent text */
+.btn{display:flex;justify-content:center;align-items:center;gap:8px;width:100%;min-height:44px;border-radius:10px;border:0;font:inherit;font-weight:500;cursor:pointer;background:var(--acc);color:var(--acc-ink)}
+.btn.plain{background:var(--acc-soft);color:var(--acc)}
+.btn:disabled{opacity:.4;cursor:default}
+.btn:focus-visible,.cell:focus-visible,.tab:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,.seg button:focus-visible,.sw:focus-visible,.drow:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.stack{display:grid;gap:8px;margin:0 0 16px}
+.link{background:none;border:0;font:inherit;font-weight:500;color:var(--acc);min-height:44px;padding:0 0 0 12px;cursor:pointer}
+.sbtn,.gbtn{min-height:44px;padding:0 16px;border-radius:10px;border:0;background:var(--acc-soft);color:var(--acc);font:inherit;font-weight:500;cursor:pointer;flex:none;white-space:nowrap}
+/* Summary groups (flat) */
+.today{background:var(--paper);margin:0 calc(-1*var(--px)) 16px;padding:12px var(--px);border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
+.today .state{font-size:14px;color:var(--ink2)}
+.today .head{font-family:var(--serif);font-size:16px;font-weight:500;margin:4px 0 12px}
+.hero{text-align:center;padding:4px 0 16px}
+.hero .n{font-size:26px;font-weight:500;font-variant-numeric:tabular-nums;line-height:32px}
+.hero .u{color:var(--ink2);font-size:14px;margin-top:4px}
+.kpis{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) minmax(0,.8fr);gap:8px}
+.kpi .k{font-size:12px;color:var(--ink3)}
+.kpi .n{font-size:22px;font-weight:500;font-variant-numeric:tabular-nums;line-height:28px;margin-top:4px}
+.live{display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;color:var(--ink2);margin:0 0 12px}
+button.live{width:100%;background:none;border:0;font:inherit;font-size:12px;color:var(--ink2);cursor:pointer;min-height:44px;margin:0 0 4px}
 /* Search + segmented */
-.search{display:flex;align-items:center;gap:8px;background:var(--fill);border-radius:10px;padding:0 10px;height:38px;margin:0 0 18px}
-.search input{border:0;background:none;font:inherit;font-size:17px;color:var(--ink);width:100%;outline:none}
+.search{display:flex;align-items:center;gap:8px;background:var(--fill);border-radius:10px;padding:0 12px;height:44px;margin:0 0 16px}
+.search input{border:0;background:none;font:inherit;color:var(--ink);width:100%;outline:none}
 .search svg{width:16px;height:16px;color:var(--ink2);flex:none}
-.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:var(--fill);border-radius:9px;padding:2px;gap:2px}
-.seg button{border:0;background:none;font:inherit;font-size:14px;font-weight:600;color:var(--ink);padding:7px 6px;border-radius:7px;cursor:pointer;min-height:44px}
-.seg button[aria-pressed="true"]{background:var(--row);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:var(--fill);border-radius:10px;padding:2px;gap:2px}
+.seg button{border:0;background:none;font:inherit;font-weight:500;color:var(--ink2);padding:0 8px;border-radius:8px;cursor:pointer;min-height:44px}
+.seg button[aria-pressed="true"]{background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px var(--hair)}
 /* Forms inside lists */
-.field{display:flex;align-items:center;gap:12px;min-height:48px;padding:6px 16px;position:relative}
-.field+.field::before{content:"";position:absolute;top:0;left:16px;right:0;border-top:1px solid var(--sep)}
-.field label,.field .lab{flex:1;font-size:17px;min-width:0}
-.field label .s{font-size:14px;color:var(--ink2)}
+.field{display:flex;align-items:center;gap:12px;min-height:48px;padding:4px var(--px);position:relative}
+.field label,.field .lab{flex:1;font-size:16px;min-width:0}
+.field label .s{font-size:12px;color:var(--ink2)}
 .field input,.field select{border:0;background:none;font:inherit;color:var(--ink);text-align:right;width:52%;min-height:44px}
-.field select{color:var(--lagoon)}
-.field input::placeholder,.note::placeholder{color:var(--ink2)}
-.field .pick{color:var(--lagoon);text-align:right}
-.note{display:block;width:100%;min-height:92px;border:0;background:var(--row);border-radius:12px;font:inherit;color:var(--ink);padding:12px 16px;resize:vertical}
+.field select{color:var(--acc)}
+.field input::placeholder,.note::placeholder{color:var(--ink3)}
+.field input:disabled{color:var(--ink2);opacity:1}
+.note{display:block;width:calc(100% + 2*var(--px));margin:0 calc(-1*var(--px));min-height:96px;border:0;border-top:1px solid var(--hair);border-bottom:1px solid var(--hair);background:var(--paper);border-radius:0;font:inherit;color:var(--ink);padding:12px var(--px);resize:vertical}
 /* Switch */
 .sw{width:60px;height:44px;background:none;border:0;position:relative;cursor:pointer;flex:none;padding:0}
-.sw i{position:absolute;right:0;top:7px;width:51px;height:30px;border-radius:99px;background:var(--fill);border:1px solid var(--sep);transition:background .2s}
-.sw i::after{content:"";position:absolute;top:1px;left:1px;width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .2s}
-.sw[aria-checked="true"] i{background:var(--green);border-color:var(--green)}
-.sw[aria-checked="true"] i::after{transform:translateX(21px)}
+.sw i{position:absolute;right:0;top:8px;width:48px;height:28px;border-radius:99px;background:var(--fill);border:1px solid var(--rule);transition:background .2s}
+.sw i::after{content:"";position:absolute;top:1px;left:1px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .2s}
+.sw[aria-checked="true"] i{background:var(--acc);border-color:var(--acc)}
+.sw[aria-checked="true"] i::after{transform:translateX(20px)}
 .sw:disabled{opacity:.45;cursor:default}
-/* Cart */
-.li{padding:12px 16px;display:grid;gap:10px;position:relative}
-.li+.li::before{content:"";position:absolute;top:0;left:16px;right:0;border-top:1px solid var(--sep)}
+/* Cart / editor lines */
+.li{padding:12px var(--px);display:grid;gap:8px;position:relative}
 .lhead{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.lhead .t{display:flex;align-items:center;gap:8px;font-weight:600}
-.lhead button{background:none;border:0;color:var(--ink2);font-size:18px;width:44px;height:44px;margin-right:-12px;cursor:pointer}
+.lhead .t{display:flex;align-items:center;gap:8px;font-weight:500}
 .stepper{display:flex;align-items:center;gap:8px}
-.stepper button{width:44px;height:44px;border-radius:50%;border:0;background:var(--fill);color:var(--lagoon);font-size:24px;line-height:1;cursor:pointer;flex:none}
-.stepper input{width:84px;height:44px;text-align:center;font:inherit;font-size:20px;font-weight:600;border:0;background:var(--fill);border-radius:10px;color:var(--ink)}
-.stepper .ulab{color:var(--ink2);font-size:15px}
-.mini{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:15px;min-height:44px}
-.mini input{width:104px;height:44px;text-align:right;border:0;background:var(--fill);border-radius:8px;font:inherit;color:var(--ink);padding:0 10px}
-.mini b{font-size:17px}
-.sticky{position:sticky;bottom:0;background:var(--ground);padding:12px 4px 6px;margin-top:8px;display:flex;justify-content:space-between;font-weight:700;font-size:20px;border-top:1px solid var(--sep)}
-/* Warnings */
-.warn{background:color-mix(in srgb,var(--orange) 16%,transparent);border:1px solid color-mix(in srgb,var(--orange) 55%,transparent);border-radius:12px;padding:12px 16px;font-size:15px;margin-bottom:18px}
-.cell.w-orange{box-shadow:inset 4px 0 0 var(--orange)}.cell.w-orange .s{color:var(--orange)}
-.cell.w-red{box-shadow:inset 4px 0 0 var(--red)}.cell.w-red .s{color:var(--red)}
-.cell .s{overflow-wrap:anywhere}
-/* Tab bar */
-.tabbar{position:fixed;left:0;right:0;bottom:0;background:var(--bar);backdrop-filter:saturate(180%) blur(18px);-webkit-backdrop-filter:saturate(180%) blur(18px);border-top:1px solid var(--sep);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);z-index:5}
+.stepper button{width:44px;height:44px;border-radius:10px;border:0;background:var(--fill);color:var(--acc);font:inherit;font-size:22px;line-height:1;cursor:pointer;flex:none}
+.stepper input{width:84px;height:44px;text-align:center;font:inherit;font-size:16px;font-weight:500;font-variant-numeric:tabular-nums;border:0;background:var(--fill);border-radius:10px;color:var(--ink)}
+.stepper .ulab{color:var(--ink2)}
+.mini{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:44px}
+.mini input{width:104px;height:44px;text-align:right;border:0;background:var(--fill);border-radius:10px;font:inherit;font-variant-numeric:tabular-nums;color:var(--ink);padding:0 12px}
+/* Warnings: flat band */
+.warn{background:color-mix(in srgb,var(--orange) 12%,var(--paper));margin:0 calc(-1*var(--px)) 16px;border-top:1px solid color-mix(in srgb,var(--orange) 40%,var(--hair));border-bottom:1px solid color-mix(in srgb,var(--orange) 40%,var(--hair));padding:12px var(--px)}
+.warn ul{margin:4px 0 0;padding-left:16px}.warn li{margin:4px 0}
+.warn .link{padding:0;margin-top:0}
+.cell.w-orange{box-shadow:inset 3px 0 0 var(--orange)}.cell.w-orange .s{color:var(--orange)}
+.cell.w-red{box-shadow:inset 3px 0 0 var(--red)}.cell.w-red .s{color:var(--red)}
+.wi{display:inline-block;width:14px;height:14px;vertical-align:-2px;margin-right:4px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.okc{color:var(--green)}.wc{color:var(--orange)}
+/* Tab bar: flat */
+.tabbar{position:fixed;left:0;right:0;bottom:0;background:var(--paper2);border-top:1px solid var(--hair);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px);z-index:5}
 .tabbar .in{max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
-.tab{border:0;background:none;font:inherit;font-size:11px;font-weight:500;color:var(--ink2);padding:7px 0 6px;display:grid;justify-items:center;gap:3px;cursor:pointer;min-height:50px}
-.tab svg{width:25px;height:25px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.tab[aria-current="page"]{color:var(--lagoon)}
-.tab{position:relative}
-.tab .bdg{position:absolute;top:3px;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center;font-variant-numeric:tabular-nums}
-.warn ul{margin:6px 0 0;padding-left:18px}.warn li{margin:2px 0}
-.warn .link{min-height:44px;padding:0;margin-top:2px}
+.tab{border:0;background:none;font:inherit;font-size:12px;font-weight:500;color:var(--ink3);padding:8px 0 4px;display:grid;justify-items:center;gap:4px;cursor:pointer;min-height:52px;position:relative}
+.tab svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.tab[aria-current="page"]{color:var(--acc)}
+.tab .bdg{position:absolute;top:4px;left:calc(50% + 8px);min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--badge);color:#fff;font-size:11px;font-weight:500;line-height:16px;text-align:center;font-variant-numeric:tabular-nums}
 .chipsel[hidden],.chips[hidden],.group[hidden]{display:none}
-.chips{margin:0 0 6px}
 /* Sheet */
 .scrim{position:fixed;inset:0;background:var(--scrim);z-index:20;display:flex;align-items:flex-end;justify-content:center}
 #pickRoot .scrim{z-index:25}
-.sheet{background:var(--ground);width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:14px 14px 0 0;padding:0 max(16px,env(safe-area-inset-left,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-right,0px));animation:up .28s cubic-bezier(.2,.8,.2,1)}
-.sheet .bar{position:sticky;top:0;background:var(--ground);display:grid;grid-template-columns:1fr auto 1fr;align-items:center;min-height:54px;margin-bottom:6px;z-index:2}
-.sheet .bar b{font-size:17px}
-.sheet .bar button{background:none;border:0;font:inherit;color:var(--lagoon);cursor:pointer;min-height:44px;padding:0;text-align:left}
-.sheet .bar .ok{font-weight:600;text-align:right}
-.sheet .bar button:disabled{color:var(--ink2)}
+.sheet{background:var(--sand);width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:16px 16px 0 0;padding:0 var(--px) calc(24px + env(safe-area-inset-bottom,0px));animation:up .28s cubic-bezier(.2,.8,.2,1)}
+.sheet .bar{position:sticky;top:0;background:var(--sand);display:grid;grid-template-columns:1fr auto 1fr;align-items:center;min-height:56px;margin-bottom:8px;z-index:2}
+.sheet .bar b{font-family:var(--serif);font-size:16px;font-weight:500}
+.sheet .bar button{background:none;border:0;font:inherit;color:var(--acc);cursor:pointer;min-height:44px;padding:0;text-align:left}
+.sheet .bar .ok{font-weight:500;text-align:right}
+.sheet .bar button:disabled{color:var(--ink3)}
 @keyframes up{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
 @media (prefers-reduced-motion:reduce){.sheet,.sw i,.sw i::after{animation:none;transition:none}}
-/* Toast with undo */
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(72px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--ground);border-radius:14px;padding:6px 6px 6px 16px;display:flex;align-items:center;gap:12px;max-width:calc(100vw - 32px);z-index:30;font-size:15px}
-.toast button{background:none;border:0;font:inherit;font-weight:600;color:var(--lagoon);min-height:44px;padding:0 10px;cursor:pointer}
-.empty{color:var(--ink2);font-size:15px;padding:18px 16px;text-align:center}
-.neg{color:var(--red)}.pos{color:var(--green)}
-/* Movimientos section: set apart from the stock list */
-.divider{height:1px;background:var(--sep);margin:10px calc(-1*max(16px,env(safe-area-inset-right,0px))) 0 calc(-1*max(16px,env(safe-area-inset-left,0px)))}
-.msec{display:flex;justify-content:space-between;align-items:center;margin:14px 0 6px}
-.msec h2{font-family:var(--font-d);font-size:22px;font-weight:700;margin:0}
-.link{background:none;border:0;font:inherit;color:var(--lagoon);min-height:44px;padding:0 0 0 12px;cursor:pointer}
-.cell.mv{min-height:52px;padding:8px 16px}
-.mv .t{font-size:15px}.mv .s{font-size:13px}.mv .v{font-size:15px;font-weight:600}
-/* Cart: product chips inside a line, ticket thumbnail */
-.chips{display:flex;flex-wrap:wrap;gap:8px}
-.chip{display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 14px;border-radius:22px;border:0;background:var(--fill);color:var(--ink);font:inherit;font-size:16px;cursor:pointer}
-.chip[aria-pressed="true"]{background:var(--lagoon-soft);color:var(--lagoon);font-weight:600}
-.lhead .tn{display:flex;align-items:center;gap:8px;width:auto;height:44px;margin:0;padding:0;font-size:17px;font-weight:600;color:var(--ink);text-align:left}
-.lhead .tn .caret{color:var(--ink2);font-size:12px}
-.lhead .pl{color:var(--ink2);font-weight:600}
-.tk{display:flex;align-items:center;gap:12px;padding:8px 16px;border-top:1px solid var(--sep)}
-.tk .thumb{width:48px;height:48px;border-radius:8px;object-fit:cover;background:var(--fill);flex:none}
-.tk .nm{flex:1;min-width:0;font-size:15px;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tk button{background:none;border:0;font:inherit;color:var(--red);min-height:44px;padding:0 0 0 8px;cursor:pointer}
-#tkBox+.field::before{content:"";position:absolute;top:0;left:16px;right:0;border-top:1px solid var(--sep)}
-/* Product editor */
-.icons{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px}
-.icons button{width:44px;height:44px;border-radius:10px;border:2px solid transparent;background:var(--fill);font-size:22px;line-height:1;cursor:pointer;padding:0}
-.icons button[aria-pressed="true"]{border-color:var(--lagoon);background:var(--lagoon-soft)}
-.icons button:disabled{cursor:default}
-.field input:disabled{color:var(--ink2);opacity:1}
-/* ===== v7: Operación, Eventuales, calendario ===== */
-.daterow{display:flex;align-items:center;justify-content:space-between;margin:0 -10px 0}
-.daterow button{background:none;border:0;font:inherit;color:var(--lagoon);cursor:pointer;min-height:44px}
-.daterow .nx{width:44px;font-size:30px;line-height:1;flex:none}
-.daterow .dt{flex:1;font-size:17px;font-weight:600;color:var(--ink);text-align:center;white-space:nowrap}
-.daterow .wk{flex:1;font-size:16px;font-weight:600;color:var(--ink);text-align:center}
-.live{display:flex;align-items:center;justify-content:center;gap:7px;font-size:13px;color:var(--ink2);margin:0 0 14px}
-.live .dot{width:8px;height:8px}
-.kpis{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) minmax(0,.8fr);gap:8px}
-.kpi .k{font-size:13px;color:var(--ink2)}
-.kpi .n{font-size:21px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
-.kpi .n.pend{font-size:17px;color:var(--orange)}
-.kpi .sub{font-size:12px;color:var(--ink2);font-variant-numeric:tabular-nums}
-.today .fn{font-size:13px;color:var(--ink2);margin:12px 0 0}
-.pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
-.pill{font-size:13px;font-weight:600;padding:4px 10px;border-radius:99px;background:var(--fill);color:var(--ink)}
-.pill.g{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}
-.pill.o{background:color-mix(in srgb,var(--orange) 16%,transparent);color:var(--orange)}
-.pill.r{background:color-mix(in srgb,var(--red) 16%,transparent);color:var(--red)}
-.dcard{background:var(--row);border-radius:12px;margin:0 0 12px;overflow:hidden}
-.dmain{display:block;width:100%;text-align:left;background:none;border:0;font:inherit;color:inherit;padding:12px 16px 10px;cursor:pointer}
-.dmain:active{background:var(--fill)}
-.dmain:focus-visible,.sbtn:focus-visible,.cal button:focus-visible,.daterow button:focus-visible{outline:3px solid var(--lagoon);outline-offset:-3px}
-.d1{display:flex;align-items:flex-start;gap:10px}
-.d1 .tm{font-variant-numeric:tabular-nums;font-size:17px;font-weight:700;color:var(--lagoon)}
-.d1 .tn{flex:1;min-width:0;font-weight:600;overflow-wrap:anywhere}
-.d1 .chev{margin-top:5px}
-.lbl{font-weight:400;color:var(--ink2)}
-.crew{font-size:14px;color:var(--ink2);margin:6px 0 0;line-height:1.5}
-.sn{font-size:13px;color:var(--ink2);margin-top:1px;opacity:.9}
-.rb{display:inline-block;font-size:12px;font-weight:600;padding:0 6px;border-radius:6px;background:var(--lagoon-soft);color:var(--lagoon);margin-right:4px}
-.rb.w{background:color-mix(in srgb,var(--orange) 18%,transparent);color:var(--orange)}
-.d3{font-size:14px;margin:6px 0 0}
-.nums{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;font-size:14px;margin-top:6px;font-variant-numeric:tabular-nums;color:var(--ink2)}
-.nums .pendt{color:var(--orange)}
-.dfoot{border-top:1px solid var(--sep);padding:4px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:52px;font-size:14px}
-.dfoot .ok{color:var(--green);font-weight:600}
-.dfoot .mut{color:var(--ink2)}
-.sbtn{min-height:44px;padding:0 14px;border-radius:10px;border:0;background:var(--lagoon-soft);color:var(--lagoon);font:inherit;font-size:15px;font-weight:600;cursor:pointer;flex:none}
-.trow{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(4,minmax(0,1fr));gap:4px;padding:10px 16px;position:relative;font-size:15px;font-variant-numeric:tabular-nums;align-items:center}
-.trow>span:not(:first-child){text-align:right}
-.trow.th{font-size:13px;color:var(--ink2);padding-block:8px}
-.trow+.trow::before,.trow+.cell::before,.cell+.trow::before{content:"";position:absolute;top:0;left:16px;right:0;border-top:1px solid var(--sep)}
-.mut{color:var(--ink2)}
-.badge.ok{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}
-.badge.warn{background:color-mix(in srgb,var(--orange) 18%,transparent);color:var(--orange)}
-.calhead{display:flex;align-items:center;justify-content:space-between;margin:0 -8px 4px}
-.calhead b{font-size:17px;text-transform:none}
-.calhead button{background:none;border:0;color:var(--lagoon);font:inherit;font-size:28px;width:44px;height:44px;cursor:pointer}
-.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;text-align:center;background:var(--row);border-radius:12px;padding:8px}
-.cal .wd{font-size:12px;color:var(--ink2);padding:4px 0}
-.cal button{min-height:48px;border:0;background:none;border-radius:10px;font:inherit;color:var(--ink);cursor:pointer;display:grid;justify-items:center;align-content:center;gap:3px;padding:0;font-variant-numeric:tabular-nums}
-.cal button[aria-pressed="true"]{background:var(--lagoon-soft);color:var(--lagoon);font-weight:700}
-.cal button.tdy .n{font-weight:700;color:var(--lagoon)}
-.cal i,.lg i{display:inline-block;width:8px;height:8px;border-radius:50%;background:transparent;flex:none}
-.cal i.g,.lg i.g{background:var(--green)}.cal i.y,.lg i.y{background:var(--orange)}.cal i.r,.lg i.r{background:var(--red)}
-.cal i.p,.lg i.p{border:1.5px solid var(--ink2)}
-.lg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--ink2);margin:10px 4px 0}
-.lg span{display:inline-flex;align-items:center;gap:6px}
-.chipsel{display:grid;gap:8px}
-.chipsel button{min-height:50px;border-radius:12px;border:2px solid transparent;background:var(--row);color:var(--ink);font:inherit;font-size:17px;cursor:pointer;text-align:left;padding:0 16px}
-.chipsel button[aria-pressed="true"]{border-color:var(--lagoon);background:var(--lagoon-soft);color:var(--lagoon);font-weight:600}
-.cell a,a.cell{color:inherit;text-decoration:none}
-.cell .check{color:var(--lagoon);font-size:20px;font-weight:700}
-/* ===== v9: PIN, carga, estados ===== */
-.pinwrap{position:fixed;inset:0;z-index:60;background:var(--ground);display:grid;place-items:center;padding:24px}
-.pinbox{width:100%;max-width:320px;text-align:center}
-.pinbox .logo{font-size:44px;line-height:1}
-.pinbox h1{font-size:28px;margin:10px 0 4px}
-.pinbox .lede{margin:0 0 24px;min-height:22px}
-.pinbox .lede.err{color:var(--red)}
-.pdots{display:flex;justify-content:center;gap:16px;margin:0 0 30px}
-.pdots i{width:14px;height:14px;border-radius:50%;border:2px solid var(--ink2);display:block}
-.pdots i.on{background:var(--ink);border-color:var(--ink)}
-.pdots.shake{animation:shake .4s}
-@keyframes shake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
-.keys{display:grid;grid-template-columns:repeat(3,76px);gap:14px 22px;justify-content:center}
-.keys button{width:76px;height:76px;border-radius:50%;border:0;background:var(--row);color:var(--ink);font:inherit;font-size:30px;font-weight:500;cursor:pointer;padding:0}
-.keys button:active{background:var(--fill)}
-.keys .ghost{background:none;font-size:22px;color:var(--ink2)}
-.keys button:focus-visible{outline:3px solid var(--lagoon);outline-offset:2px}
-.boot{position:fixed;inset:0;z-index:55;background:var(--ground);display:grid;place-items:center;text-align:center;color:var(--ink2);padding:24px}
-.boot .btn{margin-top:16px;width:auto;padding:0 28px}
-.busy{position:fixed;top:0;left:0;right:0;height:3px;z-index:70;overflow:hidden}
-.busy i{display:block;height:100%;width:40%;background:var(--lagoon);animation:bz 1s infinite ease-in-out}
-@keyframes bz{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}
-@media (prefers-reduced-motion:reduce){.busy i,.pdots.shake{animation:none}}
-button.live{display:flex;width:100%;background:none;border:0;font:inherit;font-size:13px;color:var(--ink2);cursor:pointer;min-height:44px;margin:0 0 4px}
-.est{font-size:12px;color:var(--ink2);font-weight:400}
+/* Toast */
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(72px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--sand);border-radius:10px;padding:8px 8px 8px 16px;display:flex;align-items:center;gap:12px;max-width:calc(100vw - 32px);width:max-content;z-index:30}
+.toast button{background:none;border:0;font:inherit;font-weight:500;color:var(--acc-soft);min-height:44px;padding:0 12px;cursor:pointer}
 .toast.err{background:var(--red);color:#fff}
-.toast{padding:12px 16px}
-
-/* ===== round 2: money (gross + net), header status, bitácora dots, resources, section icons ===== */
-.m2{display:inline-flex;flex-direction:column;align-items:flex-end;line-height:1.2;font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
-.m2 .mg{color:var(--green);font-weight:600}
-.m2 .mn{font-size:12px;color:var(--ink2);font-weight:400}
+.toast.err button{color:#fff}
+.empty{color:var(--ink2);padding:16px;text-align:center}
+.divider{display:none}
+.msec{display:flex;justify-content:space-between;align-items:center;margin:0 0 4px}
+.msec h2{font-size:12px;font-weight:400;color:var(--ink3);margin:0}
+.msec .link{padding:0}
+.cell.mv{min-height:48px;padding-block:8px}
+.mv .t{font-size:14px}.mv .s{font-size:12px}.mv .v{font-size:14px;font-weight:500}
+/* Product chips, ticket thumbnail */
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 8px}
+.chip{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 16px;border-radius:22px;border:0;background:var(--fill);color:var(--ink);font:inherit;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--acc-soft);color:var(--acc);font-weight:500}
+.lhead .tn{display:flex;align-items:center;gap:8px;width:auto;height:44px;margin:0;padding:0;font-size:16px;font-weight:500;color:var(--ink);text-align:left}
+.tk{display:flex;align-items:center;gap:12px;padding:8px var(--px)}
+.tk .thumb{width:48px;height:48px;border-radius:8px;object-fit:cover;background:var(--fill);flex:none}
+.tk .nm{flex:1;min-width:0;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tk button{background:none;border:0;font:inherit;color:var(--red);min-height:44px;padding:0 0 0 8px;cursor:pointer}
+.icons{display:flex;flex-wrap:wrap;gap:8px;padding:12px var(--px)}
+.icons button{width:44px;height:44px;border-radius:10px;border:2px solid transparent;background:var(--fill);font-size:20px;line-height:1;cursor:pointer;padding:0}
+.icons button[aria-pressed="true"]{border-color:var(--acc);background:var(--acc-soft)}
+.icons button:disabled{cursor:default}
+/* Date nav, filter */
+.dnav{display:flex;align-items:center;min-height:44px;margin:0 -8px 0 -12px}
+.dnav button{background:none;border:0;font:inherit;color:var(--acc);cursor:pointer;min-height:44px}
+.dnav .nx{width:44px;display:grid;place-items:center;flex:none}.dnav .nx svg{width:18px;height:18px}
+.dnav .dt{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:500;color:var(--ink);white-space:nowrap;padding:0 4px}
+.dnav .dt svg{color:var(--acc);width:18px;height:18px}
+.dnav .sp{flex:1}
+.dnav .hoy{font-weight:500;color:var(--acc);padding:0 12px}
+.fbtn{position:relative;width:44px;flex:none;display:flex;align-items:center;justify-content:center;color:var(--acc)}
+.fbtn svg{width:20px;height:20px}
+.fbtn .fdot{position:absolute;top:10px;right:8px;width:8px;height:8px;border-radius:50%;background:var(--orange);box-shadow:0 0 0 2px var(--sand)}
+.daterow{display:flex;align-items:center;justify-content:space-between;margin:0 -8px}
+.daterow button{background:none;border:0;font:inherit;color:var(--acc);cursor:pointer;min-height:44px}
+.daterow .nx{width:44px;font-size:22px;line-height:1;flex:none}
+.daterow .wk{flex:1;font-weight:500;color:var(--ink);text-align:center}
+.fchips{margin:0 0 8px}
+.fline{color:var(--ink2);text-align:center;margin:0 0 8px}
+.fline .link{padding:0 4px;min-height:32px}
+/* Money: bruto green on top, neto under it (11px) */
+.m2{display:inline-flex;flex-direction:column;align-items:flex-end;line-height:1.3;font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+.m2 .mg{color:var(--green);font-weight:500;font-size:14px}
+.m2 .mn{font-size:11px;color:var(--ink2);font-weight:400}
 .m2 .mn small{font-size:11px}
 .m2 .mn em{font-style:normal}
 .m2 .mn.pend{color:var(--orange)}
-.m2.big .mg{font-size:21px;font-weight:700}
-.kpi .m2{align-items:flex-start;text-align:left;margin-top:2px}
-.gh{display:flex;align-items:center;gap:6px}
-.gh .gi{flex:none}
+.m2.big .mg{font-size:22px;line-height:28px}
+.m2.big .mn{font-size:11px}
+.kpi .m2{align-items:flex-start;text-align:left;margin-top:4px}
+/* Day summary: one flat group */
+.dsum{background:var(--paper);margin:0 calc(-1*var(--px)) 16px;border-top:1px solid var(--hair);border-bottom:1px solid var(--hair);font-variant-numeric:tabular-nums}
+.dsum .r{display:grid;grid-template-columns:1fr 1fr;padding:12px var(--px)}
+.dsum .r+.r{border-top:1px solid var(--sep2)}
+.dsum .r.f{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-block:4px}
+.dsum .c+.c{border-left:1px solid var(--sep2);padding-left:16px}
+.dsum .k{font-size:12px;color:var(--ink3)}
+.dsum .bigv{font-size:22px;font-weight:500;line-height:28px;margin-top:4px}
+.dsum .bigv.g{color:var(--green)}
+.dsum .sub{font-size:11px;color:var(--ink2)}
+.dsum .sub.pend{color:var(--orange)}
+.dsum .cnt{font-size:14px}.dsum .cnt b{font-weight:500;color:var(--ink2)}
+.dsum .tap{display:inline-flex;align-items:center;gap:4px;background:none;border:0;font:inherit;font-weight:500;min-height:44px;padding:0;color:var(--orange);cursor:pointer;white-space:nowrap}
+.dsum .tap svg{width:16px;height:16px}
+.dsum .dwarn{color:var(--orange)}.dsum .drev{color:var(--acc)}
+.dsum .tap:focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:6px}
+.dsum .ok{color:var(--green)}
+.dsum .dci{display:inline-flex;align-items:center;gap:8px;min-height:44px}
+/* Departure row: 4 fixed lines, nothing jumps */
+.drow{display:block;width:100%;text-align:left;background:none;border:0;font:inherit;color:inherit;padding:12px var(--px);cursor:pointer}
+.drow .l1,.drow .l2,.drow .l4{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.drow .l1{min-height:20px;font-size:12px;color:var(--ink2)}
+.drow .l1 .st.now{color:var(--acc);font-weight:500}
+.drow .l1 .hr{font-variant-numeric:tabular-nums}
+.drow .l1 .mg{font-size:14px;font-weight:500;color:var(--green);font-variant-numeric:tabular-nums;white-space:nowrap}
+.drow .l2{min-height:24px;margin-top:2px}
+.drow .tn{flex:1;min-width:0;font-family:var(--serif);font-size:16px;font-weight:500;line-height:24px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.drow .tn .lbl{font-family:var(--font);font-size:12px;font-weight:400;color:var(--ink2)}
+.drow .nt{font-size:11px;color:var(--ink2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.drow .nt.pend{color:var(--orange)}
+.drow .st-w{white-space:nowrap}
+.drow .l3{display:block;font-size:12px;line-height:16px;min-height:16px;margin-top:2px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.drow .l3 .nores,.drow .l3 .wq{color:var(--orange);font-weight:500}
+.drow .l4{min-height:28px;margin-top:4px;font-size:12px}
+.drow .bds{display:inline-flex;gap:12px;color:var(--ink2)}
+.drow .bd{display:inline-flex;align-items:center;gap:4px}
+.drow .rt{display:inline-flex;align-items:center;gap:8px;flex:none}
+.drow .wn{display:inline-flex;align-items:center;gap:2px;color:var(--orange);font-weight:500;font-variant-numeric:tabular-nums}
+.drow .wn svg{width:16px;height:16px}
+.ri{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;color:var(--orange)}
+.ri svg{width:18px;height:18px}.ri.ok{color:var(--green)}
+.sech{margin:0 0 8px;font-size:12px;color:var(--ink3)}
+.sech.live{color:var(--acc)}
+.sec{margin:0 0 16px}
+.bdot{display:inline-block;width:8px;height:8px;border-radius:50%;flex:none;background:var(--neutral)}
+.bdot.ok{background:var(--dotg)}.bdot.wr{background:var(--orange)}.bdot.late{background:var(--red)}.bdot.mut{background:var(--neutral)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+/* Check-in */
+.ci{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:500;font-variant-numeric:tabular-nums;color:var(--ink2);flex:none;white-space:nowrap}
+.ci.s-ok{color:var(--green)}.ci.s-warn{color:var(--orange)}.ci.s-bad{color:var(--red)}
+.ci svg{flex:none;width:18px;height:18px}
+.cell .v.ci{font-size:14px}
+.bkx{display:flex;align-items:center;gap:8px}
+.ni{display:inline-flex;color:var(--ink2)}
+.bkh{padding:0 0 12px}
+.bkn a.fhl{font-size:22px;font-weight:500;color:var(--acc);min-height:44px;padding:0}
+.bkn{font-family:var(--serif);font-size:22px;font-weight:500}
+.bkc{font-size:16px;color:var(--ink2);margin-top:-4px}
+.cbtns{display:flex;gap:8px;padding:8px var(--px) 12px}
+.cbtns .gbtn{flex:1;display:flex;align-items:center;justify-content:center;text-decoration:none}
+.bknote{white-space:pre-wrap;overflow-wrap:anywhere}
+.sn{font-size:12px;color:var(--ink2);margin-top:2px}
+.rb{display:inline-block;font-size:12px;font-weight:500;padding:0 8px;border-radius:99px;background:var(--acc-soft);color:var(--acc);margin-right:4px}
+.gh{display:flex;align-items:center;gap:8px}
+.gh .gi{flex:none;width:16px;height:16px}
+.cell a,a.cell{color:inherit;text-decoration:none}
+a.fhl{color:var(--acc);text-decoration:none;white-space:nowrap;display:inline-flex;align-items:center;min-height:44px;padding:0 4px}
+a.fhl.gray{color:var(--ink2)}
+a.fhl:focus-visible{outline:2px solid var(--acc);outline-offset:-2px;border-radius:8px}
+.lede a.fhl{min-height:0;padding:0;font-size:inherit}
+.cell .fhx{flex:none;margin:-12px -6px -12px 0}
+.cell .check{color:var(--acc);font-weight:500}
+.cell.tap{cursor:pointer}
+.cell.tap:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
+/* Bitácora (detail) */
+.bitrow{display:flex;gap:12px;text-align:left}
+.bitrow .bpart{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+.bitrow .bpart>span{display:grid;line-height:1.3}
+.bitrow .bpart small{font-size:12px;color:var(--ink2)}
+.bitrow .chev{transition:transform .2s}
+.bitrow .bx[aria-expanded="true"] .chev{transform:rotate(90deg)}
+.bitrow .bx{background:none;border:0;color:var(--ink2);min-width:44px;min-height:44px;display:grid;place-items:center;cursor:pointer;padding:0;margin:-12px -12px -12px 0}
+.bitrow .fhl{margin-left:-4px}
+.trow{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(4,minmax(0,1fr));gap:4px;padding:12px var(--px);position:relative;font-variant-numeric:tabular-nums;align-items:center}
+.trow>span:not(:first-child){text-align:right}
+.trow.th{font-size:12px;color:var(--ink3);padding-block:8px}
+.trow.c{padding-block:8px}
+.trow.c.th{font-size:12px}
+.cell.c{min-height:44px;padding-block:8px}
+.addnote{width:100%;min-height:44px;background:none;border:0;font:inherit;color:var(--acc);text-align:left;padding:0 var(--px);cursor:pointer}
+.supl{font-size:12px;color:var(--ink2)}
+.tkrow{display:flex;justify-content:flex-start;margin:0 0 4px}
+.tkrow label{display:inline-flex;align-items:center;gap:8px;min-height:44px;color:var(--acc);font-weight:500;cursor:pointer}
+.tkrow label svg{width:20px;height:20px}
+.tkrow label:focus-within{outline:2px solid var(--acc);outline-offset:2px}
+.sheet .tk{margin-bottom:8px}
+.stl{font-size:12px;color:var(--ink3);margin:0 0 8px}
+/* Calendar */
+.calhead{display:flex;align-items:center;justify-content:space-between;margin:0 -8px 4px}
+.calhead b{font-family:var(--serif);font-size:16px;font-weight:500}
+.calhead button{display:grid;place-items:center;background:none;border:0;color:var(--acc);width:44px;height:44px;cursor:pointer}
+.calhead button svg{width:18px;height:18px}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;text-align:center;background:var(--paper);margin:0 calc(-1*var(--px));border-top:1px solid var(--hair);border-bottom:1px solid var(--hair);padding:8px var(--px)}
+.cal .wd{font-size:12px;color:var(--ink3);padding:4px 0}
+.cal button{min-height:48px;border:0;background:none;border-radius:10px;font:inherit;color:var(--ink);cursor:pointer;display:grid;justify-items:center;align-content:center;gap:4px;padding:0;font-variant-numeric:tabular-nums}
+.cal button[aria-pressed="true"]{background:var(--acc-soft);color:var(--acc);font-weight:500}
+.cal button.tdy .n{font-weight:500;color:var(--acc)}
+.cal i,.lg i{display:inline-block;width:8px;height:8px;border-radius:50%;background:transparent;flex:none}
+.cal i.g,.lg i.g{background:var(--dotg)}.cal i.y,.lg i.y{background:var(--orange)}.cal i.r,.lg i.r{background:var(--red)}
+.cal i.p,.lg i.p{border:1.5px solid var(--ink3)}
+.lg{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:var(--ink2);margin:8px 0 0}
+.lg span{display:inline-flex;align-items:center;gap:4px}
+.chipsel{display:grid;margin:0 calc(-1*var(--px));background:var(--paper);border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
+.chipsel button{min-height:48px;border:0;background:none;color:var(--ink);font:inherit;font-size:16px;cursor:pointer;text-align:left;padding:0 var(--px)}
+.chipsel button+button{border-top:1px solid var(--sep2)}
+.chipsel button[aria-pressed="true"]{background:var(--acc-soft);color:var(--acc);font-weight:500}
+/* PIN, boot, busy */
+.pinwrap{position:fixed;inset:0;z-index:60;background:var(--sand);display:grid;place-items:center;padding:24px}
+.pinbox{width:100%;max-width:320px;text-align:center}
+.pinbox .logo{color:var(--acc);line-height:0}.pinbox .logo svg{width:40px;height:40px}
+.pinbox h1{margin:12px 0 4px}
+.pinbox .lede{margin:0 0 24px;min-height:20px}
+.pinbox .lede.err{color:var(--red)}
+.pdots{display:flex;justify-content:center;gap:16px;margin:0 0 32px}
+.pdots i{width:12px;height:12px;border-radius:50%;border:2px solid var(--ink2);display:block}
+.pdots i.on{background:var(--ink);border-color:var(--ink)}
+.pdots.shake{animation:shake .4s}
+@keyframes shake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+.keys{display:grid;grid-template-columns:repeat(3,72px);gap:12px 24px;justify-content:center}
+.keys button{width:72px;height:72px;border-radius:50%;border:0;background:var(--paper);color:var(--ink);font:inherit;font-size:26px;cursor:pointer;padding:0;box-shadow:0 0 0 1px var(--hair)}
+.keys button:active{background:var(--fill)}
+.keys .ghost{background:none;box-shadow:none;font-size:20px;color:var(--ink2)}
+.keys button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.boot{position:fixed;inset:0;z-index:55;background:var(--sand);display:grid;place-items:center;text-align:center;color:var(--ink2);padding:24px}
+.boot .btn{margin-top:16px;width:auto;padding:0 32px}
+.busy{position:fixed;top:0;left:0;right:0;height:3px;z-index:70;overflow:hidden}
+.busy i{display:block;height:100%;width:40%;background:var(--acc);animation:bz 1s infinite ease-in-out}
+@keyframes bz{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}
+@media (prefers-reduced-motion:reduce){.busy i,.pdots.shake{animation:none}}
+.est{font-size:11px;color:var(--ink2);font-weight:400}
+/* Header status (small, top right) */
 .rolebar .stat{display:inline-flex;align-items:center;gap:0;font-size:12px;color:var(--ink2);white-space:nowrap;flex:none;margin-right:-8px}
 .stat .dot{width:8px;height:8px;margin-right:2px}
 .stat .rfb{width:44px;height:44px;border:0;background:none;color:var(--ink2);cursor:pointer;display:grid;place-items:center;padding:0}
 .stat .rfb svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-.stat .rfb:focus-visible{outline:3px solid var(--lagoon);outline-offset:-6px;border-radius:10px}
+.stat .rfb:focus-visible{outline:2px solid var(--acc);outline-offset:-6px;border-radius:10px}
 .stat.spin .rfb svg{animation:spin .9s linear infinite}
 .stat .ago{min-width:56px;text-align:right;font-variant-numeric:tabular-nums;margin-right:8px}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.stat.spin .rfb svg{animation:none;opacity:.5}}
-.rolebar .seg{width:170px}
-.todayrow{display:flex;justify-content:center;margin:0 0 6px}
-.bdot{display:inline-block;width:10px;height:10px;border-radius:50%;flex:none;background:color-mix(in srgb,var(--ink2) 40%,transparent)}
-.bdot.ok{background:var(--green)}.bdot.late{background:var(--red)}
-.bd{position:relative;display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--ink2)}
-.d3r{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 12px}
-.rchips{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
-.rchip{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--fill);color:var(--ink)}
-.rchip svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
-.bds{display:inline-flex;gap:12px;flex:none}
-.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-.bitrow{display:flex;gap:12px;text-align:left}
-.bitrow .bpart{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
-.bitrow .bpart>span{display:grid;line-height:1.2}
-.bitrow .bpart small{font-size:13px;color:var(--ink2)}
-.bitrow .chev{transition:transform .2s}
-.bitrow .bx[aria-expanded="true"] .chev{transform:rotate(90deg)}
-.trow.c{padding-block:6px;font-size:14px}
-.trow.c.th{font-size:12px}
-.cell.c{min-height:40px;padding-block:6px;font-size:15px}
-
-/* ===== round 3: departure card (fixed grid), FareHarbor links, Gasto / Compra sheet ===== */
-.dmain.r3{padding:0}
-.dg{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"hr chv" "tn mon" "rs mon" "cw cw" "ct ct";column-gap:12px;row-gap:2px;padding:12px 16px 10px}
-.dg .hr{grid-area:hr;font-variant-numeric:tabular-nums;font-size:17px;font-weight:700;color:var(--lagoon);line-height:22px;min-height:22px}
-.dg .chv{grid-area:chv;justify-self:end;align-self:center;color:var(--ink2);line-height:0}
-.dg .tn{grid-area:tn;min-width:0;font-weight:600;line-height:22px;min-height:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dg .mon{grid-area:mon;justify-self:end;align-self:start}
-.dg .rs{grid-area:rs;min-width:0;display:flex;align-items:center;gap:5px;font-size:14px;line-height:20px;min-height:20px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dg .rs svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
-.dg .cw{grid-area:cw;font-size:14px;line-height:20px;min-height:20px;color:var(--ink2);overflow-wrap:anywhere}
-.dg .ct{grid-area:ct;font-size:13px;line-height:18px;min-height:18px;color:var(--ink2);font-variant-numeric:tabular-nums}
-.dg .wq{color:var(--orange);font-weight:700}
-.dstrip{border-top:1px solid var(--sep);display:flex;align-items:center;gap:10px;min-height:44px;padding:0 16px}
-.dstrip .lb{font-size:12px;color:var(--ink2);flex:none}
-.dstrip .tgs{margin-left:auto;display:flex;gap:6px;flex:none}
-.tg{font-size:12px;font-weight:600;padding:2px 8px;border-radius:99px;white-space:nowrap;background:var(--fill);color:var(--ink2)}
-.tg.o{background:color-mix(in srgb,var(--orange) 16%,transparent);color:var(--orange)}
-.tg.ok{background:color-mix(in srgb,var(--green) 16%,transparent);color:var(--green)}
-.tg.w{background:color-mix(in srgb,var(--orange) 16%,transparent);color:var(--ink)}
-.fbtn{position:relative;width:44px;flex:none;display:flex;align-items:center;justify-content:center}
-.fbtn .fdot{position:absolute;top:9px;right:9px;width:9px;height:9px;border-radius:50%;background:var(--orange);box-shadow:0 0 0 2px var(--ground)}
-.fchips{margin:2px 0 6px}
-.fline{font-size:14px;color:var(--ink2);text-align:center;margin:0 0 8px}
-.fline .link{padding:0 4px;min-height:32px;font-size:14px}
-.dsum{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;margin-top:12px;font-size:14px;color:var(--ink);font-variant-numeric:tabular-nums}
-.ci{display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink2);flex:none;white-space:nowrap}
-.ci.s-ok{color:var(--green)}.ci.s-warn{color:color-mix(in srgb,var(--yellow) 70%,var(--ink))}.ci.s-bad{color:var(--red)}
-.ci svg{flex:none}
-.cell .v.ci{font-size:15px}
-.dstrip .ci{margin-left:2px}
-.dsum .dci{display:inline-flex;gap:4px;align-items:center}
-.dsum .dci .ci{font-size:14px}
-.cell.tap{cursor:pointer}.cell.tap:active{background:var(--fill)}
-.cell.tap:focus-visible{outline:3px solid var(--lagoon);outline-offset:-2px}
-.bkx{display:flex;align-items:center;gap:10px}
-.ni{display:inline-flex;color:var(--ink2);opacity:.8}
-.bkh{padding:2px 4px 10px}
-.bkn a.fhl{font-size:22px;font-weight:700;color:var(--lagoon);min-height:44px;padding:0}
-.bkn{font-size:22px;font-weight:700}
-.bkc{font-size:17px;color:var(--ink2);margin-top:-4px}
-.cbtns{display:flex;gap:10px;padding:6px 16px 14px}
-.cbtns .gbtn{flex:1;display:flex;align-items:center;justify-content:center;text-decoration:none;border-radius:12px}
-.cbtns .wa{background:color-mix(in srgb,var(--green) 18%,transparent);color:var(--green)}
-.bknote{white-space:pre-wrap;overflow-wrap:anywhere;font-size:16px}
-.dsum b{font-weight:600;color:var(--ink2)}.dsum .sp{color:var(--sep)}
-.sech{display:flex;align-items:center;gap:10px;margin:18px 0 8px;font-size:13px;font-weight:600;color:var(--ink2)}
-.sech::after{content:"";flex:1;height:1px;background:var(--sep)}
-.sech.live{color:var(--lagoon)}
-.dcard.done{background:color-mix(in srgb,var(--row) 90%,var(--ink2) 10%)}
-.dcard.live{background:color-mix(in srgb,var(--row) 82%,var(--lagoon-soft))}
-.dg .cw{display:flex;align-items:flex-start;gap:5px}
-.dg .cw svg{margin-top:3px}
-.dg .cw svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
-.dg .nores{color:var(--orange);font-weight:600}
-.ri{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;color:var(--yellow)}
-.ri.ok{color:var(--green)}
-.oprow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 4px}
-.oprow h1{margin:0}
-.gbtn{min-height:44px;padding:0 14px;border-radius:22px;border:0;background:var(--lagoon-soft);color:var(--lagoon);font:inherit;font-size:15px;font-weight:600;cursor:pointer;flex:none;white-space:nowrap}
-.gbtn:focus-visible{outline:3px solid var(--lagoon);outline-offset:2px}
-a.fhl{color:var(--lagoon);text-decoration:none;font-size:14px;white-space:nowrap;display:inline-flex;align-items:center;min-height:44px;padding:0 4px}
-a.fhl.gray{color:var(--ink2)}
-a.fhl:focus-visible{outline:3px solid var(--lagoon);outline-offset:-2px;border-radius:8px}
-.lede a.fhl{min-height:0;padding:0;font-size:inherit}
-.cell .fhx{flex:none;margin:-10px -6px -10px 0}
-.bitrow .fhl{margin-left:-4px}
-.bitrow .bpart{flex:1}
-.bitrow .bx{background:none;border:0;color:var(--ink2);min-width:44px;min-height:44px;display:grid;place-items:center;cursor:pointer;padding:0;margin:-10px -12px -10px 0}
-.supl{font-size:13px;color:var(--ink2)}
-.addnote{width:100%;min-height:44px;background:none;border:0;font:inherit;color:var(--lagoon);text-align:left;padding:0 16px;cursor:pointer}
-.tkrow{display:flex;justify-content:flex-start;margin:0 0 12px}
-.tkrow label{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 14px;border-radius:22px;background:var(--fill);font-size:15px;cursor:pointer}
-.tkrow label:focus-within{outline:3px solid var(--lagoon)}
-.sheet .tk{margin-bottom:12px}
-.stl{font-size:13px;color:var(--ink2);margin:0 0 6px 4px}
-/* ===== Ronda 7: resumen del día, recibo de compra, reporte de stock, cola de guardado (solo tokens existentes) ===== */
-.dsum.d2{margin-top:6px}
-.dsum .dwarn,.dsum .drev{background:none;border:0;font:inherit;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--orange);min-height:32px;padding:0 2px;cursor:pointer}
-.dsum .drev{color:var(--ink2)}.dsum .drev.ok{color:var(--green)}
-.dsum .dwarn:focus-visible,.dsum .drev:focus-visible{outline:3px solid var(--lagoon);outline-offset:2px;border-radius:6px}
-.nav .act.txt{font-size:17px;width:auto;padding:0 10px;font-weight:500}
-.sv{color:var(--ink2);font-style:italic;font-size:inherit}.sv.bad{color:var(--orange);font-style:normal;font-weight:600}
-.qerr{color:var(--orange)!important}
-.toast{width:max-content}
 .stat .rfw{position:relative;display:inline-flex}
-.stat .qb{position:absolute;top:5px;right:2px;min-width:17px;height:17px;padding:0 4px;border:0;border-radius:9px;background:var(--lagoon);color:var(--lagoon-ink);font:700 11px/17px var(--font);text-align:center;cursor:pointer;font-variant-numeric:tabular-nums}
-.stat .qb.bad{background:var(--orange);color:#fff}
-.stat .qb:focus-visible{outline:3px solid var(--lagoon);outline-offset:2px}
-/* Recibo */
-.tkrow{margin:0 0 6px}.tkrow label{background:none;padding:0;min-height:44px;color:var(--lagoon);font-size:15px}
-.rcpt{background:var(--row);border:1px solid var(--sep);border-radius:12px;padding:4px 16px 14px;margin:0 0 22px}
-.rl{padding:12px 0;display:grid;gap:10px}
-.rl+.rl{border-top:1px dashed var(--sep)}
+.stat .qb{position:absolute;top:6px;right:2px;min-width:16px;height:16px;padding:0 4px;border:0;border-radius:8px;background:var(--acc);color:var(--acc-ink);font:500 11px/16px var(--font);text-align:center;cursor:pointer;font-variant-numeric:tabular-nums}
+.stat .qb.bad{background:var(--badge);color:#fff}
+.stat .qb:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.sv{color:var(--ink2);font-style:italic;font-size:inherit}.sv.bad{color:var(--orange);font-style:normal;font-weight:500}
+.qerr{color:var(--orange)!important}
+/* Receipt (Gasto / Compra): receipt look on paper, dashed separators, square-ish corners */
+.rcpt{background:var(--paper);border:1px solid var(--hair);border-radius:4px;padding:4px 16px 16px;margin:0 0 16px}
+.rl{padding:12px 0;display:grid;gap:8px}
+.rl+.rl{border-top:1px dashed var(--neutral)}
 .rsel{display:flex;align-items:center;gap:4px}
-.cSel{flex:1;min-width:0;height:44px;border:0;border-radius:10px;background:var(--fill);color:var(--ink);font:inherit;font-size:17px;font-weight:600;padding:0 10px}
-.cSel:focus-visible{outline:3px solid var(--lagoon);outline-offset:2px}
-.rrm{background:none;border:0;color:var(--ink2);font-size:18px;width:44px;height:44px;cursor:pointer;flex:none}
-.rrow,.rsum{display:flex;align-items:baseline;gap:6px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
-.rrow{font-size:14px;color:var(--ink)}
-.rdots{flex:1;min-width:12px;border-bottom:2px dotted var(--sep);transform:translateY(-3px)}
+.cSel{flex:1;min-width:0;height:44px;border:0;border-radius:10px;background:var(--fill);color:var(--ink);font:inherit;font-weight:500;padding:0 12px}
+.cSel:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.rrm{background:none;border:0;color:var(--ink2);width:44px;height:44px;cursor:pointer;flex:none;display:grid;place-items:center}
+.rrm svg{width:18px;height:18px}
+.rrow,.rsum{display:flex;align-items:baseline;gap:8px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+.rrow{color:var(--ink)}
+.rdots{flex:1;min-width:12px;border-bottom:2px dotted var(--neutral);transform:translateY(-3px)}
 .rrow .rm,.rsum #sTot{text-align:right;white-space:nowrap}
-.rsum{justify-content:space-between;border-top:2px dashed var(--sep);margin-top:6px;padding-top:12px;font-size:19px;font-weight:700}
-.addp{background:none;border:0;font:inherit;font-size:15px;color:var(--lagoon);min-height:44px;padding:0;text-align:left;cursor:pointer;border-top:1px dashed var(--sep);width:100%}
-.addp:focus-visible{outline:3px solid var(--lagoon);outline-offset:2px}
-/* Reporte de stock */
-.srr{padding:12px 16px;position:relative}
-.srr+.srr::before{content:"";position:absolute;top:0;left:16px;right:0;border-top:1px solid var(--sep)}
+.rsum{justify-content:space-between;border-top:2px dashed var(--neutral);margin-top:8px;padding-top:12px;font-size:16px;font-weight:500}
+.addp{background:none;border:0;font:inherit;font-weight:500;color:var(--acc);min-height:44px;padding:0;text-align:left;cursor:pointer;border-top:1px dashed var(--neutral);width:100%}
+.addp:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+/* Stock report */
+.srr{padding:12px var(--px);position:relative}
 .srh{display:flex;align-items:center;gap:12px;margin-bottom:8px}
-.srh .t{flex:1;min-width:0;font-size:17px;font-weight:600}.srh .v{font-variant-numeric:tabular-nums;color:var(--ink2);font-weight:600}
-.srg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 6px;font-variant-numeric:tabular-nums;font-size:16px}
-.srg small{display:block;font-size:12px;color:var(--ink2)}
-.srg .fin{font-weight:700}
+.srh .t{flex:1;min-width:0;font-weight:500}.srh .v{font-variant-numeric:tabular-nums;color:var(--ink2);font-weight:500}
+.srg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 4px;font-variant-numeric:tabular-nums;font-size:14px}
+.srg small{display:block;font-size:12px;color:var(--ink3)}
+.srg .fin{font-weight:500}
+/* Ajustes */
+.setrow{display:grid;gap:8px;padding:12px var(--px)}
+.setrow .t{font-size:16px}
 </style>
 </head>
 <body>
@@ -440,7 +424,7 @@ a.fhl:focus-visible{outline:3px solid var(--lagoon);outline-offset:-2px;border-r
 <div id="pickRoot"></div>
 <div class="toast" id="toast" hidden role="status" aria-live="polite"><span id="toastText"></span></div>
 <div class="boot" id="boot"><div>Cargando…</div></div>
-<div class="pinwrap" id="pin" hidden><div class="pinbox"><div class="logo">⛵</div><h1>Adventure Lab Ops</h1><p class="lede" id="pMsg" role="status">Ingresa tu PIN</p>
+<div class="pinwrap" id="pin" hidden><div class="pinbox"><div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M12 4.5l6 9.5h-6"/><path d="M12 8L7 14h5"/><path d="M4 17.5h16l-2.2 3.2H6.2z"/></svg></div><h1>Adventure Lab Ops</h1><p class="lede" id="pMsg" role="status">Ingresa tu PIN</p>
 <div class="pdots" id="pDots" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
 <div class="keys" role="group" aria-label="Teclado numérico"><button type="button" data-pk="1">1</button><button type="button" data-pk="2">2</button><button type="button" data-pk="3">3</button><button type="button" data-pk="4">4</button><button type="button" data-pk="5">5</button><button type="button" data-pk="6">6</button><button type="button" data-pk="7">7</button><button type="button" data-pk="8">8</button><button type="button" data-pk="9">9</button><span></span><button type="button" data-pk="0">0</button><button type="button" class="ghost" data-pk="del" aria-label="Borrar">⌫</button></div></div></div>
 <script>
@@ -462,13 +446,12 @@ let TODAY='',NOW='';
 const PERMS=[['compras','Agregar compras'],['revisar','Marcar revisado'],['pagar','Pagar eventuales'],['inventario','Inventario completo'],['ajuste','Ajustar inventario'],['editar','Editar o anular compras'],['config','Configuración (productos, tarifas y permisos)']];
 const ROLES=[['admin','Admin'],['op','Operación']];
 const REASONS=['Merma','Pérdida','Rotura','Error de conteo','Otro'];
-const GI={'Bebidas':'🥤','Combustible':'⛽','Consumo directo':'🧊','Comida empleado':'🍽️'};
 const TYPES=[['ponton','Pontón'],['catamaran','Catamarán'],['monocasco','Monocasco'],['hobie','Hobie'],['sup','Paddle (SUP)'],['kayak','Kayak'],['otro','Otro']];
 const RB={'Capitán':'Cap.','Marinero':'Mar.','Instructor':'Inst.','Auxiliar':'Aux.','Guía':'Guía'};
 const rb=r=>RB[r]||(r.length>5?r.slice(0,4)+'.':r);
 const S={role:'op',realRole:'op',user:'',date:'',wk:'',
   perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},pend:[],salud:[],rebuildPending:false,fhOk:true,offline:false,dataAt:0,
-  win:{from:'',to:''},fetchedAt:'',q:'',filter:'todas',fopen:false};
+  win:{from:'',to:''},fetchedAt:'',q:'',filter:'todas',fopen:false,config:{semana_inicio:'jueves'}};
 let PIN='';
 
 // ===== Servidor =====
@@ -501,7 +484,7 @@ function flushRender(){if(pendingRender)softRender()}
 let lastLoad=Date.now(),finBusy=false,finLast=0;
 function applyData(d,at){lastLoad=Date.now();S.dataAt=at||Date.now();S.fhOk=d.fhOk!==false;
   ['items','purchases','moves','priceLog','deps','rates','paid','weekly','externos','control','tours','comidas','fh','pend','salud','rebuildPending'].forEach(k=>{S[k]=d[k]});
-  S.pend=d.pend||[];S.salud=d.salud||[];S.rebuildPending=!!d.rebuildPending;
+  S.pend=d.pend||[];S.salud=d.salud||[];S.config=Object.assign({semana_inicio:'jueves'},d.config||{});S.rebuildPending=!!d.rebuildPending;
   S.perms=d.perms;S.realRole=d.user.rol;S.user=d.user.nombre;
   if(S.realRole!=='admin'||!S.date)S.role=S.realRole;
   TODAY=d.today;NOW=d.now;S.clk={today:d.today,now:d.now,at:Date.now()};S.fetchedAt=d.now;S.win={from:d.desde,to:d.hasta};
@@ -640,8 +623,24 @@ const IC={
  refresh:'<path d="M20 11a8 8 0 10-2.3 5.7"/><path d="M20 5v6h-6"/>',
  checkin:'<circle cx="9" cy="8" r="3.2"/><path d="M3.5 19.5c.5-3.4 2.7-5 5.5-5 1.5 0 2.7.4 3.7 1.2"/><path d="M14.5 17.5l2.2 2.2 4.3-4.7"/>',
  note:'<path d="M6 3.5h8.5L19 8v12.5H6z"/><path d="M14.5 3.5V8H19M9 12.5h7M9 16h5"/>',
- phone:'<path d="M6.5 3.5h3l1.5 4-2 1.5a11 11 0 006 6l1.5-2 4 1.5v3a2 2 0 01-2.2 2A15.5 15.5 0 014.5 5.7 2 2 0 016.5 3.5z"/>'};
+ phone:'<path d="M6.5 3.5h3l1.5 4-2 1.5a11 11 0 006 6l1.5-2 4 1.5v3a2 2 0 01-2.2 2A15.5 15.5 0 014.5 5.7 2 2 0 016.5 3.5z"/>',
+ plus:'<path d="M12 5v14M5 12h14"/>',
+ dots:'<circle cx="5.5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18.5" cy="12" r="1.2"/>',
+ left:'<path d="M15 5l-7 7 7 7"/>',
+ right:'<path d="M9 5l7 7-7 7"/>',
+ x:'<path d="M6 6l12 12M18 6L6 18"/>',
+ lock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/>',
+ link:'<path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"/>',
+ shield:'<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/>',
+ camera:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+ pencil:'<path d="M4 20l1-4L16.5 4.5a2 2 0 013 3L8 19z"/>',
+ ban:'<circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/>',
+ inbox:'<path d="M4 13l2.5-7h11L20 13v6H4z"/><path d="M4 13h5l1 2h4l1-2h5"/>',
+ logout:'<path d="M10 4H6a2 2 0 00-2 2v12a2 2 0 002 2h4"/><path d="M15 8l4 4-4 4M19 12H9"/>',
+ okc:'<circle cx="12" cy="12" r="8.5"/><path d="M8 12.5l3 3 5-6"/>',
+ boat:'<path d="M12 3v12"/><path d="M12 4.5l6 9.5h-6"/><path d="M12 8L7 14h5"/><path d="M4 17.5h16l-2.2 3.2H6.2z"/>'};
 const svgI=(k,sz)=>`<svg class="gi" viewBox="0 0 24 24" width="${sz||16}" height="${sz||16}" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg>`;
+const WI=svgI('alert',14).replace('class="gi"','class="wi"');   // aviso inline (sin emoji)
 const gh=(k,t)=>`<div class="ghead gh">${svgI(k)}<span>${t}</span></div>`;   // encabezado de sección: ícono (mismo color que el texto) + palabra
 const chev='<svg class="chev" viewBox="0 0 8 13"><path d="M1 1l6 5.5L1 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
 const cap=s=>s?s.charAt(0).toUpperCase()+s.slice(1):s;
@@ -660,7 +659,9 @@ const MONTHS=['enero','febrero','marzo','abril','mayo','junio','julio','agosto',
 const p2=n=>String(n).padStart(2,'0');
 const pd=d=>new Date(d+'T12:00:00');
 const addD=(d,n)=>{const x=pd(d);x.setDate(x.getDate()+n);return x.getFullYear()+'-'+p2(x.getMonth()+1)+'-'+p2(x.getDate())};
-const wkStart=d=>addD(d,-((pd(d).getDay()-4+7)%7));
+const wkStart=d=>addD(d,-((pd(d).getDay()-4+7)%7));   // semana de pago de eventuales: SIEMPRE jueves → miércoles
+// Semana de los reportes de stock: según el ajuste «Inicio de semana» (jueves por defecto o lunes)
+const weekStartOf=(d,inicio)=>addD(d,-((pd(d).getDay()-(inicio==='lunes'?1:4)+7)%7));
 // Fechas: "dom. 15/nov 2026" (un solo formato en toda la app). noYear → "dom. 15/nov"
 const fdate=(d,noYear)=>{const x=pd(d);return WD3[x.getDay()]+' '+x.getDate()+'/'+MON[x.getMonth()]+(noYear?'':' '+x.getFullYear())};
 const fd=d=>fdate(d),sd=fd,short=fd,dayName=fd;
@@ -715,7 +716,7 @@ const fhAvailUrl=(itemPk,avPk,date)=>FH_DASH+'bookings/grid/'+encodeURIComponent
 const fhBookUrl=(url,date)=>!url?'':(date?String(url).replace(/\/dashboard\/\?overlay=/,'/dashboard/bookings/grid/'+date+'/?overlay='):String(url));
 // <a> que abre en pestaña nueva. text vacío → solo la flecha ↗. gray = enlace de reserva (no hay link del booking, se usa el de la disponibilidad)
 const fhA=(url,text,{gray,label}={})=>`<a class="fhl${gray?' gray':''}" href="${esc(url)}" target="_blank" rel="noopener"${label?` aria-label="${esc(label)}"`:''}>${text?esc(text)+' ':''}<span aria-hidden="true">↗</span></a>`;
-// Avisos de una salida (para el contador ⚠️ de la tarjeta): avisos del servidor + tripulación sin rol + alertas de pago
+// Avisos de una salida (para el contador de avisos de la fila): avisos del servidor + tripulación sin rol + alertas de pago
 const isRenta=d=>String((d&&d.tipo)||'').toLowerCase().trim()==='renta';
 // "Sin recurso": salida con reservas activas de clientes y ningún recurso (se calcula aquí también, así no espera al recálculo del servidor)
 const noRes=d=>!!(((d&&d.bookings)||[]).length&&!((d&&d.res)||[]).length);
@@ -868,7 +869,7 @@ function dayState(date){
 function faltan(){
   const out=[];
   S.deps.filter(d=>d.date<=TODAY).forEach(d=>{const st=status(d);
-    if(st==='none')out.push({d,t:'❌ Sin bitácora'});else if(st==='sal')out.push({d,t:'⚠️ Falta regreso'});else if(st==='fsal')out.push({d,t:'⚠️ Falta salida'});else if((st==='ok'||st==='na')&&!d.rev)out.push({d,t:'Por revisar'})});
+    if(st==='none')out.push({d,t:'Sin bitácora'});else if(st==='sal')out.push({d,t:'Falta regreso'});else if(st==='fsal')out.push({d,t:'Falta salida'});else if((st==='ok'||st==='na')&&!d.rev)out.push({d,t:'Por revisar'})});
   return out.sort((a,b)=>(a.d.date+a.d.time)<(b.d.date+b.d.time)?1:-1);
 }
 function weekPeople(ws){
@@ -906,8 +907,9 @@ $('tabs').innerHTML=TABS.map(([k,l,ic])=>`<button class="tab" data-tab="${k}"><s
 const PLUS=pre=>can('compras')&&{k:'compra',l:'Gasto / Compra',s:'+',pre};
 const DOTS=pre=>menuOk()&&{k:'menu',l:'Más acciones',s:'⋯',pre};
 function topBar(title,{back,backTo,backView,acts=[],lede}={}){
-  const a=acts.filter(Boolean).map(x=>`<button class="act${x.s.length>2?' txt':''}" data-act="${x.k}" data-pre="${x.pre||''}" aria-label="${x.l}">${x.s}</button>`).join('');
-  const nav=(back||a)?`<div class="nav">${back?`<button class="back" data-back="${backTo||''}" ${backView?`data-backview="${backView}"`:''}>‹ ${esc(back)}</button>`:'<span></span>'}<span class="acts">${a}</span></div>`:'';
+  const AI={'+':'plus','⋯':'dots'};
+  const a=acts.filter(Boolean).map(x=>`<button class="act${x.s.length>2?' txt':''}" data-act="${x.k}" data-pre="${x.pre||''}" aria-label="${x.l}">${AI[x.s]?svgI(AI[x.s],20):x.s}</button>`).join('');
+  const nav=(back||a)?`<div class="nav">${back?`<button class="back" data-back="${backTo||''}" ${backView?`data-backview="${backView}"`:''}>${svgI('left',18)}${esc(back)}</button>`:'<span></span>'}<span class="acts">${a}</span></div>`:'';
   return nav+`<h1>${esc(title)}</h1>${lede?`<p class="lede">${lede}</p>`:''}`;
 }
 function roleBar(){const adm=S.realRole==='admin';return `<div class="rolebar">${adm?`<div class="seg" role="group" aria-label="Viendo como">${ROLES.map(([k,l])=>`<button type="button" data-rolesw="${k}" aria-pressed="${S.role===k}">${l}</button>`).join('')}</div>`:`<span>Hola, ${esc(S.user)}</span>`}${statusHtml()}</div>`}
@@ -964,7 +966,7 @@ function saludBox(){
 }
 function saludRows(){
   const l=saludList();
-  return l.map(a=>`<div class="cell w-orange"><span class="main"><span class="s" style="margin:0">⚠️ ${esc(fixDates(a.texto))}</span></span></div>`).join('')||'<div class="cell"><span class="main t" style="color:var(--green)">✅ Todo en orden</span></div>';
+  return l.map(a=>`<div class="cell w-orange"><span class="main"><span class="s" style="margin:0">${WI}${esc(fixDates(a.texto))}</span></span></div>`).join('')||`<div class="cell"><span class="main t okc">${svgI('okc',18).replace('class="gi"','class="wi"')}Todo en orden</span></div>`;
 }
 function pendLabel(p){
   const a=p.actual||{},f=(arr,k)=>(arr.find(x=>x[0]===k)||['',k||''])[1];
@@ -980,32 +982,36 @@ function pendRow(p,i){
 // ===== Screens =====
 const V={
 op(){
-  const date=S.date,ds=depsOn(date),fut=date>TODAY;
-  let h=`<div class="oprow"><h1>Operación</h1>${can('compras')?'<button class="gbtn" data-act="compra" data-pre="">+ Gasto / Compra</button>':''}</div>`+saludBox()+`<div class="daterow"><button class="nx" data-day="-1" aria-label="Día anterior">‹</button><button class="dt" data-cal aria-label="Abrir calendario">${fd(date)}&nbsp;&nbsp;<span style="color:var(--lagoon);vertical-align:-2px">${svgI('cal',18)}</span></button><button class="nx" data-day="1" aria-label="Día siguiente">›</button><button class="fbtn${S.filter!=='todas'?' on':''}" data-fopen aria-label="Filtrar salidas" aria-expanded="${S.fopen}">${svgI('filter',22)}${S.filter!=='todas'?'<i class="fdot"></i>':''}</button></div>${S.fopen?`<div class="chips fchips" role="group" aria-label="Filtro de salidas">${DEP_FILTERS.map(f=>`<button type="button" class="chip" data-filter="${f.key}" aria-pressed="${S.filter===f.key}">${f.label}</button>`).join('')}</div>`:''}${S.filter!=='todas'?`<div class="fline">Filtro: <b>${esc(depFilter(S.filter).label)}</b> · <button type="button" class="link" data-filter="todas">quitar</button></div>`:''}${date!==TODAY?'<div class="todayrow"><button class="sbtn" data-today>Hoy</button></div>':''}`;
+  const date=S.date,ds=depsOn(date),fut=date>TODAY,fOn=S.filter!=='todas';
+  let h=`<div class="dnav"><button class="nx" data-day="-1" aria-label="Día anterior">${svgI('left',18)}</button><button class="dt" data-cal aria-label="Abrir calendario">${fd(date)}${svgI('cal',18)}</button><button class="nx" data-day="1" aria-label="Día siguiente">${svgI('right',18)}</button><span class="sp"></span>${date!==TODAY?'<button class="hoy" data-today>Hoy</button>':''}<button class="fbtn${fOn?' on':''}" data-fopen aria-label="Filtrar salidas" aria-expanded="${S.fopen}">${svgI('filter',20)}${fOn?'<i class="fdot"></i>':''}</button></div>
+  <div class="ttl"><h1>Operación</h1>${can('compras')?'<button class="tlink" data-act="compra" data-pre="" aria-label="Agregar gasto o compra">+ Gasto</button>':''}</div>`+saludBox()+(S.fopen?`<div class="chips fchips" role="group" aria-label="Filtro de salidas">${DEP_FILTERS.map(f=>`<button type="button" class="chip" data-filter="${f.key}" aria-pressed="${S.filter===f.key}">${f.label}</button>`).join('')}</div>`:'')+(fOn?`<div class="fline">Filtro: <b>${esc(depFilter(S.filter).label)}</b> · <button type="button" class="link" data-filter="todas">quitar</button></div>`:'');
   if(!ds.length)return h+`<div class="group"><div class="list"><div class="empty">${S.loadingRange?'Cargando…':'Sin salidas este día.'}${!S.loadingRange&&pd(date).getDay()===3?' Los miércoles no hay tours.':''}</div></div></div>`;
-  // Resumen del día: una línea (Tours │ Rentas │ ⚠️ N) y una segunda (Check-in · ✓ revisadas). Solo cuenta salidas con reservas activas.
+  // Resumen del día: un grupo plano. Todo se cuenta SOLO sobre salidas con reservas activas.
   const sm=daySummary(ds,nowKey(),TODAY,date),dact=ds.filter(hasBk);
-  const ci2=sm.ci?`<span class="dci"><b>Check-in:</b> <span class="ci s-${sm.ci.st}">${sm.ci.in}/${sm.ci.n}</span>${sm.ci.ns?` <span class="ci s-bad">· ${sm.ci.ns} no show</span>`:''}</span>`:'';
-  const rv2=sm.rev?`<button type="button" class="drev${sm.rev.n===sm.rev.tot?' ok':''}" data-filter="revisar" aria-label="${sm.rev.n} de ${sm.rev.tot} salidas revisadas. Ver las que faltan">✓ ${sm.rev.n}/${sm.rev.tot} revisadas</button>`:'';
-  const dsum=`<div class="dsum"><span><b>Tours:</b> ${sm.t.n} · ${sm.t.pax} pax</span><span class="sp" aria-hidden="true">│</span><span><b>Rentas:</b> ${sm.r.n} · ${sm.r.pax} pax</span>${sm.warn?`<span class="sp" aria-hidden="true">│</span><button type="button" class="dwarn" data-filter="avisos" aria-label="${sm.warn} ${sm.warn===1?'advertencia':'advertencias'}. Ver salidas con advertencias">⚠️ ${sm.warn}</button>`:''}</div>${ci2||rv2?`<div class="dsum d2">${ci2}${rv2}</div>`:''}`;
-  if(fut)h+=`<section class="today"><div class="state">Todavía no hay costos ni ingreso neto</div><div class="head" style="margin-bottom:6px">${personasTxt(dact.reduce((a,d)=>a+paxOf(d),0))} reservados</div>${money2(dact.reduce((a,d)=>a+(d.gross||0),0),undefined,false,true)}${dsum}</section>`;
+  let r1;
+  if(fut)r1=`<div class="c"><div class="k">Reservado</div><div class="bigv g">${fmt(dact.reduce((a,d)=>a+(d.gross||0),0))}</div><div class="sub">aún sin neto ni costos</div></div><div class="c"><div class="k">Personas</div><div class="bigv">${dact.reduce((a,d)=>a+paxOf(d),0)}</div><div class="sub">reservadas</div></div>`;
   else{
-    let netSum=0,netMiss=0,costSum=0,a=0,b=0,both=0,costMiss=0,est=false,grossSum=0;
-    dact.forEach(d=>{grossSum+=d.gross||0;const n=netOf(d),c=cost(d);if(n===null)netMiss++;else{netSum+=n;if(d.netSource==='estimado')est=true}if(c)costSum+=c.tot;else if(status(d)!=='prog')costMiss++;if(n!==null&&n>0&&c){a+=c.tot;b+=n;both++}});
+    let netSum=0,netMiss=0,costSum=0,a=0,b=0,costMiss=0,est=false,grossSum=0;
+    dact.forEach(d=>{grossSum+=d.gross||0;const n=netOf(d),c=cost(d);if(n===null)netMiss++;else{netSum+=n;if(d.netSource==='estimado')est=true}if(c)costSum+=c.tot;else if(status(d)!=='prog')costMiss++;if(n!==null&&n>0&&c){a+=c.tot;b+=n}});
     const pct=b?Math.round(a/b*100):null;
-    h+=`<section class="today"><div class="kpis">
-      <div class="kpi"><div class="k">Ingreso</div>${money2(grossSum,netMiss?null:netSum,est,true)}${netMiss&&netSum?`<div class="sub">neto parcial ${fmt(netSum)}</div>`:''}</div>
-      <div class="kpi"><div class="k">Costo</div><div class="n">${fmt(costSum)}</div>${costMiss?'<div class="sub">Parcial</div>':''}</div>
-      <div class="kpi"><div class="k">Costo %</div><div class="n">${pct===null?'—':pct+'%'}</div></div></div>
-      ${netMiss||costMiss?`<div class="fn">${netMiss?`Neto pendiente en ${netMiss} ${netMiss===1?'salida':'salidas'}. El Costo % se calcula sobre el neto, solo con las ${both} que ya tienen neto y bitácora completa.`:''}${costMiss?` El costo suma solo salidas con bitácora completa.`:''}</div>`:''}
-      ${dsum}</section>`;
+    r1=`<div class="c"><div class="k">Ingreso</div><div class="bigv g">${fmt(grossSum)}</div><div class="sub${netMiss&&!netSum?' pend':''}">${netMiss?(netSum?'neto parcial '+fmt(netSum):'neto pendiente'):'neto '+fmt(netSum)+(est?' est.':'')}</div></div>
+      <div class="c"><div class="k">Costo${costMiss?' · parcial':''}</div><div class="bigv">${fmt(costSum)}</div><div class="sub">${pct===null?'—':pct+' % del neto'}</div></div>`;
   }
+  const r2=`<div class="c cnt"><b>Tours</b> ${sm.t.n} · ${sm.t.pax} pax</div><div class="c cnt"><b>Rentas</b> ${sm.r.n} · ${sm.r.pax} pax</div>`;
+  const BD={ok:'ok',warn:'wr',bad:'late',mute:'mut'};
+  const left=sm.ci?`<span class="dci"><i class="bdot ${BD[sm.ci.st]||'mut'}"></i><span class="k">Check-in</span><span class="ci s-${sm.ci.st}">${sm.ci.in}/${sm.ci.n}</span>${sm.ci.ns?`<span class="ci s-bad">· ${sm.ci.ns} no show</span>`:''}</span>`:'<span></span>';
+  const right=sm.warn?`<button type="button" class="tap dwarn" data-filter="avisos" aria-label="${sm.warn} ${sm.warn===1?'aviso':'avisos'}. Ver salidas con advertencias">${svgI('alert',16)}${sm.warn} ${sm.warn===1?'aviso':'avisos'}${svgI('right',14)}</button>`:'<span></span>';
+  const r3=(sm.ci||sm.warn)?`<div class="r f">${left}${right}</div>`:'';
+  let r4='';
+  if(sm.rev){const pend=sm.rev.tot-sm.rev.n;
+    r4=`<div class="r f"><span class="${pend?'':'ok'}" style="display:inline-flex;align-items:center;gap:8px;min-height:44px">${svgI('check',16)}${sm.rev.n}/${sm.rev.tot} revisadas</span>${pend?`<button type="button" class="tap drev" data-filter="revisar" aria-label="${pend} por revisar. Ver las que faltan">${pend} por revisar${svgI('right',14)}</button>`:'<span class="ok">Todo revisado</span>'}</div>`}
+  h+=`<div class="dsum"><div class="r">${r1}</div><div class="r">${r2}</div>${r3}${r4}</div>`;
   const f=depFilter(S.filter),list=ds.filter(d=>f.test(d,{today:TODAY,nowKey:nowKey()}));
   if(!list.length)return h+`<div class="group"><div class="list"><div class="empty">Ninguna salida con este filtro.</div></div></div>`;
   const SEC=[['done','Terminadas'],['live','En curso'],['next','Próximas']],by={done:[],live:[],next:[]};
   list.forEach(d=>by[depSection(d,TODAY,NOW)].push(d));
   const used=SEC.filter(x=>by[x[0]].length);
-  return h+used.map(([k,l])=>(used.length>1?`<div class="sech ${k}"><span>${l}</span></div>`:'')+by[k].map(d=>depCard(d,k)).join('')).join('');
+  return h+used.map(([k,l])=>`<section class="sec">${used.length>1?`<div class="sech ${k}">${l}</div>`:''}<div class="list${k==='done'?' fin':''}">${by[k].map(d=>depCard(d,k)).join('')}</div></section>`).join('');
 },
 dep(id){
   const d=S.deps.find(x=>x.id===id);
@@ -1023,7 +1029,7 @@ dep(id){
   h+=`<div class="group">${gh('resources','Resources')}<div class="list">${(d.res||[]).map(r=>`<div class="cell c"><span class="main t">${esc(r.name)}</span><span class="v">${num(r.n)}</span></div>`).join('')||'<div class="empty">Sin resources asignados.</div>'}</div></div>`;
   h+=bitSection(d,fut);
   h+=`<div class="group">${gh('crew','Crew')}<div class="list">${d.crew.map(x=>{const p=payLine(d,x);
-    return `<div class="cell"><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${x.ext?'<span class="rb">Ext.</span>Externo'+(x.note?' · '+esc(x.note):''):x.r?`<span class="rb">${esc(rb(x.r))}</span>${esc(x.r)}`:'⚠️ Falta rol'}${p.hx?` · hora extra ${fmt(p.hx)}`:''}</div>${!x.ext&&x.nt?`<div class="sn">${esc(x.nt)}</div>`:''}${x.alert?`<div class="s" style="color:var(--orange)">⚠️ ${esc(x.alert)}</div>`:''}</span>${x.ext?(x.monto?`<span class="v">${fmt(x.monto)}</span>`:''):!x.r?'':`<span class="v">${fmt(p.tot)}</span>`}</div>`}).join('')||'<div class="empty">Sin tripulación asignada.</div>'}${miss.length?`<div class="cell"><span class="main"><span class="t" style="color:var(--orange)">⚠️ Falta rol en FareHarbor</span></span></div>`:''}</div>
+    return `<div class="cell"><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${x.ext?'<span class="rb">Ext.</span>Externo'+(x.note?' · '+esc(x.note):''):x.r?`<span class="rb">${esc(rb(x.r))}</span>${esc(x.r)}`:WI+'Falta rol'}${p.hx?` · hora extra ${fmt(p.hx)}`:''}</div>${!x.ext&&x.nt?`<div class="sn">${esc(x.nt)}</div>`:''}${x.alert?`<div class="s" style="color:var(--orange)">${WI}${esc(x.alert)}</div>`:''}</span>${x.ext?(x.monto?`<span class="v">${fmt(x.monto)}</span>`:''):!x.r?'':`<span class="v">${fmt(p.tot)}</span>`}</div>`}).join('')||'<div class="empty">Sin tripulación asignada.</div>'}${miss.length?`<div class="cell"><span class="main"><span class="t" style="color:var(--orange)">${WI}Falta rol en FareHarbor</span></span></div>`:''}</div>
 </div>`;
   if(c)h+=`<div class="group">${gh('costos','Costos')}<div class="list">
     <div class="cell"><span class="main t">Bebidas</span><span class="v">${fmt(c.b)}</span></div>
@@ -1032,14 +1038,14 @@ dep(id){
     ${c.f?`<div class="cell"><span class="main t">Fruta</span><span class="v">${fmt(c.f)}</span></div>`:''}${c.des?`<div class="cell"><span class="main t">Desayuno</span><span class="v">${fmt(c.des)}</span></div>`:''}
     <div class="cell"><span class="main t">Eventuales</span><span class="v">${fmt(c.ev)}</span></div>
     ${caRows(d)}
-    <div class="cell"><span class="main t"><b>Costo total</b></span><span class="big" style="font-size:17px">${fmt(c.tot)}</span></div>
+    <div class="cell"><span class="main t"><b>Costo total</b></span><span class="big">${fmt(c.tot)}</span></div>
     <div class="cell"><span class="main t">Ingreso</span><span class="v">${money2(d.gross,n,est)}</span></div>
     <div class="cell"><span class="main t">Costo %</span><span class="v">${n?Math.round(c.tot/n*100)+'%':'—'}</span></div></div></div>`;
   else if(caHas(d))h+=`<div class="group">${gh('costos','Costos')}<div class="list">${caRows(d)}</div></div>`;
   else if(!fut)h+=`<div class="group">${gh('costos','Costos')}<div class="list"><div class="empty">El costo se calcula cuando la bitácora tiene salida y regreso.</div></div></div>`;
   if(!fut){
-    if(d.rev)h+=`<div class="group"><div class="list"><div class="cell"><span class="main t" style="color:var(--green)">✅ Revisado · ${esc(d.rev.by)} ${esc(revAt(d.rev))}${d.rev.pend?` <span class="sv${d.rev.pf?' bad':''}">${d.rev.pend}</span>`:''}</span></div></div></div>`;
-    else if(okish(d)&&!miss.length&&can('revisar'))h+=`<div class="stack" style="margin-bottom:26px"><button class="btn" data-rev="${d.id}">Marcar revisado</button></div>`;
+    if(d.rev)h+=`<div class="group"><div class="list"><div class="cell"><span class="main t okc">${svgI('okc',18).replace('class="gi"','class="wi"')}Revisado · ${esc(d.rev.by)} ${esc(revAt(d.rev))}${d.rev.pend?` <span class="sv${d.rev.pf?' bad':''}">${d.rev.pend}</span>`:''}</span></div></div></div>`;
+    else if(okish(d)&&!miss.length&&can('revisar'))h+=`<div class="stack"><button class="btn" data-rev="${d.id}">Marcar revisado</button></div>`;
     else h+=`<div class="group"><div class="list"><div class="cell"><span class="main t mut">${!okish(d)?'Revisión pendiente: falta bitácora':miss.length?'Revisión pendiente: falta asignar rol':'Por revisar'}</span></div></div></div>`;
   }
   return h;
@@ -1051,8 +1057,8 @@ ev(){
   <div class="live" style="margin-top:2px">Pago: ${short(addD(ws,7))}</div>`;
   if(!ps.length&&!ext.length)return h+`<div class="group"><div class="list"><div class="empty">Sin salidas en esta semana.</div></div></div>`;
   if(ps.length)h+=`<section class="today"><div class="kpis" style="grid-template-columns:1.4fr 1fr 1fr"><div class="kpi"><div class="k">Total a pagar</div><div class="n">${fmt(tot)}</div></div><div class="kpi"><div class="k">Personas</div><div class="n">${ps.length}</div></div><div class="kpi"><div class="k">Pagados</div><div class="n">${paid}</div></div></div></section>
-  <div class="group"><div class="list">${ps.map(p=>{const pg=S.paid[ws+'|'+p.n];return `<button class="cell" data-person="${esc(p.n)}"><span class="main"><span class="t">${esc(p.n)}</span><div class="s">${[...p.roles].join(', ')||'Sin rol'} · ${p.lines.length} ${p.lines.length===1?'salida':'salidas'}${p.hx?` · ${p.hx} h extra`:''}</div>${p.miss?'<div class="s" style="color:var(--orange)">⚠️ Falta rol en una salida</div>':''}${p.rate?'<div class="s" style="color:var(--orange)">⚠️ Tarifa pendiente o sin tarifa</div>':''}</span><span class="v" style="text-align:right">${fmt(p.tot)}${pg?'<div class="s" style="color:var(--green)">Pagado</div>':''}</span>${chev}</button>`}).join('')}</div></div>`;
-  if(ext.length)h+=`<div class="group">${gh('crew','Externos (se pagan aparte)')}<div class="list">${ext.map(x=>`<div class="cell"><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${sd(x.d)} · ${esc(x.time)} · ${esc(x.item)}</div>${x.note?`<div class="s">Se debe a: ${esc(x.note)}</div>`:`<div class="s" style="color:var(--orange)">⚠️ Falta nota: ¿a quién se debe?</div>`}${extAlerts(x).map(a=>`<div class="s" style="color:var(--orange)">⚠️ ${esc(a)}</div>`).join('')}</span>${x.monto?`<span class="v">${fmt(x.monto)}</span>`:''}</div>`).join('')}</div></div>`;
+  <div class="group"><div class="list">${ps.map(p=>{const pg=S.paid[ws+'|'+p.n];return `<button class="cell" data-person="${esc(p.n)}"><span class="main"><span class="t">${esc(p.n)}</span><div class="s">${[...p.roles].join(', ')||'Sin rol'} · ${p.lines.length} ${p.lines.length===1?'salida':'salidas'}${p.hx?` · ${p.hx} h extra`:''}</div>${p.miss?`<div class="s" style="color:var(--orange)">${WI}Falta rol en una salida</div>`:''}${p.rate?`<div class="s" style="color:var(--orange)">${WI}Tarifa pendiente o sin tarifa</div>`:''}</span><span class="v" style="text-align:right">${fmt(p.tot)}${pg?'<div class="s" style="color:var(--green)">Pagado</div>':''}</span>${chev}</button>`}).join('')}</div></div>`;
+  if(ext.length)h+=`<div class="group">${gh('crew','Externos (se pagan aparte)')}<div class="list">${ext.map(x=>`<div class="cell"><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${sd(x.d)} · ${esc(x.time)} · ${esc(x.item)}</div>${x.note?`<div class="s">Se debe a: ${esc(x.note)}</div>`:`<div class="s" style="color:var(--orange)">${WI}Falta nota: ¿a quién se debe?</div>`}${extAlerts(x).map(a=>`<div class="s" style="color:var(--orange)">${WI}${esc(a)}</div>`).join('')}</span>${x.monto?`<span class="v">${fmt(x.monto)}</span>`:''}</div>`).join('')}</div></div>`;
   return h;
 },
 person(name){
@@ -1060,10 +1066,10 @@ person(name){
   if(!p)return topBar(name,{back:'Eventuales',backTo:'ev'})+'<div class="empty">Sin salidas.</div>';
   const pg=S.paid[ws+'|'+name];
   let h=topBar(name,{back:'Eventuales',backTo:'ev',lede:wkLabel(ws)})+`<div class="hero"><div class="n">${fmt(p.tot)}</div><div class="u">${p.lines.length} ${p.lines.length===1?'salida':'salidas'}${p.hx?` · ${p.hx} h extra`:''}</div></div>
-  <div class="group"><div class="list">${p.lines.sort((a,b)=>(a.d.date+a.d.time)<(b.d.date+b.d.time)?-1:1).map(l=>`<div class="cell"><span class="main"><span class="t">${sd(l.d.date)} · ${l.d.time}</span><div class="s">${esc(l.d.item)}</div><div class="s">${l.c.r?`${esc(l.c.r)} · tarifa ${fmt(l.pl.base)}`:'⚠️ Falta rol'}${l.pl.hx?` · hora extra ${fmt(l.pl.hx)}`:''}</div>${l.c.alert?`<div class="s" style="color:var(--orange)">⚠️ ${esc(l.c.alert)}</div>`:''}</span><span class="v">${fmt(l.pl.tot)}</span></div>`).join('')}
-    <div class="cell"><span class="main t"><b>Total</b></span><span class="big" style="font-size:17px">${fmt(p.tot)}</span></div></div></div>`;
-  if(pg){const pp=(S.paidPend||{})[ws+'|'+name];h+=`<div class="group"><div class="list"><div class="cell"><span class="main t" style="color:var(--green)">✅ Pagado · ${short(pg)}${pp?` <span class="sv${pp.pf?' bad':''}">${pp.pend}</span>`:''}</span></div></div></div>`}
-  else if(can('pagar')){const blk=p.miss||p.rate;h+=`<div class="stack" style="margin-bottom:26px"><button class="btn" data-pay="${esc(name)}" ${blk?'disabled':''}>Marcar pagado</button>${p.miss?'<div class="gfoot" style="margin:0">Asigna el rol faltante en FareHarbor antes de pagar.</div>':p.rate?'<div class="gfoot" style="margin:0">Falta una tarifa. Defínela en Más, Tarifas eventuales, antes de pagar.</div>':''}</div>`}
+  <div class="group"><div class="list">${p.lines.sort((a,b)=>(a.d.date+a.d.time)<(b.d.date+b.d.time)?-1:1).map(l=>`<div class="cell"><span class="main"><span class="t">${sd(l.d.date)} · ${l.d.time}</span><div class="s">${esc(l.d.item)}</div><div class="s">${l.c.r?`${esc(l.c.r)} · tarifa ${fmt(l.pl.base)}`:WI+'Falta rol'}${l.pl.hx?` · hora extra ${fmt(l.pl.hx)}`:''}</div>${l.c.alert?`<div class="s" style="color:var(--orange)">${WI}${esc(l.c.alert)}</div>`:''}</span><span class="v">${fmt(l.pl.tot)}</span></div>`).join('')}
+    <div class="cell"><span class="main t"><b>Total</b></span><span class="big">${fmt(p.tot)}</span></div></div></div>`;
+  if(pg){const pp=(S.paidPend||{})[ws+'|'+name];h+=`<div class="group"><div class="list"><div class="cell"><span class="main t"><span class="okc">${svgI('okc',18).replace('class="gi"','class="wi"')}Pagado · ${short(pg)}${pp?` <span class="sv${pp.pf?' bad':''}">${pp.pend}</span>`:''}</span></span></div></div></div>`}
+  else if(can('pagar')){const blk=p.miss||p.rate;h+=`<div class="stack"><button class="btn" data-pay="${esc(name)}" ${blk?'disabled':''}>Marcar pagado</button>${p.miss?'<div class="gfoot" style="margin:0">Asigna el rol faltante en FareHarbor antes de pagar.</div>':p.rate?'<div class="gfoot" style="margin:0">Falta una tarifa. Defínela en Más, Tarifas eventuales, antes de pagar.</div>':''}</div>`}
   else h+=`<div class="group"><div class="list"><div class="cell"><span class="main t mut">Tu rol no puede marcar pagos.</span></div></div></div>`;
   return h;
 },
@@ -1075,7 +1081,7 @@ stock(){
   const recent=sortedMoves().slice(0,8);
   return topBar('Stock actual',{acts:[S.role==='admin'&&{k:'sreport',l:'Reporte de stock',s:'Reporte'},PLUS(),DOTS()],lede:`Valor en bodega ${fmt(value)}`})+`
   <label class="search"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><input id="q" type="search" placeholder="Buscar" value="${esc(S.q||'')}" aria-label="Buscar producto"></label>
-  ${groups.map(g=>`<div class="group"><div class="ghead">${GI[g]||'📦'} ${esc(g)}</div><div class="list">
+  ${groups.map(g=>`<div class="group"><div class="ghead">${esc(g)}</div><div class="list">
     ${its.filter(i=>i.group===g).map(i=>{const s=stock(i.id),l=level(i);return `<button class="cell" data-item="${i.id}"><span class="dot ${l}"></span><span class="ic">${i.icon}</span><span class="main"><span class="t">${esc(i.name)}</span><div class="s">${packs(i,s)}</div></span><span class="big">${num(s)}<small>${i.units}</small></span>${chev}</button>`}).join('')}
   </div></div>`).join('')||'<div class="empty">Ningún producto coincide.</div>'}
   <div class="divider"></div>
@@ -1095,14 +1101,14 @@ sreport(){
   if(r.err)return h+`<div class="warn">${esc(r.err)} <button class="link" data-srgo>Reintentar</button></div>`;
   if(!r.data)return h+'<div class="empty">Calculando…</div>';
   const d=r.data,sg2=n=>n?sg(n):'0',gs=[...new Set(d.rows.map(x=>x.group))];
-  h+=gs.map(g=>`<div class="group"><div class="ghead">${GI[g]||'📦'} ${esc(g)}</div><div class="list">${d.rows.filter(x=>x.group===g).map(x=>`<div class="srr"><div class="srh"><span class="ic">${x.icon}</span><span class="t">${esc(x.name)}</span><span class="v">${fmt(x.val)}</span></div>
+  h+=gs.map(g=>`<div class="group"><div class="ghead">${esc(g)}</div><div class="list">${d.rows.filter(x=>x.group===g).map(x=>`<div class="srr"><div class="srh"><span class="ic">${x.icon}</span><span class="t">${esc(x.name)}</span><span class="v">${fmt(x.val)}</span></div>
     <div class="srg"><div><small>Inicial</small>${num(x.ini)}</div><div><small>Compras</small>${sg2(x.com)}</div><div><small>Consumo</small>${x.con?'−'+num(x.con):'0'}</div><div><small>Ajustes</small>${sg2(x.aj)}</div><div class="fin"><small>Final</small>${num(x.fin)}</div><div class="${x.delta<0?'neg':x.delta>0?'pos':''}"><small>Δ</small>${sg2(x.delta)}</div></div></div>`).join('')}</div></div>`).join('')||'<div class="empty">Sin productos con stock.</div>';
   h+=`<div class="group"><div class="ghead">Totales</div><div class="list">
     <div class="cell"><span class="main t">Consumo</span><span class="v">${fmt(d.totals.consumo)}</span></div>
     <div class="cell"><span class="main t">Compras</span><span class="v">${fmt(d.totals.compras)}</span></div>
-    <div class="cell"><span class="main t"><b>Valor final</b></span><span class="big" style="font-size:17px">${fmt(d.totals.valor)}</span></div></div>
+    <div class="cell"><span class="main t"><b>Valor final</b></span><span class="big">${fmt(d.totals.valor)}</span></div></div>
     <div class="gfoot">Inicial = stock al empezar el día ${dia?'':'«desde»'}; Final = al terminar el día ${dia?'':'«hasta»'}. El valor usa el costo unitario actual.</div></div>
-  <div class="stack" style="margin-bottom:26px"><button class="btn" data-srshare>Compartir</button><button class="btn plain" data-srcsv>Descargar CSV</button></div>`;
+  <div class="stack"><button class="btn" data-srshare>Compartir</button><button class="btn plain" data-srcsv>Descargar CSV</button></div>`;
   return h;
 },
 item(id){
@@ -1125,30 +1131,39 @@ purchase(id){
   return topBar(c.sup,{back:'Stock',backTo:'stock',lede:dayName(c.d)+(c.pend?` · <span class="sv${c.pf?' bad':''}">${c.pend}</span>`:''),acts:[can('editar')&&!c.annulled&&!c.pend&&{k:'pmenu',l:'Editar o anular compra',s:'⋯',pre:id}]})+
   (c.annulled?`<div class="group"><span class="badge red">Anulada</span></div>`:'')+`
   <div class="group"><div class="list">${c.lines.map(l=>{const i=item(l.i);return `<div class="cell"><span class="ic">${i.icon}</span><span class="main"><span class="t">${esc(i.name)}</span><div class="s">${num(l.q)} ${i.units} × ${fmt(l.p)}</div></span><span class="v">${fmt(l.q*l.p)}</span></div>`}).join('')}
-  <div class="cell"><span class="main t"><b>Total</b></span><span class="big" style="font-size:17px">${fmt(tot)}</span></div></div></div>
-  ${c.ticket||c.note||c.hasta?`<div class="group"><div class="list">${c.ticket?`<div class="cell"><span class="main t">Ticket</span><span class="v">${url?`<a href="${esc(c.ticket)}" target="_blank" rel="noopener" style="color:var(--lagoon)">📷 Ver foto</a>`:'📷 '+esc(c.ticket)}</span></div>`:''}${c.hasta?`<div class="cell"><span class="main t">Cubre hasta</span><span class="v">${short(c.hasta)}</span></div>`:''}${c.note?`<div class="cell"><span class="main t">Nota</span><span class="v" style="white-space:normal">${esc(c.note)}</span></div>`:''}</div></div>`:''}
+  <div class="cell"><span class="main t"><b>Total</b></span><span class="big">${fmt(tot)}</span></div></div></div>
+  ${c.ticket||c.note||c.hasta?`<div class="group"><div class="list">${c.ticket?`<div class="cell"><span class="main t">Ticket</span><span class="v">${url?`<a href="${esc(c.ticket)}" target="_blank" rel="noopener" style="color:var(--acc)">Ver foto</a>`:esc(c.ticket)}</span></div>`:''}${c.hasta?`<div class="cell"><span class="main t">Cubre hasta</span><span class="v">${short(c.hasta)}</span></div>`:''}${c.note?`<div class="cell"><span class="main t">Nota</span><span class="v" style="white-space:normal">${esc(c.note)}</span></div>`:''}</div></div>`:''}
   <div class="group"><div class="ghead">Historial</div><div class="list">${c.history.slice().reverse().map(h=>`<div class="cell"><span class="main"><span class="t">${esc(h.a)}</span><div class="s">${short(h.d)}${h.r?' · '+esc(h.r):''}</div></span></div>`).join('')}</div></div>`;
 },
 mas(){
-  const n=S.items.length,pn=pendN();
-  return topBar('Más')+(S.role==='admin'?`
+  const n=S.items.length,pn=pendN(),adm=S.role==='admin';
+  const row=(view,ic,t,sub,extra)=>`<button class="cell" data-view="${view}"><span class="ic acc">${svgI(ic,20)}</span><span class="main"><span class="t">${t}</span>${sub?`<div class="s">${sub}</div>`:''}</span>${extra||''}${chev}</button>`;
+  return topBar('Más')+(adm?`
   <div class="group"><div class="list">
-    <button class="cell" data-view="pend"><span class="ic">🧩</span><span class="main"><span class="t">Por configurar</span><div class="s">${pn?'Cosas nuevas de FareHarbor':'Todo al día'}</div></span>${pn?`<span class="badge red">${pn}</span>`:''}${chev}</button>
+    ${row('pend','inbox','Por configurar',pn?'Cosas nuevas de FareHarbor':'Todo al día',pn?`<span class="badge red">${pn}</span>`:'')}
   </div></div>`:'')+`
   <div class="group"><div class="list">
-    <button class="cell" data-view="productos"><span class="ic">📦</span><span class="main"><span class="t">Productos</span><div class="s">${n} ${n===1?'producto':'productos'}</div></span>${chev}</button>
-    <button class="cell" data-view="tarifas"><span class="ic">💵</span><span class="main"><span class="t">Tarifas eventuales</span><div class="s">Pago por rol y tipo de barco</div></span>${chev}</button>
-    <button class="cell" data-view="tours"><span class="ic">⛵</span><span class="main"><span class="t">Items</span><div class="s">Tipo de barco de cada item</div></span>${chev}</button>
-    <button class="cell" data-view="permisos"><span class="ic">🔐</span><span class="main"><span class="t">Permisos</span><div class="s">${ROLES.length} roles</div></span>${chev}</button>
+    ${row('productos','item','Productos',`${n} ${n===1?'producto':'productos'}`)}
+    ${row('tarifas','costos','Tarifas eventuales','Pago por rol y tipo de barco')}
+    ${row('tours','boat','Items','Tipo de barco de cada item')}
+    ${row('permisos','shield','Permisos',`${ROLES.length} roles`)}
+    ${adm?row('ajustes','sliders','Ajustes',`Semana de reportes: ${S.config.semana_inicio==='lunes'?'lunes':'jueves'}`):''}
   </div></div>
   <div class="group"><div class="list">
-    <button class="cell" data-view="fh"><span class="ic">🔗</span><span class="main"><span class="t">Conexión FareHarbor</span><div class="s"><span class="dot ${S.fhOk===false?'mid':''}" style="display:inline-block;margin-right:6px"></span>${S.fh&&S.fh.ultimo?'Último evento '+esc(fdt(S.fh.ultimo)):'Webhook'}</div></span>${chev}</button>
+    ${row('fh','link','Conexión FareHarbor',`<i class="dot ${S.fhOk===false?'mid':''}" style="display:inline-block;margin-right:8px"></i>${S.fh&&S.fh.ultimo?'Último evento '+esc(fdt(S.fh.ultimo)):'Webhook'}`)}
   </div></div>
   <div class="group"><div class="ghead">Próximamente</div><div class="list">
-    <div class="cell"><span class="main t">Cierre comercial</span></div>
-    <div class="cell"><span class="main t">QuickBooks</span></div>
+    <div class="cell"><span class="main t mut">Cierre comercial</span></div>
+    <div class="cell"><span class="main t mut">QuickBooks</span></div>
   </div></div>
-  <div class="group"><div class="list"><button class="cell" data-logout><span class="ic">🔒</span><span class="main"><span class="t">Cerrar sesión</span><div class="s">${esc(S.user)} · ${S.realRole==='admin'?'Admin':'Operación'}</div></span></button></div></div>`;
+  <div class="group"><div class="list"><button class="cell" data-logout><span class="ic acc">${svgI('logout',20)}</span><span class="main"><span class="t">Cerrar sesión</span><div class="s">${esc(S.user)} · ${S.realRole==='admin'?'Admin':'Operación'}</div></span></button></div></div>`;
+},
+ajustes(){
+  const w=S.config.semana_inicio==='lunes'?'lunes':'jueves',adm=S.role==='admin';
+  return topBar('Ajustes',{back:'Más',backTo:'mas'})+`
+  <div class="group"><div class="list"><div class="setrow"><span class="t" id="cfgL">Inicio de semana</span>
+    <div class="seg" role="group" aria-labelledby="cfgL">${[['jueves','Jueves'],['lunes','Lunes']].map(([k,l])=>`<button type="button" data-cfg="semana_inicio:${k}" aria-pressed="${w===k}" ${adm?'':'disabled'}>${l}</button>`).join('')}</div></div></div>
+  <div class="gfoot">${adm?'':'Solo el admin puede cambiar los ajustes. '}Define qué día empieza «Esta semana» y «Semana pasada» en el reporte de stock. El pago de eventuales siempre es de jueves a miércoles.</div></div>`;
 },
 tarifas(){
   const val=r=>r.pending?'<span style="color:var(--orange)">Pendiente</span>':r.u==='factor'?'× '+num(r.amt):`${fmt(r.amt)} por ${r.u}`;
@@ -1166,7 +1181,7 @@ fh(){
   const f=S.fh||{},ctl=S.control.slice(0,14);
   return topBar('Conexión FareHarbor',{back:'Más',backTo:'mas'})+(S.rebuildPending?'<div class="live">Recalculando… (puede tardar hasta 15 min)</div>':'')+`
   <div class="group"><div class="ghead">Avisos</div><div class="list">${saludRows()}</div></div>
-  <section class="today"><div class="state"><span class="dot ${f.errores?'low':''}" style="display:inline-block;margin-right:6px"></span>${f.ultimo?'Conectado':'Sin eventos todavía'}</div><div class="head" style="margin-bottom:6px">Webhook ${f.errores?'con errores':'activo'}</div>
+  <section class="today"><div class="state"><span class="dot ${f.errores?'low':''}" style="display:inline-block;margin-right:8px"></span>${f.ultimo?'Conectado':'Sin eventos todavía'}</div><div class="head" style="margin-bottom:6px">Webhook ${f.errores?'con errores':'activo'}</div>
     <div class="state">${f.ultimo?'Último evento '+esc(fdt(f.ultimo))+' · ':''}${f.errores||0} errores hoy</div></section>
   <div class="group"><div class="list">
     <div class="cell"><span class="main t">Eventos de hoy</span><span class="v">${f.hoy||0}</span></div>
@@ -1225,12 +1240,12 @@ const noteBox=(id,ph)=>`<textarea id="${id}" class="note" placeholder="${ph}" ar
 let menuPre=null;
 function openMenu(pre){
   menuPre=pre||null;
-  const b=[can('inventario')&&['inv','Inventario completo','📋'],can('ajuste')&&['aj','Ajustar inventario','✏️']].filter(Boolean);
-  sheet('Acciones',`<div class="group"><div class="list">${b.map(([k,l,ic])=>`<button class="cell" data-m="${k}"><span class="ic">${ic}</span><span class="main t">${l}</span>${chev}</button>`).join('')}</div></div>`);
+  const b=[can('inventario')&&['inv','Inventario completo','bitacora'],can('ajuste')&&['aj','Ajustar inventario','pencil']].filter(Boolean);
+  sheet('Acciones',`<div class="group"><div class="list">${b.map(([k,l,ic])=>`<button class="cell" data-m="${k}"><span class="ic acc">${svgI(ic,20)}</span><span class="main t">${l}</span>${chev}</button>`).join('')}</div></div>`);
 }
 function openPMenu(id){
   menuPre=id;
-  sheet('Compra',`<div class="group"><div class="list"><button class="cell" data-m="edit"><span class="ic">✏️</span><span class="main t">Editar compra</span>${chev}</button><button class="cell" data-m="anul"><span class="ic">🚫</span><span class="main t" style="color:var(--red)">Anular compra</span>${chev}</button></div></div>`);
+  sheet('Compra',`<div class="group"><div class="list"><button class="cell" data-m="edit"><span class="ic acc">${svgI('pencil',20)}</span><span class="main t">Editar compra</span>${chev}</button><button class="cell" data-m="anul"><span class="ic" style="color:var(--red)">${svgI('ban',20)}</span><span class="main t" style="color:var(--red)">Anular compra</span>${chev}</button></div></div>`);
 }
 
 // --- Nueva compra (shopping cart) ---
@@ -1245,7 +1260,7 @@ function prodSelect(l,k){
 }
 function lineHtml(l,k){
   const it=l.i?item(l.i):null,multi=cart.lines.length>1;
-  const rm=multi?`<button type="button" class="rrm" data-rm="${k}" aria-label="Quitar producto">✕</button>`:'';
+  const rm=multi?`<button type="button" class="rrm" data-rm="${k}" aria-label="Quitar producto">${svgI('x',18)}</button>`:'';
   if(!it)return `<div class="rl" data-k="${k}"><div class="rsel">${prodSelect(l,k)}${rm}</div></div>`;
   const pn=cap(it.packName||'caja');
   return `<div class="rl" data-k="${k}">
@@ -1289,7 +1304,7 @@ function applySup(){
 function openCompra(pre){
   supLoad();
   cart={lines:[pre&&item(pre)&&item(pre).active?newLine(pre):emptyLine()],ticket:'',ticketUrl:'',file:null,supTouched:false};
-  sheet('Gasto / Compra',`<div class="tkrow"><label>📷 <span id="tkName">Ticket (opcional)</span><input id="tkFile" type="file" accept="image/*" hidden></label></div><div id="tkBox"></div>
+  sheet('Gasto / Compra',`<div class="tkrow"><label>${svgI('camera',20)}<span id="tkName">Ticket (opcional)</span><input id="tkFile" type="file" accept="image/*" hidden></label></div><div id="tkBox"></div>
     <div class="rcpt" role="group" aria-label="Productos de la compra"><div id="cart"></div>
       <button class="addp" type="button" data-addp>+ Agregar producto</button>
       <div class="rsum"><span>TOTAL</span><span id="sTot">$0</span></div></div>
@@ -1339,7 +1354,7 @@ function invReview(){
   counts={};document.querySelectorAll('.ivIn').forEach(x=>{if(x.value!=='')counts[x.dataset.id]=x.value});
   const diffs=ctlItems().filter(i=>counts[i.id]!==undefined&&+counts[i.id]!==stock(i.id)).map(i=>({it:i,sys:stock(i.id),cnt:+counts[i.id]}));
   if(!diffs.length){closeSheet();toast('Todo coincide');return}
-  sheet('Revisar diferencias',`<div class="group"><div class="ghead">Diferencias</div><div class="list">${diffs.map(d=>{const df=d.cnt-d.sys,sev=Math.abs(df)>=Math.max(1,d.sys*.1)?'red':'orange';return `<div class="cell w-${sev}"><span class="ic">⚠️</span><span class="main"><span class="t">${d.it.icon} ${esc(d.it.name)}</span><div class="s">Sistema ${num(d.sys)} → Conteo ${num(d.cnt)} (${sg(df)})</div></span></div>`}).join('')}</div></div>
+  sheet('Revisar diferencias',`<div class="group"><div class="ghead">Diferencias</div><div class="list">${diffs.map(d=>{const df=d.cnt-d.sys,sev=Math.abs(df)>=Math.max(1,d.sys*.1)?'red':'orange';return `<div class="cell w-${sev}"><span class="ic" style="color:var(--${sev})">${svgI('alert',20)}</span><span class="main"><span class="t">${d.it.icon} ${esc(d.it.name)}</span><div class="s">Sistema ${num(d.sys)} → Conteo ${num(d.cnt)} (${sg(df)})</div></span></div>`}).join('')}</div></div>
     <div class="group"><div class="ghead">Nota (obligatoria)</div>${noteBox('iNote','Por qué cambia el inventario')}<div class="gfoot">Esto reescribe el stock actual. Se guarda un ajuste por producto en el historial.</div></div>
     <div class="stack"><button class="btn" id="iGo" disabled>Confirmar y reescribir inventario</button></div>`,
     {back:{label:'Conteo',fn:invStep1},input:()=>{$('iGo').disabled=!$('iNote').value.trim()}});
@@ -1440,7 +1455,7 @@ const BIT_T={done:['ok','Hecha'],late:['late','Falta'],wait:['','Por hacer']};
 function caRows(d){
   if(!caHas(d))return '';const ca=d.ca;
   const lines=ca.items.map(x=>`<div class="sn">${x.ext?'<span class="rb">Ext.</span>':''}${esc(x.label||'Costo adicional')} · ${fmt(x.amount)}</div>`).join('');
-  const warn=ca.unparsed?`<div class="s" style="color:var(--orange)">⚠️ Sin monto: ${esc(ca.rest.join(' · '))}</div>`:'';
+  const warn=ca.unparsed?`<div class="s" style="color:var(--orange)">${WI}Sin monto: ${esc(ca.rest.join(' · '))}</div>`:'';
   return `<div class="cell"><span class="main"><span class="t">Costos adicionales</span>${lines}${warn}</span>${ca.items.length?`<span class="v">${fmt(ca.total)}</span>`:''}</div>`;
 }
 function bitSection(d,fut){
@@ -1467,37 +1482,37 @@ function bitSection(d,fut){
 const ST_TXT={ok:'todos con check-in',warn:'faltan por check-in',bad:'hay no show',mute:'faltan por check-in (aún no empieza)'};
 function ciChip(ci,st,extra){
   if(!ci||!ci.n||!st)return '';
-  return `<span class="ci s-${st}" role="img" aria-label="Check-in ${ci.in} de ${ci.n}${ci.ns?', '+ci.ns+' no show':''}: ${ST_TXT[st]}">${svgI('checkin',16)}${ci.in}/${ci.n}${extra||''}</span>`;
+  return `<span class="ci s-${st}" role="img" aria-label="Check-in ${ci.in} de ${ci.n}${ci.ns?', '+ci.ns+' no show':''}: ${ST_TXT[st]}">${svgI('checkin',18)}${ci.in}/${ci.n}${extra||''}</span>`;
 }
 function dayCiHtml(c){
   if(!c)return '';
   return `<span class="sp" aria-hidden="true">│</span><span class="dci"><b>Check-in:</b> <span class="ci s-${c.st}">${c.in}/${c.n}</span>${c.ns?` <span class="ci s-bad">· ${c.ns} no show</span>`:''}</span>`;
 }
 const BOAT_I='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="M12 4.5l6 9.5h-6"/><path d="M12 8L7 14h5"/><path d="M4 17.5h16l-2.2 3.2H6.2z"/></svg>';
-// Tarjeta de salida: cuadrícula con áreas fijas (hora · nombre+bruto · recursos+neto · tripulación · conteo) y una franja de bitácora abajo.
-// Cada dato siempre en el mismo lugar: más tripulación o recursos solo hacen la tarjeta más alta.
+// Fila de salida (lista plana): 4 líneas en posiciones fijas, nada salta.
+//  1  hora · estado ............ bruto     2  nombre del tour (serif) ............ neto     3  recursos · tripulación     4  bitácora ● Ida ● Regreso ............ check-in · ⚠N · revisión
 function depCard(d,sec){
-  const st=status(d),n=netOf(d),miss=missingRole(d),fut=st==='prog',est=d.netSource==='estimado',bp=bitParts(d,nowKey());
+  const st=status(d),n=netOf(d),fut=st==='prog',est=d.netSource==='estimado',bp=bitParts(d,nowKey());
   const first=x=>String(x||'').trim().split(/\s+/)[0];
   const crew=d.crew.map(x=>`${x.ext?'Ext.':x.r?esc(rb(x.r)):'<span class="wq">?</span>'} ${esc(first(x.n))}`).join(' · ');
   const res=(d.res||[]).map(r=>esc(r.name)).join(' · ');
-  const rent=isRenta(d);
+  const rent=isRenta(d),nores=noRes(d);
+  const word=sec==='done'?'terminado':sec==='live'?'en curso':'próxima';
   const dot=(l,k)=>`<span class="bd"><i class="bdot ${BIT_T[k][0]}"></i>${l}<span class="sr">${BIT_T[k][1]}</span></span>`;
   const bits=bp.na?'<span class="bd">No aplica</span>':`<span class="bds">${dot('Ida',bp.ida)}${dot('Regreso',bp.reg)}</span>`;
-  const an=depAlertN(d,nowKey()),nores=noRes(d);
-  let tags='';
-  if(an)tags+=`<span class="tg w" aria-label="${an} ${an===1?'aviso':'avisos'}">⚠️ ${an}</span>`;
-  // Revisión: solo un ícono. Amarillo = el día ya terminó y nadie la marcó; verde = revisada. Hoy y días futuros: nada.
-  if(d.rev)tags+=`<span class="ri ok" role="img" aria-label="Revisado">${svgI('check',18)}</span>`;
-  else if(needsReview(d,TODAY))tags+=`<span class="ri" role="img" aria-label="Por revisar">${svgI('clock',18)}</span>`;
-  const nb=d.bookings.length;
-  return `<div class="dcard${sec?' '+sec:''}"><button class="dmain r3" data-dep="${d.id}"><div class="dg">
-    <span class="hr">${d.time}</span><span class="chv">${chev}</span>
-    <span class="tn">${esc(d.item)}${d.label?` <span class="lbl">· ${esc(d.label)}</span>`:''}</span><span class="mon">${money2(d.gross,fut?undefined:n,est)}</span>
-    <span class="rs">${res?BOAT_I+res:nores?'<span class="nores">⚠️ Sin recurso</span>':''}</span>
-    <span class="cw">${crew?svgI('crew',14)+'<span>'+crew+'</span>':rent?'–':'Sin tripulación'}</span>
-    <span class="ct">${nb} ${nb===1?'booking':'bookings'} · ${personasTxt(paxOf(d))}</span></div>
-    <div class="dstrip"><span class="lb">Bitácora</span>${bits}${ciChip(d.ci,ciState(d.ci,depStarted(d,nowKey())))}<span class="tgs">${tags}</span></div></button></div>`;
+  const an=depAlertN(d,nowKey());
+  let rt=ciChip(d.ci,ciState(d.ci,depStarted(d,nowKey())));
+  if(an)rt+=`<span class="wn" aria-label="${an} ${an===1?'aviso':'avisos'}">${svgI('alert',16)}${an}</span>`;
+  // Revisión: solo un ícono. Pendiente = el día ya terminó y nadie la marcó; verde = revisada. Hoy y días futuros: nada.
+  if(d.rev)rt+=`<span class="ri ok" role="img" aria-label="Revisado">${svgI('check',18)}</span>`;
+  else if(needsReview(d,TODAY))rt+=`<span class="ri" role="img" aria-label="Por revisar">${svgI('clock',18)}</span>`;
+  const l3=[res||(nores?`<span class="nores">${WI}Sin recurso</span>`:''),crew||(rent?'':'Sin tripulación')].filter(Boolean).join(' · ');
+  const netT=fut?'':n===null?'<span class="nt pend">neto pendiente</span>':`<span class="nt">neto ${fmt(n)}${est?' est.':''}</span>`;
+  return `<button class="drow dcard s-${sec||'x'}" data-dep="${d.id}">
+    <span class="l1"><span class="st-w"><span class="hr">${d.time}</span> · <span class="st${sec==='live'?' now':''}">${word}</span></span><span class="mg">${d.gross===null||d.gross===undefined||d.gross===''?'—':fmt(d.gross)}</span></span>
+    <span class="l2"><span class="tn">${esc(d.item)}${d.label?` <span class="lbl">· ${esc(d.label)}</span>`:''}</span>${netT}</span>
+    <span class="l3">${l3||'&nbsp;'}</span>
+    <span class="l4">${bits}<span class="rt">${rt}</span></span></button>`;
 }
 
 // --- Detalle de una reserva (hoja): número ↗ + contacto · Check-in · Tipos · Canal · Pago · Contacto · Campos · Nota ---
@@ -1557,7 +1572,7 @@ function openRate(id){
 }
 function openTour(pk){
   const t=S.tours.find(x=>x.pk===pk);if(!t)return;const ro=!can('config');
-  sheet('Tipo de barco',`<div class="group"><div class="ghead">${esc(t.name)}</div><div class="list">${TYPES.map(x=>`<button class="cell" data-tt="${x[0]}" data-ttn="${esc(pk)}"><span class="main t">${x[1]}</span>${t.barco===x[0]?'<span class="check">✓</span>':''}</button>`).join('')}</div>
+  sheet('Tipo de barco',`<div class="group"><div class="ghead">${esc(t.name)}</div><div class="list">${TYPES.map(x=>`<button class="cell" data-tt="${x[0]}" data-ttn="${esc(pk)}"><span class="main t">${x[1]}</span>${t.barco===x[0]?`<span class="check">${svgI('check',18)}</span>`:''}</button>`).join('')}</div>
     <div class="gfoot">${ro?'Tu rol no puede cambiar el tipo de barco.':'El tipo de barco decide cuánto se paga al capitán y al marinero.'}</div></div>`,{closeLabel:'Cerrar'});
 }
 // --- Por configurar: una pregunta por cosa nueva, con opciones de un toque ---
@@ -1610,9 +1625,16 @@ async function savePend(){
   else val={tipo:v.tipo,barco:v.barco,fields:(v.tipo==='privado'||v.tipo==='renta')?v.fld.join(','):'',bitacora:v.bit};
   closeSheet();pc=null;enqueue('setMapeo',[p.kind,p.clave,val]);toast('Guardado. Recalculando historial…')
 }
+// ===== Ajustes (guardados en el servidor, hoja Config; solo admin) =====
+async function setCfg(k,v){
+  if(S.role!=='admin'||S.config[k]===v)return;
+  const old=S.config[k];S.config[k]=v;S.sr=null;render();           // se ve al instante; si el servidor lo rechaza, se regresa
+  try{const r=await srv('setConfig',k,v);if(r&&r.config)S.config=Object.assign({},S.config,r.config);render()}
+  catch(e){S.config[k]=old;render();toast(errMsg(e),'err')}
+}
 // ===== Reporte de stock =====
 function srPreset(k){
-  const ws=wkStart(TODAY),y=pd(TODAY).getFullYear(),m=pd(TODAY).getMonth(),ymd=(yy,mm,dd)=>yy+'-'+p2(mm+1)+'-'+p2(dd);
+  const ws=weekStartOf(TODAY,S.config&&S.config.semana_inicio),y=pd(TODAY).getFullYear(),m=pd(TODAY).getMonth(),ymd=(yy,mm,dd)=>yy+'-'+p2(mm+1)+'-'+p2(dd);
   const last=(yy,mm)=>new Date(yy,mm+1,0).getDate(),pm=m?m-1:11,py=m?y:y-1;
   return {sem:[ws,addD(ws,6)],sempas:[addD(ws,-7),addD(ws,-1)],mes:[ymd(y,m,1),ymd(y,m,last(y,m))],mespas:[ymd(py,pm,1),ymd(py,pm,last(py,pm))],hoy:[TODAY,TODAY],ayer:[addD(TODAY,-1),addD(TODAY,-1)]}[k];
 }
@@ -1680,7 +1702,7 @@ async function tryLogin(pin,remembered){
 }
 function bootError(m){
   $('pin').hidden=true;$('boot').hidden=false;
-  $('boot').innerHTML=`<div><div class="logo" style="font-size:40px">⚠️</div><p>${esc(m)}</p><button class="btn" id="bootRetry">Reintentar</button></div>`;
+  $('boot').innerHTML=`<div><div class="logo" style="color:var(--orange);line-height:0">${svgI('alert',40)}</div><p>${esc(m)}</p><button class="btn" id="bootRetry">Reintentar</button></div>`;
   $('bootRetry').onclick=()=>{$('boot').innerHTML='<div>Cargando…</div>';start()};
 }
 function start(){
@@ -1789,6 +1811,7 @@ document.addEventListener('click',e=>{
   const pm=on('[data-perm]');if(pm){const[r,p]=pm.dataset.perm.split(':');
     if(can('config')&&!(r==='admin'&&p==='config')){const cur=!!S.perms[r][p];S.perms[r][p]=!cur;render();
       srv('savePerm',r,p,!cur).catch(er=>{S.perms[r][p]=cur;render();toast(errMsg(er),'err')})}return}
+  const cfb=on('[data-cfg]');if(cfb){const i=cfb.dataset.cfg.indexOf(':');setCfg(cfb.dataset.cfg.slice(0,i),cfb.dataset.cfg.slice(i+1));return}
   if(on('[data-logout]')){logout();return}
   if(on('[data-refresh]')){refresh();return}
   if(on('[data-fopen]')){S.fopen=!S.fopen;render();return}

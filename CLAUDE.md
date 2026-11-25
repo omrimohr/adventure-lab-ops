@@ -41,6 +41,11 @@ The service worker caches only the shell (index.html, manifest, icons; cache-fir
 - `stockReport(pin, desde, hasta)` (admin only; pure `stockReport_`): Inicial/Compras/Consumo/Ajustes/Final/Δ/Valor per controlled product; desde = hasta = balance al día. getData moves for ajustes carry `aj, mot, nota, por, k`; purchases carry `cid`.
 - Day summary excludes departures with no active bookings everywhere (`hasBk`), incl. the filters Por revisar / Con advertencias.
 
+## Round 8 (25 Nov 2026): design system "Arena · salvia"
+- Replaces the old turquoise / inset rounded groups / 34pt title rules. CSS variables in `docs/index.html` (light + dark): sand page, paper rows, hairlines, salvia accent `--acc`, status colours (`--green` money/ok, `--orange` warning, `--red` error, never themed except lightness in dark). Serif (Lora from Google Fonts, Georgia fallback) for titles and tour names; sizes 26 / 16 / 14 / 12 (+ 11 neto, 22 big figures); weights 400/500; line icons (`svgI`), no colour emoji in chrome. Flat lists: `.list` bleeds full width with hairline top/bottom, no radius. ONE filled `.btn` per screen, others soft/plain accent text.
+- Operación: date nav above the serif title, flat day summary (`.dsum`), departure row `.drow` with 4 fixed lines.
+- Setting `semana_inicio` (jueves | lunes) in tab **Config** (Clave | Valor | Actualizado | Por). `getData().config`; `setConfig(pin,key,value)` admin only (role, not just permission), validated by `validateConfig_`. Used only by the stock report presets (`weekStartOf`); the crew pay week (`wkStart`) stays Thursday→Wednesday. Add new settings in `CONFIG_DEFAULTS_` + `validateConfig_`.
+
 ## Testing
 The app can be tested locally with a stubbed `fetch`; server pure functions export via `module.exports` guard for node tests.
 
