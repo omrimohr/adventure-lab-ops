@@ -36,6 +36,11 @@ The service worker caches only the shell (index.html, manifest, icons; cache-fir
 - Externos: `Monto (MXN)` (last column) = sum of the `barco externo` items (one external → all; several → total on the first + "Varios externos: repartir"); alerts "Falta nota: ¿a quién se debe?" (empty crew note) and "Falta monto en Costos adicionales" (after the departure ended). Externos are not paid as staff.
 - App: a departure with Ida and/or Regreso overdue (same rule as the red dots) gets the warning "Falta bitácora de ida / de regreso / de ida y regreso" in the ⚠️ count, the "Con advertencias" filter and Avisos.
 
+## Round 7 (25 Nov 2026)
+- Writes (compra, ajuste, conteo, revisado, pago, setMapeo) go through a background queue in the app (`enqueue`/`pump`, localStorage `adv_ops_q:<hash>`): sheet closes at once, optimistic row "guardando…", retries with backoff in order, toast "No se guardó … Reintentar" on final failure. Every write carries a client uuid; the server stores it in the LAST column "ID cliente" of Compras/Ajustes/Comida empleado/Pagos/Revisiones (`ensureCidCol_`, `cidRow_`) and ignores duplicates. Old clients without an id still write.
+- `stockReport(pin, desde, hasta)` (admin only; pure `stockReport_`): Inicial/Compras/Consumo/Ajustes/Final/Δ/Valor per controlled product; desde = hasta = balance al día. getData moves for ajustes carry `aj, mot, nota, por, k`; purchases carry `cid`.
+- Day summary excludes departures with no active bookings everywhere (`hasBk`), incl. the filters Por revisar / Con advertencias.
+
 ## Testing
 The app can be tested locally with a stubbed `fetch`; server pure functions export via `module.exports` guard for node tests.
 

@@ -13,7 +13,8 @@
 
 const USR_HEADERS = ['Nombre', 'PIN', 'Rol (admin/op)', 'Activo'];
 const PERM_HEADERS = ['Permiso', 'Descripción', 'admin', 'op'];
-const REV_HEADERS = ['Availability pk', 'Por', 'Fecha/hora'];
+const REV_HEADERS = ['Availability pk', 'Por', 'Fecha/hora', 'ID cliente'];
+const CID_HDR = 'ID cliente';
 const PERM_SEED = [
   ['compras', 'Agregar compras', 'sí', 'sí'],
   ['revisar', 'Marcar revisado', 'sí', 'sí'],
@@ -33,7 +34,7 @@ const TICKETS_FOLDER = 'Adventure Lab Ops – Tickets';
 function apiResponse_(p) {
   const map = { login: login, getData: getData, addCompra: addCompra, anularCompra: anularCompra, editCompra: editCompra,
     addAjuste: addAjuste, addConteo: addConteo, addComida: addComida, markPaid: markPaid, markRev: markRev,
-    saveProducto: saveProducto, saveTarifa: saveTarifa, savePerm: savePerm, saveTourBarco: saveTourBarco, setMapeo: setMapeo, refreshFin: refreshFin };
+    saveProducto: saveProducto, saveTarifa: saveTarifa, savePerm: savePerm, saveTourBarco: saveTourBarco, setMapeo: setMapeo, refreshFin: refreshFin, stockReport: stockReport };
   let out;
   try {
     const f = map[String(p.fn)];
@@ -110,7 +111,7 @@ function groupCompras_(rows) {
     let c = by[id];
     if (!c) {
       c = by[id] = { id: id, d: ymd_(r[1]), sup: String(r[2] || ''), lines: [], ticket: String(r[9] || ''), note: '', annulled: /anul/i.test(String(r[10])),
-        hasta: r[7] ? ymd_(r[7]) : '', history: [], _raw: String(r[8] || ''), reg: ymd_(r[11]) || ymd_(r[1]), por: String(r[12] || '') };
+        hasta: r[7] ? ymd_(r[7]) : '', history: [], _raw: String(r[8] || ''), reg: ymd_(r[11]) || ymd_(r[1]), por: String(r[12] || ''), cid: String(r[13] || '') };
       order.push(id);
     }
     c.lines.push({ i: String(r[3]), q: numOr_(r[4], 0), p: numOr_(r[5], 0) });
@@ -164,7 +165,8 @@ function buildMoves_(ctx) {
   ctx.ajustes.forEach(a => {
     const p = it[String(a[1])]; if (!p || a[2] === '') return;
     const mot = String(a[3] || '');
-    mv.push({ d: ymd_(a[0]), i: p.id, q: Number(a[2]) || 0, c: p.price, t: mot === 'Inventario completo' ? mot : 'Ajuste · ' + (mot || 'Ajuste'), ref: String(a[4] || mot), noStock: !p.controlStock });
+    mv.push({ d: ymd_(a[0]), i: p.id, q: Number(a[2]) || 0, c: p.price, t: mot === 'Inventario completo' ? mot : 'Ajuste · ' + (mot || 'Ajuste'), ref: String(a[4] || mot), noStock: !p.controlStock,
+      aj: true, mot: mot, nota: String(a[4] || ''), por: String(a[5] || ''), k: String(a[7] || '') });
   });
   ctx.salidas.forEach(s => {
     const bits = ctx.bitBy[String(s[0])];
@@ -661,10 +663,26 @@ function saveTicket_(dataUrl, id) {
   const f = folder.createFile(Utilities.newBlob(Utilities.base64Decode(m[2]), m[1], id + '.jpg'));
   return f.getUrl();
 }
+/** Idempotent writes: the app sends a client-generated id (uuid) with every queued write; it is stored in the last column ('ID cliente') of the log tab. */
+function ensureCidCol_(sh, headers) {
+  const n = headers.length;
+  if (sh.getMaxColumns() < n) sh.insertColumnsAfter(sh.getMaxColumns(), n - sh.getMaxColumns());
+  if (sh.getRange(1, n).getValue() !== CID_HDR) sh.getRange(1, n).setValue(CID_HDR).setFontWeight('bold');
+}
+/** Sheet row (1-based) of the first row whose column `col` equals cid, or 0. Never matches an empty cid. */
+function cidRow_(sh, col, cid) {
+  cid = String(cid || ''); if (!cid) return 0;
+  const n = sh.getLastRow() - 1; if (n < 1) return 0;
+  const v = sh.getRange(2, col, n, 1).getValues();
+  for (let i = 0; i < v.length; i++) if (String(v[i][0]) === cid) return i + 2;
+  return 0;
+}
+function cidOf_(v) { return String(v === undefined || v === null ? '' : v).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64); }
 function prodIds_(ss) { return readProdRows_(ss).filter(r => r[0] !== '').map(r => String(r[0])); }
-function appendCompraRows_(ss, id, p, lines, user, ticket) {
+function appendCompraRows_(ss, id, p, lines, user, ticket, cid) {
   const sh = sheet_(ss, 'Compras', COMPRA_HEADERS), now = new Date();
-  const rows = lines.map(l => [id, p.d, clean_(p.sup, 120) || 'Sin proveedor', l.i, l.q, l.p, r2_(l.q * l.p), p.hasta || '', clean_(p.note, 300), ticket, 'activa', now, user]);
+  ensureCidCol_(sh, COMPRA_HEADERS);
+  const rows = lines.map(l => [id, p.d, clean_(p.sup, 120) || 'Sin proveedor', l.i, l.q, l.p, r2_(l.q * l.p), p.hasta || '', clean_(p.note, 300), ticket, 'activa', now, user, cid || '']);
   sh.getRange(sh.getLastRow() + 1, 1, rows.length, COMPRA_HEADERS.length).setValues(rows);
 }
 function normCompra_(p, fallback) {
@@ -675,12 +693,17 @@ function normCompra_(p, fallback) {
 function addCompra(pin, p) {
   const u = auth_(pin, 'compras');
   return withLock_(() => {
-    const ss = ss_(), lines = cleanLines_((p || {}).lines, prodIds_(ss));
+    const ss = ss_(), lines = cleanLines_((p || {}).lines, prodIds_(ss)), cid = cidOf_((p || {}).cid);
+    if (cid) { // already saved (a retry of the same client write): do nothing, answer with the original purchase
+      const sh0 = sheet_(ss, 'Compras', COMPRA_HEADERS); ensureCidCol_(sh0, COMPRA_HEADERS);
+      const r0 = cidRow_(sh0, COMPRA_HEADERS.length, cid);
+      if (r0) return { ok: true, id: String(sh0.getRange(r0, 1).getValue()), dup: true };
+    }
     if (!lines.length) throw new Error('Agrega al menos un producto con cantidad');
     const id = 'C' + Date.now(), c = normCompra_(p);
     let ticket = clean_(c.ticket, 200);
     if (p.ticketData) { try { ticket = saveTicket_(p.ticketData, id) || ticket; } catch (e) { logError_(ss, 'ticket', e, id); } }
-    appendCompraRows_(ss, id, c, lines, u.nombre, ticket);
+    appendCompraRows_(ss, id, c, lines, u.nombre, ticket, cid);
     rebuildFin_();
     return { ok: true, id: id };
   });
@@ -726,7 +749,7 @@ function editCompra(pin, id, payload, reason) {
     const day = today_();
     markCompra_(sh, old, 'Editada ' + day + ' → ' + nid + ': ' + reason);
     c.note = appendNote_(clean_(c.note, 300), 'Corrige ' + id + ' ' + day + ': ' + reason);
-    appendCompraRows_(ss, nid, c, lines, u.nombre, clean_(c.ticket, 300));
+    appendCompraRows_(ss, nid, c, lines, u.nombre, clean_(c.ticket, 300), '');
     rebuildFin_();
     return { ok: true, id: nid };
   });
@@ -738,7 +761,10 @@ function addAjuste(pin, p) {
     const q = Number(p.q);
     if (prodIds_(ss).indexOf(String(p.i)) < 0) throw new Error('Producto desconocido');
     if (!isFinite(q) || q === 0) throw new Error('La cantidad del ajuste no puede ser 0');
-    sheet_(ss, 'Ajustes', AJUSTE_HEADERS).appendRow([validYmd_(p.d) || today_(), String(p.i), q, clean_(p.motivo, 60) || 'Otro', clean_(p.nota, 300), u.nombre, new Date()]);
+    const sh = sheet_(ss, 'Ajustes', AJUSTE_HEADERS), cid = cidOf_(p.cid);
+    ensureCidCol_(sh, AJUSTE_HEADERS);
+    if (cidRow_(sh, AJUSTE_HEADERS.length, cid)) return { ok: true, dup: true };
+    sh.appendRow([validYmd_(p.d) || today_(), String(p.i), q, clean_(p.motivo, 60) || 'Otro', clean_(p.nota, 300), u.nombre, new Date(), cid]);
     rebuildFin_();
     return { ok: true };
   });
@@ -748,6 +774,9 @@ function addConteo(pin, p) {
   const u = auth_(pin, 'inventario');
   return withLock_(() => {
     const ss = ss_(); p = p || {};
+    const cid = cidOf_(p.cid), shA = sheet_(ss, 'Ajustes', AJUSTE_HEADERS);
+    ensureCidCol_(shA, AJUSTE_HEADERS);
+    if (cid && cidRow_(shA, AJUSTE_HEADERS.length, cid)) return { ok: true, n: 0, dup: true }; // the first row of a count carries its id
     const prodRows = readProdRows_(ss), compras = groupCompras_(readTab_(ss, 'Compras', COMPRA_HEADERS));
     const items = buildItems_(prodRows, lastCostFrom_(compras));
     const salidas = readTab_(ss, 'Salidas', SAL_HEADERS).filter(r => r[0] !== ''), bit = readTab_(ss, 'Bitácora', BIT_HEADERS), bitBy = {};
@@ -758,11 +787,57 @@ function addConteo(pin, p) {
     if (diffs.length) {
       const d = validYmd_(p.d) || today_(), now = new Date(), nota = clean_(p.nota, 300) || 'Conteo de inventario';
       const sh = sheet_(ss, 'Ajustes', AJUSTE_HEADERS);
-      sh.getRange(sh.getLastRow() + 1, 1, diffs.length, AJUSTE_HEADERS.length).setValues(diffs.map(x => [d, x.i, x.diff, 'Inventario completo', nota, u.nombre, now]));
+      sh.getRange(sh.getLastRow() + 1, 1, diffs.length, AJUSTE_HEADERS.length).setValues(diffs.map((x, k) => [d, x.i, x.diff, 'Inventario completo', nota, u.nombre, now, k === 0 ? cid : (cid ? cid + '.' + k : '')]));
       rebuildFin_();
     }
     return { ok: true, n: diffs.length };
   });
+}
+/** Pure. Stock report for [desde 00:00, hasta 23:59]. moves = buildMoves_ output; per controlled product:
+ *  ini (stock before desde), com (purchases, annulments net), con (bitácora consumption, positive), aj (adjustments, signed), fin (stock at the end of hasta), delta = fin − ini,
+ *  val = fin × current unit cost. Totals: consumo $ and compras $ (qty × unit cost of each move), valor final $. Moves after `hasta` are ignored. */
+function stockReport_(items, moves, desde, hasta) {
+  if (hasta < desde) { const t = desde; desde = hasta; hasta = t; }
+  const R = n => Math.round(n * 1e6) / 1e6, M = n => Math.round(n * 100) / 100, by = {}, rows = [];
+  items.filter(i => i.controlStock).forEach(i => { by[i.id] = { i: i.id, name: i.name, icon: i.icon, group: i.group, unit: i.unit, units: i.units, price: i.price, active: i.active, ini: 0, com: 0, con: 0, aj: 0, comV: 0, conV: 0 }; rows.push(by[i.id]); });
+  moves.forEach(m => {
+    const r = by[m.i]; if (!r || m.noStock) return;
+    if (m.d < desde) r.ini += m.q;
+    else if (m.d <= hasta) {
+      if (m.t === 'Bitácora') { r.con += -m.q; r.conV += -m.q * m.c; }
+      else if (/^Compra/.test(m.t)) { r.com += m.q; r.comV += m.q * m.c; }
+      else r.aj += m.q;
+    }
+  });
+  const out = [], tot = { consumo: 0, compras: 0, valor: 0 };
+  rows.forEach(r => {
+    const fin = R(r.ini + r.com - r.con + r.aj), o = { i: r.i, name: r.name, icon: r.icon, group: r.group, unit: r.unit, units: r.units, price: r.price,
+      ini: R(r.ini), com: R(r.com), con: R(r.con), aj: R(r.aj), fin: fin, delta: R(fin - R(r.ini)), val: M(fin * r.price), comV: M(r.comV), conV: M(r.conV) };
+    if (!r.active && !o.ini && !o.com && !o.con && !o.aj && !o.fin) return;
+    out.push(o); tot.consumo += o.conV; tot.compras += o.comV; tot.valor += o.val;
+  });
+  return { desde: desde, hasta: hasta, rows: out, totals: { consumo: M(tot.consumo), compras: M(tot.compras), valor: M(tot.valor) } };
+}
+/** Stock ledger from the sheet (same inputs as getData) */
+function loadMoves_(ss) {
+  const prodRows = readProdRows_(ss), compras = groupCompras_(readTab_(ss, 'Compras', COMPRA_HEADERS));
+  const items = buildItems_(prodRows, lastCostFrom_(compras));
+  const salidas = readTab_(ss, 'Salidas', SAL_HEADERS).filter(r => r[0] !== ''), bit = readTab_(ss, 'Bitácora', BIT_HEADERS), bitBy = {};
+  bit.forEach(r => { const k = String(r[0]); (bitBy[k] = bitBy[k] || []).push(r); });
+  const moves = buildMoves_({ items: items, purchases: compras, ajustes: readTab_(ss, 'Ajustes', AJUSTE_HEADERS).filter(r => r[1] !== ''), salidas: salidas, bitBy: bitBy,
+    productos: prodRows.filter(r => r[0] !== '' && notNo_(r[9])).map(r => ({ id: String(r[0]), campo: r[7] })), today: today_(), M: loadMapeos_(ss) });
+  return { items: items, moves: moves };
+}
+/** Admin only. One date for both = "balance al día". */
+function stockReport(pin, desde, hasta) {
+  const u = auth_(pin);
+  if (u.rol !== 'admin') throw new Error('Solo admin puede ver el reporte');
+  const d = validYmd_(desde), h = validYmd_(hasta) || d;
+  if (!d) throw new Error('Elige las fechas del reporte');
+  const L = loadMoves_(ss_());
+  const rep = stockReport_(L.items, L.moves, d, h);
+  rep.ok = true;
+  return rep;
 }
 function addComida(pin, p) {
   const u = auth_(pin, 'comida');
@@ -771,11 +846,14 @@ function addComida(pin, p) {
     const nombre = clean_(p.nombre, 80), tipo = /^a/i.test(String(p.tipo)) ? 'almuerzo' : 'desayuno', q = Number(p.cantidad);
     if (!nombre) throw new Error('Falta el nombre');
     if (!isFinite(q) || q <= 0) throw new Error('Cantidad inválida');
-    sheet_(ss_(), 'Comida empleado', COMIDA_HEADERS).appendRow([validYmd_(p.d) || today_(), nombre, tipo, q, clean_(p.nota, 200), u.nombre, new Date()]);
+    const sh = sheet_(ss_(), 'Comida empleado', COMIDA_HEADERS), cid = cidOf_(p.cid);
+    ensureCidCol_(sh, COMIDA_HEADERS);
+    if (cidRow_(sh, COMIDA_HEADERS.length, cid)) return { ok: true, dup: true };
+    sh.appendRow([validYmd_(p.d) || today_(), nombre, tipo, q, clean_(p.nota, 200), u.nombre, new Date(), cid]);
     return { ok: true };
   });
 }
-function markPaid(pin, weekStart, name, monto) {
+function markPaid(pin, weekStart, name, monto, cidIn) {
   const u = auth_(pin, 'pagar');
   return withLock_(() => {
     const ss = ss_(), ws = validYmd_(weekStart), n = clean_(name, 80), m = Number(monto);
@@ -783,17 +861,22 @@ function markPaid(pin, weekStart, name, monto) {
     if (!isFinite(m) || m < 0) throw new Error('Monto inválido');
     const rows = readTab_(ss, 'Pagos', PAGO_HEADERS);
     if (rows.some(r => ymd_(r[0]) === ws && String(r[1]) === n)) return { ok: true, dup: true }; // already paid: never double-count
-    sheet_(ss, 'Pagos', PAGO_HEADERS).appendRow([ws, n, m, today_(), u.nombre, '']);
+    const sh = sheet_(ss, 'Pagos', PAGO_HEADERS), cid = cidOf_(cidIn);
+    ensureCidCol_(sh, PAGO_HEADERS);
+    if (cidRow_(sh, PAGO_HEADERS.length, cid)) return { ok: true, dup: true };
+    sh.appendRow([ws, n, m, today_(), u.nombre, '', cid]);
     return { ok: true };
   });
 }
-function markRev(pin, availabilityPk) {
+function markRev(pin, availabilityPk, cidIn) {
   const u = auth_(pin, 'revisar');
   return withLock_(() => {
     const ss = ss_(), pk = String(availabilityPk || '');
     if (!readTab_(ss, 'Salidas', SAL_HEADERS).some(r => String(r[0]) === pk)) throw new Error('No encontré la salida');
-    const now = new Date();
-    sheet_(ss, 'Revisiones', REV_HEADERS).appendRow([pk, u.nombre, now]);
+    const now = new Date(), sh = sheet_(ss, 'Revisiones', REV_HEADERS), cid = cidOf_(cidIn);
+    ensureCidCol_(sh, REV_HEADERS);
+    if (cidRow_(sh, REV_HEADERS.length, cid)) return { ok: true, by: u.nombre, at: fmtDate_(now, 'HH:mm'), dup: true };
+    sh.appendRow([pk, u.nombre, now, cid]);
     return { ok: true, by: u.nombre, at: fmtDate_(now, 'HH:mm') };
   });
 }
@@ -942,5 +1025,5 @@ function migrate20261124() {
 if (typeof module !== 'undefined') module.exports = {
   pinStr_, findUser_, permsFromRows_, permOk_, guessIcon_, buildItems_, groupCompras_, lastCostFrom_, priceLogFrom_, buildMoves_, stockMap_, countDiffs_,
   cleanLines_, slugId_, rateLabel_, buildRates_, latestRevs_, roleLabel_, bitQty_, extrasText_, ciFrom_, buildDeps_, buildPend_, fieldsFromBookings_, saludAlerts_, setMapeo, planTarifasMigration_, pluralEs_, appendNote_,
-  login, getData, refreshFin, windowTest_, staleFin_, addCompra, anularCompra, editCompra, addAjuste, addConteo, addComida, markPaid, markRev, saveProducto, saveTarifa, savePerm, saveTourBarco, migrate20261124
+  login, getData, refreshFin, windowTest_, staleFin_, addCompra, anularCompra, editCompra, addAjuste, addConteo, addComida, markPaid, markRev, saveProducto, saveTarifa, savePerm, saveTourBarco, migrate20261124, stockReport_, stockReport, loadMoves_, cidRow_, cidOf_, ensureCidCol_
 };

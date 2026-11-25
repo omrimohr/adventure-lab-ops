@@ -393,6 +393,43 @@ a.fhl:focus-visible{outline:3px solid var(--lagoon);outline-offset:-2px;border-r
 .tkrow label:focus-within{outline:3px solid var(--lagoon)}
 .sheet .tk{margin-bottom:12px}
 .stl{font-size:13px;color:var(--ink2);margin:0 0 6px 4px}
+/* ===== Ronda 7: resumen del día, recibo de compra, reporte de stock, cola de guardado (solo tokens existentes) ===== */
+.dsum.d2{margin-top:6px}
+.dsum .dwarn,.dsum .drev{background:none;border:0;font:inherit;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--orange);min-height:32px;padding:0 2px;cursor:pointer}
+.dsum .drev{color:var(--ink2)}.dsum .drev.ok{color:var(--green)}
+.dsum .dwarn:focus-visible,.dsum .drev:focus-visible{outline:3px solid var(--lagoon);outline-offset:2px;border-radius:6px}
+.nav .act.txt{font-size:17px;width:auto;padding:0 10px;font-weight:500}
+.sv{color:var(--ink2);font-style:italic;font-size:inherit}.sv.bad{color:var(--orange);font-style:normal;font-weight:600}
+.qerr{color:var(--orange)!important}
+.toast{width:max-content}
+.stat .rfw{position:relative;display:inline-flex}
+.stat .qb{position:absolute;top:5px;right:2px;min-width:17px;height:17px;padding:0 4px;border:0;border-radius:9px;background:var(--lagoon);color:var(--lagoon-ink);font:700 11px/17px var(--font);text-align:center;cursor:pointer;font-variant-numeric:tabular-nums}
+.stat .qb.bad{background:var(--orange);color:#fff}
+.stat .qb:focus-visible{outline:3px solid var(--lagoon);outline-offset:2px}
+/* Recibo */
+.tkrow{margin:0 0 6px}.tkrow label{background:none;padding:0;min-height:44px;color:var(--lagoon);font-size:15px}
+.rcpt{background:var(--row);border:1px solid var(--sep);border-radius:12px;padding:4px 16px 14px;margin:0 0 22px}
+.rl{padding:12px 0;display:grid;gap:10px}
+.rl+.rl{border-top:1px dashed var(--sep)}
+.rsel{display:flex;align-items:center;gap:4px}
+.cSel{flex:1;min-width:0;height:44px;border:0;border-radius:10px;background:var(--fill);color:var(--ink);font:inherit;font-size:17px;font-weight:600;padding:0 10px}
+.cSel:focus-visible{outline:3px solid var(--lagoon);outline-offset:2px}
+.rrm{background:none;border:0;color:var(--ink2);font-size:18px;width:44px;height:44px;cursor:pointer;flex:none}
+.rrow,.rsum{display:flex;align-items:baseline;gap:6px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+.rrow{font-size:14px;color:var(--ink)}
+.rdots{flex:1;min-width:12px;border-bottom:2px dotted var(--sep);transform:translateY(-3px)}
+.rrow .rm,.rsum #sTot{text-align:right;white-space:nowrap}
+.rsum{justify-content:space-between;border-top:2px dashed var(--sep);margin-top:6px;padding-top:12px;font-size:19px;font-weight:700}
+.addp{background:none;border:0;font:inherit;font-size:15px;color:var(--lagoon);min-height:44px;padding:0;text-align:left;cursor:pointer;border-top:1px dashed var(--sep);width:100%}
+.addp:focus-visible{outline:3px solid var(--lagoon);outline-offset:2px}
+/* Reporte de stock */
+.srr{padding:12px 16px;position:relative}
+.srr+.srr::before{content:"";position:absolute;top:0;left:16px;right:0;border-top:1px solid var(--sep)}
+.srh{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.srh .t{flex:1;min-width:0;font-size:17px;font-weight:600}.srh .v{font-variant-numeric:tabular-nums;color:var(--ink2);font-weight:600}
+.srg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 6px;font-variant-numeric:tabular-nums;font-size:16px}
+.srg small{display:block;font-size:12px;color:var(--ink2)}
+.srg .fin{font-weight:700}
 </style>
 </head>
 <body>
@@ -469,6 +506,7 @@ function applyData(d,at){lastLoad=Date.now();S.dataAt=at||Date.now();S.fhOk=d.fh
   if(S.realRole!=='admin'||!S.date)S.role=S.realRole;
   TODAY=d.today;NOW=d.now;S.clk={today:d.today,now:d.now,at:Date.now()};S.fetchedAt=d.now;S.win={from:d.desde,to:d.hasta};
   if(!S.date)S.date=TODAY;if(!S.wk)S.wk=wkStart(TODAY);
+  S.paidPend={};qOverlay();indexMoves();
 }
 // Caché local de la última respuesta (por usuario y rango): se pinta al instante y luego se pide lo nuevo
 function cacheSave(from,to,d){
@@ -489,7 +527,7 @@ function cacheRead(pin,from,to){
 function cacheClear(){try{Object.keys(localStorage).filter(k=>k.indexOf('adv_ops_c')===0).forEach(k=>localStorage.removeItem(k))}catch(e){}}
 async function load(from,to){
   const d=await srv('getData',from||'',to||'');
-  applyData(d);S.offline=false;cacheSave(from||'',to||'',d);
+  cacheSave(from||'',to||'',d);applyData(d);S.offline=false;   // la caché se guarda ANTES de mezclar los cambios por guardar
   if(d.stale)bgFin();
 }
 // getData ya no recalcula finanzas: si quedó atrás (stale), se pide aquí en segundo plano y se recarga sin molestar
@@ -523,6 +561,60 @@ async function act(fn,args){
   return r||{ok:true};
 }
 
+// ===== Guardar en segundo plano =====
+// Compras, ajustes, conteos, revisiones, pagos y configuración: la hoja se cierra al instante, el cambio se ve de inmediato ("guardando…")
+// y se manda en segundo plano. La cola vive en localStorage (sobrevive a recargar), se manda en orden con reintentos, y cada escritura lleva un id
+// (uuid) que el servidor guarda en la columna "ID cliente": un reintento nunca duplica.
+let Q=[],QK='',qBusy=false,qTimer=0,qDirty=false;
+function qLoad(){QK='adv_ops_q:'+strHash(String(PIN));try{Q=JSON.parse(localStorage.getItem(QK)||'[]')||[]}catch(e){Q=[]}}
+function qSave(){
+  const txt=()=>JSON.stringify(Q);
+  try{localStorage.setItem(QK,txt())}catch(e){try{cacheClear();localStorage.setItem(QK,txt())}catch(e2){toast('Sin espacio para guardar la cola. No cierres la app hasta que termine.','err')}}
+}
+function qCtx(){return {today:TODAY,hm:NOW,user:S.user}}
+function qOverlay(){Q.forEach(q=>{try{optApply(S,q,qCtx())}catch(e){console.warn(e)}})}
+function indexMoves(){(S.moves||[]).forEach((m,n)=>{m._n=n})}
+function enqueue(fn,args){
+  const p=args[0],cid=(p&&typeof p==='object'&&p.cid)||uuid();
+  if(!(p&&typeof p==='object'&&p.cid))args=args.concat([cid]);
+  const q={id:cid,fn,args,at:Date.now(),tries:0,fail:'',err:''};
+  Q.push(q);qSave();
+  optApply(S,q,qCtx());indexMoves();
+  paintStatus();render();
+  pump();
+  return q;
+}
+function qFailToast(q){
+  toast('No se guardó: '+q.err,'err',12000,{label:'Reintentar',fn:()=>qRetry(q.id)});
+}
+function qRetry(id){const q=Q.find(x=>x.id===id);if(q){q.fail='';q.err='';q.tries=0;optMark(S,q);softRender()}clearTimeout(qTimer);paintStatus();pump()}
+async function pump(){
+  if(qBusy||!PIN||!Q.length)return;
+  if(Q[0].fail)return;                            // el primero falló del todo: la cola espera (orden) hasta "Reintentar"
+  qBusy=true;paintStatus();
+  try{
+    while(Q.length&&!Q[0].fail){
+      const q=Q[0];
+      try{await srv(q.fn,...q.args);Q.shift();qSave();qDirty=true;paintStatus()}
+      catch(e){
+        const m=errMsg(e),k=qClass(m);
+        if(k==='auth'){break}
+        q.tries++;
+        if(k==='retry'&&q.tries<Q_MAX){qSave();clearTimeout(qTimer);qTimer=setTimeout(pump,qBackoff(q.tries));break}
+        q.fail=k==='retry'?'red':'final';q.err=m;qSave();optMark(S,q);qFailToast(q);softRender();break}
+    }
+  }finally{qBusy=false;paintStatus()}
+  if(!Q.length&&qDirty){qDirty=false;try{await load(S.win.from,S.win.to)}catch(e){}softRender();paintStatus()}   // al vaciarse: datos frescos del servidor
+}
+// Al volver la conexión o la app, los que fallaron por red se vuelven a intentar
+function qKick(){if(!Q.length)return;const q=Q[0];if(q.fail==='red'){q.fail='';q.tries=0;optMark(S,q);softRender()}clearTimeout(qTimer);pump()}
+window.addEventListener('online',qKick);
+function openQueue(){
+  if(!Q.length){closeSheet();return}
+  sheet('Por guardar',`<div class="group"><div class="list">${Q.map(q=>`<div class="cell"><span class="main"><span class="t">${esc(Q_LABEL[q.fn]||q.fn)}</span><div class="s ${q.fail?'qerr':''}">${q.fail?'No se guardó: '+esc(q.err):'Guardando…'}</div></span>${q.fail?`<button class="link" data-qretry="${esc(q.id)}">Reintentar</button><button class="link" data-qdrop="${esc(q.id)}">Descartar</button>`:''}</div>`).join('')}</div>
+    <div class="gfoot">Se guardan en orden. Si una falla, las siguientes esperan.</div></div>`,{closeLabel:'Cerrar'});
+}
+
 // ===== Helpers =====
 function item(id){return S.items.find(x=>x.id===id)||{id,name:String(id),icon:'📦',unitIcon:'',controlStock:false,group:'',unit:'unidad',units:'unidades',pack:1,packName:'caja',price:0,min:0,field:'',active:false}}
 const $=id=>document.getElementById(id);
@@ -552,15 +644,14 @@ const IC={
 const svgI=(k,sz)=>`<svg class="gi" viewBox="0 0 24 24" width="${sz||16}" height="${sz||16}" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg>`;
 const gh=(k,t)=>`<div class="ghead gh">${svgI(k)}<span>${t}</span></div>`;   // encabezado de sección: ícono (mismo color que el texto) + palabra
 const chev='<svg class="chev" viewBox="0 0 8 13"><path d="M1 1l6 5.5L1 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
-const NB='  ';
 const cap=s=>s?s.charAt(0).toUpperCase()+s.slice(1):s;
 const plural=s=>/[aeiouáéíóú]$/i.test(s)?s+'s':/s$/i.test(s)?s:s+'es';
 const ICONS=['🍺','💧','🥤','🧃','🍷','⛽','🧊','🧴','🍉','🍳','🍽️','📦'];
 function level(it){const s=stock(it.id);return s<it.min?'low':s<it.min*1.5?'mid':''}
-function packs(it,s){if(it.pack<=1)return `${num(s)} ${it.units}`;const p=Math.floor(s/it.pack),r=s-p*it.pack;return `📦 ${p}${NB}${it.unitIcon?it.unitIcon+' '+num(r):num(r)+' '+it.units}`}
 
 // ===== Operación helpers =====
 // ==PURE-BEGIN== (sin DOM: tests/round2-ui.test.js ejecuta este bloque en node)
+const NB='  ';
 const fmt=n=>'$'+Number(n).toLocaleString('es-MX',{maximumFractionDigits:2});
 const num=n=>Number(n).toLocaleString('es-MX',{maximumFractionDigits:1});
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -638,6 +729,15 @@ const extAlerts=x=>String((x&&x.alert)||'').split(' | ').filter(a=>a&&!/^Falta n
 const caHas=d=>!!(d&&d.ca&&(d.ca.items.length||d.ca.rest.length));
 // Por revisar: solo si el día ya terminó (fecha anterior a hoy) y nadie la marcó revisada
 const needsReview=(d,today)=>d.date<today&&!d.rev;
+const hasBk=d=>!!(d&&d.bookings&&d.bookings.length);   // salida con reservas activas (las canceladas no cuentan en ningún resumen)
+// Cantidad en bodega, SIEMPRE con íconos: 📦 cajas + ícono de la unidad y sueltas. Sin empaque (pack 1): solo ícono de la unidad y el total.
+function packs(it,s){
+  const ui=it.unitIcon||(it.pack>1?'🥫':(it.icon||'🥫'));
+  if(it.pack<=1)return `${ui} ${num(s)}`;
+  if(s<0)return `📦 0${NB}${ui} ${num(s)}`;
+  const p=Math.floor(s/it.pack),r=Math.round((s-p*it.pack)*100)/100;
+  return `📦 ${p}${NB}${ui} ${num(r)}`;
+}
 // Sección de la lista: done (terminada) · live (en curso) · next (próxima). Sin hora de fin se supone 3 h.
 function depSection(d,today,now){
   if(d.date<today)return 'done';if(d.date>today)return 'next';
@@ -659,8 +759,8 @@ function dayCi(ds,nowKey){
 // Filtros de la lista de Operación: para agregar uno basta sumar {key,label,test(d,{today})}
 const DEP_FILTERS=[
   {key:'todas',label:'Todas',test:()=>true},
-  {key:'revisar',label:'Por revisar',test:(d,c)=>needsReview(d,c.today)},
-  {key:'avisos',label:'Con advertencias',test:(d,c)=>depAlertN(d,c&&c.nowKey)>0},
+  {key:'revisar',label:'Por revisar',test:(d,c)=>hasBk(d)&&needsReview(d,c.today)},
+  {key:'avisos',label:'Con advertencias',test:(d,c)=>hasBk(d)&&depAlertN(d,c&&c.nowKey)>0},
   {key:'checkin',label:'Sin check-in',test:(d,c)=>depStarted(d,c&&c.nowKey)&&ciPend(d.ci)>0},
   {key:'tours',label:'Tours',test:d=>!isRenta(d)},
   {key:'rentas',label:'Rentas',test:d=>isRenta(d)}];
@@ -671,9 +771,71 @@ function dayCounts(ds){
   (ds||[]).forEach(d=>{const bk=d.bookings||[];if(!bk.length)return;const c=isRenta(d)?o.r:o.t;c.n++;c.pax+=bk.reduce((a,b)=>a+(Number(b.pax)||0),0)});
   return o;
 }
+// Resumen del día (tarjeta de Operación). Todo se cuenta SOLO sobre salidas con reservas activas.
+// → {t:{n,pax}, r:{n,pax}, warn (suma de depAlertN de esas salidas), ci (dayCi|null), rev:{n,tot}|null (solo días pasados)}
+function daySummary(ds,nowKey,today,date){
+  const act=(ds||[]).filter(hasBk),c=dayCounts(act);
+  const warn=act.reduce((a,d)=>a+depAlertN(d,nowKey),0);
+  return {t:c.t,r:c.r,warn:warn,ci:dayCi(act,nowKey),rev:(date<today&&act.length)?{n:act.filter(d=>d.rev).length,tot:act.length}:null};
+}
 // Proveedor recordado por producto (mapa {idProducto: proveedor}): el del primer producto del carrito que tenga uno; al guardar se recuerda para todos
 const supFor=(map,ids)=>{for(const i of ids){if(map&&map[i])return map[i]}return ''};
 const supRemember=(map,ids,name)=>{const m=Object.assign({},map);const n=String(name||'').trim();if(n&&n!=='Sin proveedor')ids.forEach(i=>{m[i]=n});return m};
+// --- Reporte de stock: texto para compartir y CSV (rep = respuesta de stockReport) ---
+const repNum=n=>String(Math.round(Number(n)*100)/100);
+function reportCsv(rep){
+  const q=v=>/[",\n]/.test(String(v))?'"'+String(v).replace(/"/g,'""')+'"':String(v);
+  const L=[['Producto','Grupo','Unidad','Inicial','Compras','Consumo','Ajustes','Final','Diferencia','Costo unitario (MXN)','Valor final (MXN)','Compras (MXN)','Consumo (MXN)']];
+  rep.rows.forEach(r=>L.push([r.name,r.group,r.units,r.ini,r.com,r.con,r.aj,r.fin,r.delta,r.price,r.val,r.comV,r.conV]));
+  L.push(['TOTAL','','','','','','','','','',rep.totals.valor,rep.totals.compras,rep.totals.consumo]);
+  return '\ufeff'+L.map(r=>r.map(x=>q(typeof x==='number'?repNum(x):x)).join(',')).join('\r\n')+'\r\n';
+}
+function reportText(rep,title){
+  const sg2=n=>(n>0?'+':n<0?'−':'')+num(Math.abs(n));
+  return [title,''].concat(rep.rows.map(r=>`${r.name}: inicial ${num(r.ini)} · compras ${sg2(r.com)} · consumo ${r.con?'−'+num(r.con):'0'} · ajustes ${sg2(r.aj)} · final ${num(r.fin)} (${fmt(r.val)})`),
+    ['',`Consumo ${fmt(rep.totals.consumo)} · Compras ${fmt(rep.totals.compras)} · Valor final ${fmt(rep.totals.valor)}`]).join('\n');
+}
+// --- Cola de guardado en segundo plano ---
+const uuid=()=>'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==='x'?r:(r&3|8)).toString(16)});
+const Q_DELAYS=[2,5,15,30,60];                         // segundos entre reintentos automáticos (en orden, la cola nunca se salta un elemento)
+const qBackoff=n=>(Q_DELAYS[Math.min(Math.max(n,1),Q_DELAYS.length)-1])*1000;
+const Q_MAX=Q_DELAYS.length+1;                        // intentos antes de avisar "No se guardó"
+const qClass=m=>/PIN incorrecto|Demasiados intentos/.test(m)?'auth':/Sin conexi|Servidor \d|Failed|Network|timed? ?out|Lock|Exception|Service|Intenta de nuevo/i.test(m)?'retry':'final';
+const Q_LABEL={addCompra:'Compra',addAjuste:'Ajuste',addConteo:'Inventario',markRev:'Revisión',markPaid:'Pago',setMapeo:'Configuración'};
+// Efecto optimista de una escritura en el estado S (mismo resultado que verá el servidor). q={id,fn,args,fail}; ctx={today,hm,user}. Idempotente: si los datos ya traen ese id no hace nada.
+function optApply(S,q,ctx){
+  const mark=q.fail?'no se guardó':'guardando…',a=q.args||[],has=k=>S.moves.some(m=>m.k===k||(m.k||'').indexOf(k+'.')===0);
+  const it=id=>S.items.find(x=>x.id===id);
+  if(q.fn==='addCompra'){
+    const p=a[0]||{};if(S.purchases.some(c=>c.cid===q.id))return;
+    const id='q:'+q.id;
+    S.purchases.push({id:id,d:p.d,sup:p.sup,lines:p.lines.map(l=>({i:l.i,q:l.q,p:l.p})),ticket:p.ticket||'',note:p.note||'',annulled:false,hasta:p.hasta||'',history:[{d:ctx.today,a:'Registrada · '+ctx.user,r:''}],cid:q.id,pend:mark,pf:!!q.fail});
+    p.lines.forEach(l=>{const x=it(l.i);if(!x)return;x.price=l.p;S.moves.push({d:p.d,i:l.i,q:l.q,c:l.p,t:'Compra',ref:p.sup||'Sin proveedor',cid:id,noStock:!x.controlStock,k:q.id,pend:mark,pf:!!q.fail})});
+  }else if(q.fn==='addAjuste'){
+    const p=a[0]||{},x=it(p.i);if(!x||has(q.id))return;
+    S.moves.push({d:p.d,i:p.i,q:p.q,c:x.price,t:'Ajuste · '+p.motivo,ref:p.nota||p.motivo,aj:true,mot:p.motivo,nota:p.nota||'',por:ctx.user,k:q.id,noStock:!x.controlStock,pend:mark,pf:!!q.fail});
+  }else if(q.fn==='addConteo'){
+    const p=a[0]||{};if(has(q.id))return;
+    S.items.filter(x=>x.controlStock&&x.active&&p.counts&&p.counts[x.id]!==undefined&&p.counts[x.id]!=='').forEach((x,n)=>{
+      const cur=S.moves.filter(m=>m.i===x.id&&!m.noStock).reduce((s2,m)=>s2+m.q,0),df=Math.round((Number(p.counts[x.id])-cur)*1e6)/1e6;
+      if(df)S.moves.push({d:p.d,i:x.id,q:df,c:x.price,t:'Inventario completo',ref:p.nota||'',aj:true,mot:'Inventario completo',nota:p.nota||'',por:ctx.user,k:q.id+(n?'.'+n:''),pend:mark,pf:!!q.fail})});
+  }else if(q.fn==='markRev'){
+    const d=S.deps.find(x=>x.id===String(a[0]));if(d&&!d.rev)d.rev={by:ctx.user,at:ctx.hm,day:ctx.today,hm:ctx.hm,pend:mark,pf:!!q.fail};
+  }else if(q.fn==='markPaid'){
+    const k=a[0]+'|'+a[1];if(!S.paid[k]){S.paid[k]=ctx.today;S.paidPend=S.paidPend||{};S.paidPend[k]={pend:mark,pf:!!q.fail}}
+  }else if(q.fn==='setMapeo'){
+    (S.pend||[]).forEach(x=>{if(x.kind===a[0]&&String(x.clave)===String(a[1])){x.pend=mark;x.pf=!!q.fail}});
+  }
+}
+// Cambia la etiqueta ("guardando…" ↔ "no se guardó") de lo que ya se pintó de forma optimista
+function optMark(S,q){
+  const mark=q.fail?'no se guardó':'guardando…',pf=!!q.fail,a=q.args||[];
+  S.moves.forEach(m=>{if(m.pend&&(m.k===q.id||String(m.k||'').indexOf(q.id+'.')===0)){m.pend=mark;m.pf=pf}});
+  S.purchases.forEach(c=>{if(c.pend&&c.cid===q.id){c.pend=mark;c.pf=pf}});
+  if(q.fn==='markRev'){const d=S.deps.find(x=>x.id===String(a[0]));if(d&&d.rev&&d.rev.pend){d.rev.pend=mark;d.rev.pf=pf}}
+  if(q.fn==='markPaid'){const p=(S.paidPend||{})[a[0]+'|'+a[1]];if(p){p.pend=mark;p.pf=pf}}
+  if(q.fn==='setMapeo')(S.pend||[]).forEach(x=>{if(x.pend&&x.kind===a[0]&&String(x.clave)===String(a[1])){x.pend=mark;x.pf=pf}});
+}
 // ==PURE-END==
 try{S.filter=depFilter(localStorage.getItem('adv_ops_depfilter')||'todas').key}catch(e){} // último filtro usado
 
@@ -727,7 +889,10 @@ function setPref(l){prefs[l.i]={mode:l.mode,pack:l.pack};try{localStorage.setIte
 
 // ===== Aviso =====
 let toastT;
-function toast(text,kind,ms){const t=$('toast');$('toastText').textContent=text;t.className='toast'+(kind==='err'?' err':'');t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{t.hidden=true},ms||(kind==='err'?6000:3500))}
+function toast(text,kind,ms,action){const t=$('toast');$('toastText').textContent=text;t.className='toast'+(kind==='err'?' err':'');
+  const old=t.querySelector('.tact');if(old)old.remove();
+  if(action){const b=document.createElement('button');b.type='button';b.className='tact';b.textContent=action.label;b.onclick=()=>{t.hidden=true;action.fn()};t.appendChild(b)}
+  t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{t.hidden=true},ms||(action?10000:kind==='err'?6000:3500))}
 
 // ===== Navigation =====
 const TABS=[
@@ -741,7 +906,7 @@ $('tabs').innerHTML=TABS.map(([k,l,ic])=>`<button class="tab" data-tab="${k}"><s
 const PLUS=pre=>can('compras')&&{k:'compra',l:'Gasto / Compra',s:'+',pre};
 const DOTS=pre=>menuOk()&&{k:'menu',l:'Más acciones',s:'⋯',pre};
 function topBar(title,{back,backTo,backView,acts=[],lede}={}){
-  const a=acts.filter(Boolean).map(x=>`<button class="act" data-act="${x.k}" data-pre="${x.pre||''}" aria-label="${x.l}">${x.s}</button>`).join('');
+  const a=acts.filter(Boolean).map(x=>`<button class="act${x.s.length>2?' txt':''}" data-act="${x.k}" data-pre="${x.pre||''}" aria-label="${x.l}">${x.s}</button>`).join('');
   const nav=(back||a)?`<div class="nav">${back?`<button class="back" data-back="${backTo||''}" ${backView?`data-backview="${backView}"`:''}>‹ ${esc(back)}</button>`:'<span></span>'}<span class="acts">${a}</span></div>`:'';
   return nav+`<h1>${esc(title)}</h1>${lede?`<p class="lede">${lede}</p>`:''}`;
 }
@@ -749,17 +914,37 @@ function roleBar(){const adm=S.realRole==='admin';return `<div class="rolebar">$
 // Control de estado (arriba a la derecha): punto de conexión con FareHarbor, botón de actualizar y hora de los datos mostrados
 function statusHtml(){
   const ok=S.fhOk!==false&&!S.offline,ago=S.dataAt?relAgo(S.dataAt,Date.now()):'';
-  return `<span class="stat${busyN>0||bgN>0||finBusy?' spin':''}"><i class="dot${ok?'':' mid'}" role="img" aria-label="${ok?'FareHarbor conectado':S.offline?'Sin conexión con el servidor':'Revisa la conexión con FareHarbor'}"></i><button type="button" class="rfb" data-refresh aria-label="Actualizar datos">${svgI('refresh',18)}</button><span class="ago">${esc(ago)}</span></span>`;
+  const qn=Q.length,qf=Q.some(x=>x.fail);
+  return `<span class="stat${busyN>0||bgN>0||finBusy||(qn&&!qf)?' spin':''}"><i class="dot${ok?'':' mid'}" role="img" aria-label="${ok?'FareHarbor conectado':S.offline?'Sin conexión con el servidor':'Revisa la conexión con FareHarbor'}"></i><span class="rfw"><button type="button" class="rfb" data-refresh aria-label="Actualizar datos">${svgI('refresh',18)}</button>${qn?`<button type="button" class="qb${qf?' bad':''}" data-qopen aria-label="${qn} ${qn===1?'cambio':'cambios'} por guardar">${qn}</button>`:''}</span><span class="ago">${esc(ago)}</span></span>`;
 }
 function paintStatus(){const el=document.querySelector('.stat');if(el)el.outerHTML=statusHtml()}
+// Un movimiento abre su detalle: compra → la compra; bitácora → la salida (availability pk + fecha); ajuste → su detalle
+const mvGo=m=>m.cid?`data-purchase="${esc(m.cid)}"`:m.dep?`data-mvdep="${esc(m.dep)}|${esc(m.d)}"`:m.aj?`data-mvaj="${m._n}"`:'';
+const mvPend=m=>m.pend?` · <span class="sv${m.pf?' bad':''}">${m.pend}</span>`:'';
 function mvRow(m){
-  const it=item(m.i),tag=m.cid?'button':'div';
-  return `<${tag} class="cell" ${m.cid?`data-purchase="${m.cid}"`:''}><span class="ic">${it.icon}</span><span class="main"><span class="t">${esc(m.t)}</span><div class="s">${short(m.d)} · ${esc(m.ref)}</div></span><span class="v ${m.q<0?'neg':'pos'}">${sg(m.q)}<div class="s">${esc(it.name)}</div></span>${m.cid?chev:''}</${tag}>`;
+  const it=item(m.i),go=mvGo(m),tag=go?'button':'div';
+  return `<${tag} class="cell" ${go}><span class="ic">${it.icon}</span><span class="main"><span class="t">${esc(m.t)}</span><div class="s">${short(m.d)} · ${esc(m.ref)}${mvPend(m)}</div></span><span class="v ${m.q<0?'neg':'pos'}">${sg(m.q)}<div class="s">${esc(it.name)}</div></span>${go?chev:''}</${tag}>`;
 }
 
 function mvRow2(m){
-  const it=item(m.i),tag=m.cid?'button':'div';
-  return `<${tag} class="cell mv" ${m.cid?`data-purchase="${m.cid}"`:''}><span class="main"><span class="t">${esc(m.t)} · ${esc(m.ref)}</span><div class="s">${short(m.d)} · ${esc(it.name)}</div></span><span class="v ${m.q<0?'neg':'pos'}">${sg(m.q)}</span>${m.cid?chev:''}</${tag}>`;
+  const it=item(m.i),go=mvGo(m),tag=go?'button':'div';
+  return `<${tag} class="cell mv" ${go}><span class="main"><span class="t">${esc(m.t)} · ${esc(m.ref)}</span><div class="s">${short(m.d)} · ${esc(it.name)}${mvPend(m)}</div></span><span class="v ${m.q<0?'neg':'pos'}">${sg(m.q)}</span>${go?chev:''}</${tag}>`;
+}
+function openAjDetail(n){
+  const m=S.moves[+n];if(!m||!m.aj)return;const it=item(m.i);
+  sheet(m.mot==='Inventario completo'?'Inventario completo':'Ajuste',`<div class="group"><div class="list">
+    <div class="cell"><span class="ic">${it.icon}</span><span class="main t">${esc(it.name)}</span></div>
+    <div class="cell"><span class="main t">Cantidad</span><span class="v ${m.q<0?'neg':'pos'}">${sg(m.q)} ${esc(it.units)}</span></div>
+    <div class="cell"><span class="main t">Fecha</span><span class="v">${short(m.d)}</span></div>
+    <div class="cell"><span class="main t">Motivo</span><span class="v">${esc(m.mot||'—')}</span></div>
+    ${m.por?`<div class="cell"><span class="main t">Por</span><span class="v">${esc(m.por)}</span></div>`:''}
+    ${m.pend?`<div class="cell"><span class="main t">Estado</span><span class="v">${m.pend}</span></div>`:''}</div></div>
+    <div class="group"><div class="ghead">Nota</div><div class="list"><div class="cell"><span class="main t" style="white-space:normal">${esc(m.nota||'Sin nota')}</span></div></div></div>`,{closeLabel:'Cerrar'});
+}
+// Salida de un movimiento de bitácora: si está fuera de la ventana cargada se pide ese día primero
+async function openDepFrom(pk,date){
+  if(!S.deps.some(x=>x.id===pk))await ensureRange(date,date);
+  S.depFrom='stock';stackView={name:'dep',arg:pk};render();goTop();
 }
 const sortedMoves=()=>S.moves.map((m,n)=>({m,n})).filter(x=>!x.m.noStock).sort((a,b)=>a.m.d<b.m.d?1:a.m.d>b.m.d?-1:b.n-a.n).map(x=>x.m);
 
@@ -789,7 +974,7 @@ function pendLabel(p){
   return [cap(a.tipo||''),f(TYPES,a.barco)].filter(Boolean).join(' · ');
 }
 function pendRow(p,i){
-  return `<button class="cell" data-pend="${i}"><span class="main"><span class="t">${esc(p.name||'(sin nombre)')}</span><div class="s">${p.pk?'pk '+esc(p.pk)+' · ':''}visto ${esc(p.visto?fdt(p.visto):'—')}${p.en?' · '+esc(p.en):''}</div>${p.ejemplo?`<div class="s">Ejemplo: ${esc(p.ejemplo)}</div>`:''}</span><span class="v" style="white-space:normal;max-width:38%">${esc(pendLabel(p))}</span>${chev}</button>`;
+  return `<button class="cell" data-pend="${i}"><span class="main"><span class="t">${esc(p.name||'(sin nombre)')}</span><div class="s">${p.pk?'pk '+esc(p.pk)+' · ':''}visto ${esc(p.visto?fdt(p.visto):'—')}${p.en?' · '+esc(p.en):''}</div>${p.ejemplo?`<div class="s">Ejemplo: ${esc(p.ejemplo)}</div>`:''}</span><span class="v" style="white-space:normal;max-width:38%">${esc(pendLabel(p))}${p.pend?`<div class="s"><span class="sv${p.pf?' bad':''}">${p.pend}</span></div>`:''}</span>${chev}</button>`;
 }
 
 // ===== Screens =====
@@ -798,21 +983,22 @@ op(){
   const date=S.date,ds=depsOn(date),fut=date>TODAY;
   let h=`<div class="oprow"><h1>Operación</h1>${can('compras')?'<button class="gbtn" data-act="compra" data-pre="">+ Gasto / Compra</button>':''}</div>`+saludBox()+`<div class="daterow"><button class="nx" data-day="-1" aria-label="Día anterior">‹</button><button class="dt" data-cal aria-label="Abrir calendario">${fd(date)}&nbsp;&nbsp;<span style="color:var(--lagoon);vertical-align:-2px">${svgI('cal',18)}</span></button><button class="nx" data-day="1" aria-label="Día siguiente">›</button><button class="fbtn${S.filter!=='todas'?' on':''}" data-fopen aria-label="Filtrar salidas" aria-expanded="${S.fopen}">${svgI('filter',22)}${S.filter!=='todas'?'<i class="fdot"></i>':''}</button></div>${S.fopen?`<div class="chips fchips" role="group" aria-label="Filtro de salidas">${DEP_FILTERS.map(f=>`<button type="button" class="chip" data-filter="${f.key}" aria-pressed="${S.filter===f.key}">${f.label}</button>`).join('')}</div>`:''}${S.filter!=='todas'?`<div class="fline">Filtro: <b>${esc(depFilter(S.filter).label)}</b> · <button type="button" class="link" data-filter="todas">quitar</button></div>`:''}${date!==TODAY?'<div class="todayrow"><button class="sbtn" data-today>Hoy</button></div>':''}`;
   if(!ds.length)return h+`<div class="group"><div class="list"><div class="empty">${S.loadingRange?'Cargando…':'Sin salidas este día.'}${!S.loadingRange&&pd(date).getDay()===3?' Los miércoles no hay tours.':''}</div></div></div>`;
-  const dc=dayCounts(ds),sal=n=>n+' '+(n===1?'salida':'salidas');
-  const dsum=`<div class="dsum"><span><b>Tours:</b> ${sal(dc.t.n)} · ${dc.t.pax} pax</span><span class="sp" aria-hidden="true">│</span><span><b>Rentas:</b> ${dc.r.n} · ${dc.r.pax} pax</span>${dayCiHtml(dayCi(ds,nowKey()))}</div>`;
-  const rev=ds.filter(d=>d.rev).length,falta=ds.filter(needBit).length,pend=ds.filter(d=>needsReview(d,TODAY)).length;
-  const pills=`<div class="pills"><span class="pill">${ds.length} ${ds.length===1?'salida':'salidas'}</span>${fut?'<span class="pill">Programadas</span>':`<span class="pill g">${rev} ${rev===1?'revisada':'revisadas'}</span>${pend?`<span class="pill o">${pend} por revisar</span>`:''}${falta?`<span class="pill r">${falta} ${falta===1?'falta bitácora':'faltan bitácora'}</span>`:''}`}</div>`;
-  if(fut)h+=`<section class="today"><div class="state">Todavía no hay costos ni ingreso neto</div><div class="head" style="margin-bottom:6px">${personasTxt(ds.reduce((a,d)=>a+paxOf(d),0))} reservados</div>${money2(ds.reduce((a,d)=>a+(d.gross||0),0),undefined,false,true)}${dsum}${pills}</section>`;
+  // Resumen del día: una línea (Tours │ Rentas │ ⚠️ N) y una segunda (Check-in · ✓ revisadas). Solo cuenta salidas con reservas activas.
+  const sm=daySummary(ds,nowKey(),TODAY,date),dact=ds.filter(hasBk);
+  const ci2=sm.ci?`<span class="dci"><b>Check-in:</b> <span class="ci s-${sm.ci.st}">${sm.ci.in}/${sm.ci.n}</span>${sm.ci.ns?` <span class="ci s-bad">· ${sm.ci.ns} no show</span>`:''}</span>`:'';
+  const rv2=sm.rev?`<button type="button" class="drev${sm.rev.n===sm.rev.tot?' ok':''}" data-filter="revisar" aria-label="${sm.rev.n} de ${sm.rev.tot} salidas revisadas. Ver las que faltan">✓ ${sm.rev.n}/${sm.rev.tot} revisadas</button>`:'';
+  const dsum=`<div class="dsum"><span><b>Tours:</b> ${sm.t.n} · ${sm.t.pax} pax</span><span class="sp" aria-hidden="true">│</span><span><b>Rentas:</b> ${sm.r.n} · ${sm.r.pax} pax</span>${sm.warn?`<span class="sp" aria-hidden="true">│</span><button type="button" class="dwarn" data-filter="avisos" aria-label="${sm.warn} ${sm.warn===1?'advertencia':'advertencias'}. Ver salidas con advertencias">⚠️ ${sm.warn}</button>`:''}</div>${ci2||rv2?`<div class="dsum d2">${ci2}${rv2}</div>`:''}`;
+  if(fut)h+=`<section class="today"><div class="state">Todavía no hay costos ni ingreso neto</div><div class="head" style="margin-bottom:6px">${personasTxt(dact.reduce((a,d)=>a+paxOf(d),0))} reservados</div>${money2(dact.reduce((a,d)=>a+(d.gross||0),0),undefined,false,true)}${dsum}</section>`;
   else{
     let netSum=0,netMiss=0,costSum=0,a=0,b=0,both=0,costMiss=0,est=false,grossSum=0;
-    ds.forEach(d=>{grossSum+=d.gross||0;const n=netOf(d),c=cost(d);if(n===null)netMiss++;else{netSum+=n;if(d.netSource==='estimado')est=true}if(c)costSum+=c.tot;else if(status(d)!=='prog')costMiss++;if(n!==null&&n>0&&c){a+=c.tot;b+=n;both++}});
+    dact.forEach(d=>{grossSum+=d.gross||0;const n=netOf(d),c=cost(d);if(n===null)netMiss++;else{netSum+=n;if(d.netSource==='estimado')est=true}if(c)costSum+=c.tot;else if(status(d)!=='prog')costMiss++;if(n!==null&&n>0&&c){a+=c.tot;b+=n;both++}});
     const pct=b?Math.round(a/b*100):null;
     h+=`<section class="today"><div class="kpis">
       <div class="kpi"><div class="k">Ingreso</div>${money2(grossSum,netMiss?null:netSum,est,true)}${netMiss&&netSum?`<div class="sub">neto parcial ${fmt(netSum)}</div>`:''}</div>
       <div class="kpi"><div class="k">Costo</div><div class="n">${fmt(costSum)}</div>${costMiss?'<div class="sub">Parcial</div>':''}</div>
       <div class="kpi"><div class="k">Costo %</div><div class="n">${pct===null?'—':pct+'%'}</div></div></div>
       ${netMiss||costMiss?`<div class="fn">${netMiss?`Neto pendiente en ${netMiss} ${netMiss===1?'salida':'salidas'}. El Costo % se calcula sobre el neto, solo con las ${both} que ya tienen neto y bitácora completa.`:''}${costMiss?` El costo suma solo salidas con bitácora completa.`:''}</div>`:''}
-      ${dsum}${pills}</section>`;
+      ${dsum}</section>`;
   }
   const f=depFilter(S.filter),list=ds.filter(d=>f.test(d,{today:TODAY,nowKey:nowKey()}));
   if(!list.length)return h+`<div class="group"><div class="list"><div class="empty">Ninguna salida con este filtro.</div></div></div>`;
@@ -823,10 +1009,11 @@ op(){
 },
 dep(id){
   const d=S.deps.find(x=>x.id===id);
-  if(!d)return topBar('Salida',{back:'Operación',backTo:'op'})+'<div class="group"><div class="list"><div class="empty">No encontré esta salida.</div></div></div>';
+  const fs=S.depFrom==='stock',bk=fs?{back:'Stock',backTo:'stock'}:{back:'Operación',backTo:'op'};
+  if(!d)return topBar('Salida',bk)+'<div class="group"><div class="list"><div class="empty">No encontré esta salida.</div></div></div>';
   const st=status(d),c=cost(d),n=netOf(d),miss=missingRole(d),fut=st==='prog',est=d.netSource==='estimado';
   const avUrl=d.itemPk?fhAvailUrl(d.itemPk,d.id,d.date):'';
-  let h=topBar(d.item,{back:'Operación',backTo:'op',lede:[d.time,d.boat?esc(d.boat):'',fd(d.date),d.label?esc(d.label):'',avUrl?fhA(avUrl,'#'+d.id,{label:'Abrir la salida '+d.id+' en FareHarbor'}):''].filter(Boolean).join(' · ')});
+  let h=topBar(d.item,{back:bk.back,backTo:bk.backTo,lede:[d.time,d.boat?esc(d.boat):'',fd(d.date),d.label?esc(d.label):'',avUrl?fhA(avUrl,'#'+d.id,{label:'Abrir la salida '+d.id+' en FareHarbor'}):''].filter(Boolean).join(' · ')});
   const dal=depAlerts(d,nowKey());
   if(dal.length)h+=`<div class="group">${gh('alert','Avisos')}<div class="list">${dal.map(a=>`<div class="cell ${/^No show/.test(a)?'w-red':'w-orange'}"><span class="main"><span class="s" style="margin:0">${esc(a)}</span></span></div>`).join('')}</div></div>`;
   const started=depStarted(d,nowKey());
@@ -851,7 +1038,7 @@ dep(id){
   else if(caHas(d))h+=`<div class="group">${gh('costos','Costos')}<div class="list">${caRows(d)}</div></div>`;
   else if(!fut)h+=`<div class="group">${gh('costos','Costos')}<div class="list"><div class="empty">El costo se calcula cuando la bitácora tiene salida y regreso.</div></div></div>`;
   if(!fut){
-    if(d.rev)h+=`<div class="group"><div class="list"><div class="cell"><span class="main t" style="color:var(--green)">✅ Revisado · ${esc(d.rev.by)} ${esc(revAt(d.rev))}</span></div></div></div>`;
+    if(d.rev)h+=`<div class="group"><div class="list"><div class="cell"><span class="main t" style="color:var(--green)">✅ Revisado · ${esc(d.rev.by)} ${esc(revAt(d.rev))}${d.rev.pend?` <span class="sv${d.rev.pf?' bad':''}">${d.rev.pend}</span>`:''}</span></div></div></div>`;
     else if(okish(d)&&!miss.length&&can('revisar'))h+=`<div class="stack" style="margin-bottom:26px"><button class="btn" data-rev="${d.id}">Marcar revisado</button></div>`;
     else h+=`<div class="group"><div class="list"><div class="cell"><span class="main t mut">${!okish(d)?'Revisión pendiente: falta bitácora':miss.length?'Revisión pendiente: falta asignar rol':'Por revisar'}</span></div></div></div>`;
   }
@@ -875,7 +1062,7 @@ person(name){
   let h=topBar(name,{back:'Eventuales',backTo:'ev',lede:wkLabel(ws)})+`<div class="hero"><div class="n">${fmt(p.tot)}</div><div class="u">${p.lines.length} ${p.lines.length===1?'salida':'salidas'}${p.hx?` · ${p.hx} h extra`:''}</div></div>
   <div class="group"><div class="list">${p.lines.sort((a,b)=>(a.d.date+a.d.time)<(b.d.date+b.d.time)?-1:1).map(l=>`<div class="cell"><span class="main"><span class="t">${sd(l.d.date)} · ${l.d.time}</span><div class="s">${esc(l.d.item)}</div><div class="s">${l.c.r?`${esc(l.c.r)} · tarifa ${fmt(l.pl.base)}`:'⚠️ Falta rol'}${l.pl.hx?` · hora extra ${fmt(l.pl.hx)}`:''}</div>${l.c.alert?`<div class="s" style="color:var(--orange)">⚠️ ${esc(l.c.alert)}</div>`:''}</span><span class="v">${fmt(l.pl.tot)}</span></div>`).join('')}
     <div class="cell"><span class="main t"><b>Total</b></span><span class="big" style="font-size:17px">${fmt(p.tot)}</span></div></div></div>`;
-  if(pg)h+=`<div class="group"><div class="list"><div class="cell"><span class="main t" style="color:var(--green)">✅ Pagado · ${short(pg)}</span></div></div></div>`;
+  if(pg){const pp=(S.paidPend||{})[ws+'|'+name];h+=`<div class="group"><div class="list"><div class="cell"><span class="main t" style="color:var(--green)">✅ Pagado · ${short(pg)}${pp?` <span class="sv${pp.pf?' bad':''}">${pp.pend}</span>`:''}</span></div></div></div>`}
   else if(can('pagar')){const blk=p.miss||p.rate;h+=`<div class="stack" style="margin-bottom:26px"><button class="btn" data-pay="${esc(name)}" ${blk?'disabled':''}>Marcar pagado</button>${p.miss?'<div class="gfoot" style="margin:0">Asigna el rol faltante en FareHarbor antes de pagar.</div>':p.rate?'<div class="gfoot" style="margin:0">Falta una tarifa. Defínela en Más, Tarifas eventuales, antes de pagar.</div>':''}</div>`}
   else h+=`<div class="group"><div class="list"><div class="cell"><span class="main t mut">Tu rol no puede marcar pagos.</span></div></div></div>`;
   return h;
@@ -886,7 +1073,7 @@ stock(){
   const groups=[...new Set(its.map(i=>i.group))];
   const value=its.reduce((a,i)=>a+stock(i.id)*i.price,0);
   const recent=sortedMoves().slice(0,8);
-  return topBar('Stock actual',{acts:[PLUS(),DOTS()],lede:`Valor en bodega ${fmt(value)}`})+`
+  return topBar('Stock actual',{acts:[S.role==='admin'&&{k:'sreport',l:'Reporte de stock',s:'Reporte'},PLUS(),DOTS()],lede:`Valor en bodega ${fmt(value)}`})+`
   <label class="search"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><input id="q" type="search" placeholder="Buscar" value="${esc(S.q||'')}" aria-label="Buscar producto"></label>
   ${groups.map(g=>`<div class="group"><div class="ghead">${GI[g]||'📦'} ${esc(g)}</div><div class="list">
     ${its.filter(i=>i.group===g).map(i=>{const s=stock(i.id),l=level(i);return `<button class="cell" data-item="${i.id}"><span class="dot ${l}"></span><span class="ic">${i.icon}</span><span class="main"><span class="t">${esc(i.name)}</span><div class="s">${packs(i,s)}</div></span><span class="big">${num(s)}<small>${i.units}</small></span>${chev}</button>`}).join('')}
@@ -898,6 +1085,25 @@ stock(){
 movs(){
   const all=sortedMoves(),days=[...new Set(all.map(m=>m.d))];
   return topBar('Movimientos',{back:'Stock',backTo:'stock'})+(days.map(d=>`<div class="group"><div class="ghead">${esc(dayName(d))}</div><div class="list">${all.filter(m=>m.d===d).map(mvRow2).join('')}</div></div>`).join('')||'<div class="empty">Sin movimientos.</div>');
+},
+sreport(){
+  const r=S.sr,dia=r.mode==='dia',pre=dia?[['hoy','Hoy'],['ayer','Ayer']]:[['sem','Esta semana'],['sempas','Semana pasada'],['mes','Este mes'],['mespas','Mes pasado']];
+  let h=topBar(dia?'Balance al día':'Reporte de stock',{back:'Stock',backTo:'stock',lede:dia?fdate(r.desde):fdate(r.desde)+' – '+fdate(r.hasta)})+`
+  <div class="seg" role="group" aria-label="Tipo de reporte" style="margin-bottom:12px"><button type="button" data-srm="rango" aria-pressed="${!dia}">Periodo</button><button type="button" data-srm="dia" aria-pressed="${dia}">Un día</button></div>
+  <div class="chips" role="group" aria-label="Periodos rápidos" style="margin-bottom:12px">${pre.map(([k,l])=>`<button type="button" class="chip" data-srp="${k}">${l}</button>`).join('')}</div>
+  <div class="group"><div class="list">${dia?`<div class="field"><label for="srD">Día</label><input id="srD" class="srd" type="date" value="${r.desde}"></div>`:`<div class="field"><label for="srA">Desde</label><input id="srA" class="srd" type="date" value="${r.desde}"></div><div class="field"><label for="srB">Hasta</label><input id="srB" class="srd" type="date" value="${r.hasta}"></div>`}</div></div>`;
+  if(r.err)return h+`<div class="warn">${esc(r.err)} <button class="link" data-srgo>Reintentar</button></div>`;
+  if(!r.data)return h+'<div class="empty">Calculando…</div>';
+  const d=r.data,sg2=n=>n?sg(n):'0',gs=[...new Set(d.rows.map(x=>x.group))];
+  h+=gs.map(g=>`<div class="group"><div class="ghead">${GI[g]||'📦'} ${esc(g)}</div><div class="list">${d.rows.filter(x=>x.group===g).map(x=>`<div class="srr"><div class="srh"><span class="ic">${x.icon}</span><span class="t">${esc(x.name)}</span><span class="v">${fmt(x.val)}</span></div>
+    <div class="srg"><div><small>Inicial</small>${num(x.ini)}</div><div><small>Compras</small>${sg2(x.com)}</div><div><small>Consumo</small>${x.con?'−'+num(x.con):'0'}</div><div><small>Ajustes</small>${sg2(x.aj)}</div><div class="fin"><small>Final</small>${num(x.fin)}</div><div class="${x.delta<0?'neg':x.delta>0?'pos':''}"><small>Δ</small>${sg2(x.delta)}</div></div></div>`).join('')}</div></div>`).join('')||'<div class="empty">Sin productos con stock.</div>';
+  h+=`<div class="group"><div class="ghead">Totales</div><div class="list">
+    <div class="cell"><span class="main t">Consumo</span><span class="v">${fmt(d.totals.consumo)}</span></div>
+    <div class="cell"><span class="main t">Compras</span><span class="v">${fmt(d.totals.compras)}</span></div>
+    <div class="cell"><span class="main t"><b>Valor final</b></span><span class="big" style="font-size:17px">${fmt(d.totals.valor)}</span></div></div>
+    <div class="gfoot">Inicial = stock al empezar el día ${dia?'':'«desde»'}; Final = al terminar el día ${dia?'':'«hasta»'}. El valor usa el costo unitario actual.</div></div>
+  <div class="stack" style="margin-bottom:26px"><button class="btn" data-srshare>Compartir</button><button class="btn plain" data-srcsv>Descargar CSV</button></div>`;
+  return h;
 },
 item(id){
   const i=item(id),s=stock(id),mv=S.moves.filter(m=>m.i===id&&!m.noStock).slice().reverse(),pl=(S.priceLog[id]||[]).slice().reverse();
@@ -916,7 +1122,7 @@ purchase(id){
   const c=S.purchases.find(x=>x.id===id);
   if(!c)return topBar('Compra',{back:'Stock',backTo:'stock'})+'<div class="group"><div class="list"><div class="empty">No encontré esta compra.</div></div></div>';
   const tot=c.lines.reduce((a,l)=>a+l.q*l.p,0),url=/^https?:/.test(c.ticket);
-  return topBar(c.sup,{back:'Stock',backTo:'stock',lede:dayName(c.d),acts:[can('editar')&&!c.annulled&&{k:'pmenu',l:'Editar o anular compra',s:'⋯',pre:id}]})+
+  return topBar(c.sup,{back:'Stock',backTo:'stock',lede:dayName(c.d)+(c.pend?` · <span class="sv${c.pf?' bad':''}">${c.pend}</span>`:''),acts:[can('editar')&&!c.annulled&&!c.pend&&{k:'pmenu',l:'Editar o anular compra',s:'⋯',pre:id}]})+
   (c.annulled?`<div class="group"><span class="badge red">Anulada</span></div>`:'')+`
   <div class="group"><div class="list">${c.lines.map(l=>{const i=item(l.i);return `<div class="cell"><span class="ic">${i.icon}</span><span class="main"><span class="t">${esc(i.name)}</span><div class="s">${num(l.q)} ${i.units} × ${fmt(l.p)}</div></span><span class="v">${fmt(l.q*l.p)}</span></div>`}).join('')}
   <div class="cell"><span class="main t"><b>Total</b></span><span class="big" style="font-size:17px">${fmt(tot)}</span></div></div></div>
@@ -1032,20 +1238,23 @@ let cart=null;
 const units=l=>l.i?(l.mode==='caja'?l.qty*l.pack:l.qty):0;
 function emptyLine(){return {i:null,mode:'unidad',pack:1,qty:0,price:0}}
 function newLine(id){const it=item(id),p=prefs[id]||{};const mode=it.pack>1?(p.mode||'caja'):'unidad';return {i:id,mode,pack:p.pack||it.pack,qty:0,price:it.price}}
+// Un producto = un renglón de "recibo": selector (agrupado por grupo) · cantidad · precio · y abajo "Cerveza × 24 ····· $370"
+function prodSelect(l,k){
+  const its=S.items.filter(i=>i.active),gs=[...new Set(its.map(i=>i.group))];
+  return `<select class="cSel" data-k="${k}" aria-label="Producto"><option value=""${l.i?'':' selected'} disabled>Elegir producto…</option>${gs.map(g=>`<optgroup label="${esc(g||'Otros')}">${its.filter(i=>i.group===g).map(i=>`<option value="${esc(i.id)}"${l.i===i.id?' selected':''}>${i.icon} ${esc(i.name)}</option>`).join('')}</optgroup>`).join('')}</select>`;
+}
 function lineHtml(l,k){
   const it=l.i?item(l.i):null,multi=cart.lines.length>1;
-  const chips=(!it||l.choosing)?`<div class="chips" role="group" aria-label="Elegir producto">${S.items.filter(i=>i.active).map(i=>`<button type="button" class="chip" data-chip="${k}:${i.id}" aria-pressed="${l.i===i.id}"><span>${i.icon}</span>${esc(i.name)}</button>`).join('')}</div>`:'';
-  const rm=multi?`<button type="button" data-rm="${k}" aria-label="Quitar producto">✕</button>`:'';
-  if(!it)return `<div class="li" data-k="${k}"><div class="lhead"><span class="pl">Producto</span>${rm}</div>${chips}</div>`;
+  const rm=multi?`<button type="button" class="rrm" data-rm="${k}" aria-label="Quitar producto">✕</button>`:'';
+  if(!it)return `<div class="rl" data-k="${k}"><div class="rsel">${prodSelect(l,k)}${rm}</div></div>`;
   const pn=cap(it.packName||'caja');
-  return `<div class="li" data-k="${k}">
-    <div class="lhead"><button type="button" class="tn" data-chg="${k}" aria-expanded="${!!l.choosing}" aria-label="Cambiar producto: ${esc(it.name)}"><span class="ic">${it.icon}</span>${esc(it.name)}<span class="caret">▾</span></button>${rm}</div>
-    ${chips}
+  return `<div class="rl" data-k="${k}">
+    <div class="rsel">${prodSelect(l,k)}${rm}</div>
     ${it.pack>1?`<div class="seg" role="group" aria-label="Modo de cantidad"><button type="button" data-mode="${k}:caja" aria-pressed="${l.mode==='caja'}">${esc(pn)}</button><button type="button" data-mode="${k}:unidad" aria-pressed="${l.mode==='unidad'}">Unidad</button></div>`:''}
     <div class="stepper"><button type="button" data-step="${k}:-1" aria-label="Menos">−</button><input class="cQ" data-k="${k}" type="number" inputmode="decimal" min="0" step="any" value="${l.qty||''}" placeholder="0" aria-label="Cantidad"><button type="button" data-step="${k}:1" aria-label="Más">+</button><span class="ulab">${l.mode==='caja'?esc(plural(it.packName||'caja')):esc(it.units)}</span></div>
     ${l.mode==='caja'&&it.pack>1?`<label class="mini"><span>Unidades por ${esc(it.packName||'caja')}</span><input class="cK" data-k="${k}" type="number" inputmode="numeric" min="1" value="${l.pack}"></label>`:''}
     <label class="mini"><span>Precio por ${esc(it.unit)}</span><input class="cP" data-k="${k}" type="number" inputmode="decimal" step="any" value="${l.price}"></label>
-    <div class="mini"><span class="lu" style="color:var(--ink2)"></span><b class="lt"></b></div>
+    <div class="rrow"><span class="rt"></span><i class="rdots" aria-hidden="true"></i><span class="rm"></span></div>
   </div>`;
 }
 function renderCart(){
@@ -1054,7 +1263,7 @@ function renderCart(){
 }
 function updateTotals(){
   let tot=0;
-  cart.lines.forEach((l,k)=>{if(!l.i)return;const u=units(l),el=document.querySelector(`.li[data-k="${k}"]`);if(el){el.querySelector('.lu').textContent=`${num(u)} ${item(l.i).units}`;el.querySelector('.lt').textContent=fmt(u*l.price)}tot+=u*l.price});
+  cart.lines.forEach((l,k)=>{if(!l.i)return;const u=units(l),el=document.querySelector(`.rl[data-k="${k}"]`);if(el){const it=item(l.i);el.querySelector('.rt').textContent=`${it.name} × ${num(u)}`;el.querySelector('.rm').textContent=fmt(u*l.price)}tot+=u*l.price});
   $('sTot').textContent=fmt(tot);const hf=$('hastaF');if(hf)hf.hidden=!cart.lines.some(l=>l.i==='fru');
   const ok=$('sheetOk');if(ok)ok.disabled=!cart.lines.some(l=>units(l)>0);
 }
@@ -1081,15 +1290,14 @@ function openCompra(pre){
   supLoad();
   cart={lines:[pre&&item(pre)&&item(pre).active?newLine(pre):emptyLine()],ticket:'',ticketUrl:'',file:null,supTouched:false};
   sheet('Gasto / Compra',`<div class="tkrow"><label>📷 <span id="tkName">Ticket (opcional)</span><input id="tkFile" type="file" accept="image/*" hidden></label></div><div id="tkBox"></div>
-    <div class="list" id="cart"></div>
-    <div class="stack" style="margin:8px 0 14px"><button class="btn plain" type="button" data-addp>+ Agregar producto</button></div>
+    <div class="rcpt" role="group" aria-label="Productos de la compra"><div id="cart"></div>
+      <button class="addp" type="button" data-addp>+ Agregar producto</button>
+      <div class="rsum"><span>TOTAL</span><span id="sTot">$0</span></div></div>
     <div class="group"><div class="list">
       <div class="field"><label for="sDate">Fecha</label><input id="sDate" type="date" value="${TODAY}"></div>
       <div class="field" id="hastaF" hidden><label for="sHasta">Cubre hasta<div class="s">Fruta: último día que alcanza</div></label><input id="sHasta" type="date"></div>
       <div class="field"><label for="sSup">Proveedor</label><input id="sSup" placeholder="Opcional" autocomplete="off"></div>
-      <div class="field" id="noteF" hidden><label for="sNote">Nota</label><input id="sNote" placeholder="Opcional"></div>
-      <button type="button" class="addnote" data-addnote>Agregar nota</button></div></div>
-    <div class="sticky"><span>Total</span><span id="sTot">$0</span></div>`,{ok:saveCompra,okLabel:'Registrar',disabled:true,input:cartInput});
+      <div class="field"><label for="sNote">Nota</label><input id="sNote" placeholder="Opcional"></div></div></div>`,{ok:saveCompra,okLabel:'Registrar',disabled:true,input:cartInput});
   renderCart();applySup();
 }
 function cartInput(e){
@@ -1097,6 +1305,7 @@ function cartInput(e){
   if(t.id==='tkFile'){const f=t.files&&t.files[0]||null;if(f!==cart.file)setTicket(f);return}
   if(t.id==='sSup'){cart.supTouched=true;return}
   const l=cart.lines[+t.dataset.k];if(!l)return;
+  if(t.classList.contains('cSel')){if(l.i!==t.value){cart.lines[+t.dataset.k]=newLine(t.value);renderCart();applySup();const q=document.querySelector(`.cQ[data-k="${t.dataset.k}"]`);if(q)q.focus()}return}
   if(t.classList.contains('cQ'))l.qty=Math.max(0,+t.value||0);
   else if(t.classList.contains('cK')){l.pack=Math.max(1,+t.value||1);setPref(l)}
   else if(t.classList.contains('cP'))l.price=Math.max(0,+t.value||0);
@@ -1110,14 +1319,13 @@ function shrink(file){return new Promise(res=>{try{
     c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);res(c.toDataURL('image/jpeg',.7))}catch(e){res('')}};
   img.onerror=()=>{URL.revokeObjectURL(url);res('')};img.src=url}catch(e){res('')}})}
 async function saveCompra(){
-  const ls=cart.lines.filter(l=>units(l)>0);if(!ls.length||saving)return;
-  const okb=$('sheetOk');if(okb)okb.disabled=true;
+  const ls=cart.lines.filter(l=>units(l)>0);if(!ls.length)return;
   const sup=$('sSup').value.trim()||'Sin proveedor',d=$('sDate').value||TODAY,note=$('sNote').value.trim(),hasta=$('sHasta')?$('sHasta').value:'';
-  const payload={d,sup,note,hasta:ls.some(l=>l.i==='fru')?hasta:'',ticket:cart.ticket,lines:ls.map(l=>({i:l.i,q:units(l),p:l.price}))};
-  if(cart.file)payload.ticketData=await shrink(cart.file);
-  ls.forEach(setPref);
-  const r=await act('addCompra',[payload]);
-  if(r){supMap=supRemember(supMap,ls.map(l=>l.i),sup);supSave();closeSheet();render();toast('Registrado')}
+  const payload={cid:uuid(),d,sup,note,hasta:ls.some(l=>l.i==='fru')?hasta:'',ticket:cart.ticket,lines:ls.map(l=>({i:l.i,q:units(l),p:l.price}))},file=cart.file;
+  ls.forEach(setPref);supMap=supRemember(supMap,ls.map(l=>l.i),sup);supSave();
+  closeSheet();                                           // la hoja se cierra al instante; lo demás pasa en segundo plano
+  if(file)payload.ticketData=await shrink(file);          // foto del ticket: se reduce primero (≈ 0.2 s) y viaja con la compra
+  enqueue('addCompra',[payload]);toast('Compra registrada');
 }
 
 // --- Inventario completo ---
@@ -1135,9 +1343,9 @@ function invReview(){
     <div class="group"><div class="ghead">Nota (obligatoria)</div>${noteBox('iNote','Por qué cambia el inventario')}<div class="gfoot">Esto reescribe el stock actual. Se guarda un ajuste por producto en el historial.</div></div>
     <div class="stack"><button class="btn" id="iGo" disabled>Confirmar y reescribir inventario</button></div>`,
     {back:{label:'Conteo',fn:invStep1},input:()=>{$('iGo').disabled=!$('iNote').value.trim()}});
-  $('iGo').onclick=async()=>{const note=$('iNote').value.trim();if(!note)return;$('iGo').disabled=true;
-    const r=await act('addConteo',[{d:TODAY,counts:counts,nota:note}]);
-    if(r){counts={};closeSheet();render();toast(`Inventario reescrito (${r.n} ${r.n===1?'producto':'productos'})`)}else $('iGo').disabled=false};
+  $('iGo').onclick=()=>{const note=$('iNote').value.trim();if(!note)return;$('iGo').disabled=true;
+    const n=diffs.length,c=counts;counts={};closeSheet();
+    enqueue('addConteo',[{d:TODAY,counts:c,nota:note,cid:uuid()}]);toast(`Inventario reescrito (${n} ${n===1?'producto':'productos'})`)};
 }
 
 // --- Ajustar inventario ---
@@ -1157,10 +1365,10 @@ function ajusteUpdate(){
   $('aHint').style.color=v!==''&&df!==0?'var(--orange)':'';
   $('sheetOk').disabled=!(v!==''&&df!==0&&$('aNote').value.trim());
 }
-async function saveAjuste(){
+function saveAjuste(){
   const it=item($('aItem').value),v=$('aCount').value,note=$('aNote').value.trim(),df=(+v)-stock(it.id);if(v===''||!df||!note)return;
-  const r=await act('addAjuste',[{d:TODAY,i:it.id,q:r2(df),motivo:$('aReason').value,nota:note}]);
-  if(r){closeSheet();render();toast(`Ajuste ${sg(df)} ${it.units}`)}
+  const mot=$('aReason').value;closeSheet();
+  enqueue('addAjuste',[{d:TODAY,i:it.id,q:r2(df),motivo:mot,nota:note,cid:uuid()}]);toast(`Ajuste ${sg(df)} ${it.units}`);
 }
 
 // --- Editar / anular compra (el original nunca se borra: se anula con motivo y se crea la nueva) ---
@@ -1332,13 +1540,13 @@ function openCal(){
 }
 
 
-async function doRev(id){
-  const d=S.deps.find(x=>x.id===id);if(!d||!can('revisar')||!okish(d)||missingRole(d).length)return;
-  const r=await act('markRev',[id]);if(r)toast('Marcado como revisado');
+function doRev(id){
+  const d=S.deps.find(x=>x.id===id);if(!d||!can('revisar')||!okish(d)||missingRole(d).length||d.rev)return;
+  enqueue('markRev',[id]);toast('Marcado como revisado');
 }
-async function doPaid(name){
-  if(!can('pagar'))return;const p=weekPeople(S.wk).find(x=>x.n===name);if(!p||p.miss||p.rate)return;
-  const r=await act('markPaid',[S.wk,name,r2(p.tot)]);if(r)toast('Marcado como pagado');
+function doPaid(name){
+  if(!can('pagar'))return;const p=weekPeople(S.wk).find(x=>x.n===name);if(!p||p.miss||p.rate||S.paid[S.wk+'|'+name])return;
+  enqueue('markPaid',[S.wk,name,r2(p.tot)]);toast('Marcado como pagado');
 }
 function openRate(id){
   const r=S.rates.find(x=>String(x.id)===String(id));if(!r)return;const ro=!can('config');
@@ -1400,9 +1608,45 @@ async function savePend(){
   else if(p.kind==='campo')val=v.main.indexOf('p:')===0?{uso:'producto',prod:v.main.slice(2)}:{uso:v.main};
   else if(p.kind==='rol')val={tarifa:v.main==='otro'?v.otro.trim():v.main};
   else val={tipo:v.tipo,barco:v.barco,fields:(v.tipo==='privado'||v.tipo==='renta')?v.fld.join(','):'',bitacora:v.bit};
-  const r=await act('setMapeo',[p.kind,p.clave,val]);
-  if(r){closeSheet();pc=null;render();toast('Guardado. Recalculando historial…')}
+  closeSheet();pc=null;enqueue('setMapeo',[p.kind,p.clave,val]);toast('Guardado. Recalculando historial…')
 }
+// ===== Reporte de stock =====
+function srPreset(k){
+  const ws=wkStart(TODAY),y=pd(TODAY).getFullYear(),m=pd(TODAY).getMonth(),ymd=(yy,mm,dd)=>yy+'-'+p2(mm+1)+'-'+p2(dd);
+  const last=(yy,mm)=>new Date(yy,mm+1,0).getDate(),pm=m?m-1:11,py=m?y:y-1;
+  return {sem:[ws,addD(ws,6)],sempas:[addD(ws,-7),addD(ws,-1)],mes:[ymd(y,m,1),ymd(y,m,last(y,m))],mespas:[ymd(py,pm,1),ymd(py,pm,last(py,pm))],hoy:[TODAY,TODAY],ayer:[addD(TODAY,-1),addD(TODAY,-1)]}[k];
+}
+function openReport(){
+  if(S.role!=='admin')return;
+  if(!S.sr){const [a,b]=srPreset('sem');S.sr={mode:'rango',desde:a,hasta:b,data:null,err:'',tk:0}}
+  stackView={name:'sreport'};render();goTop();srFetch();
+}
+async function srFetch(){
+  const r=S.sr,tk=++r.tk;r.err='';r.data=null;render();
+  try{const d=await srv('stockReport',r.desde,r.mode==='dia'?r.desde:r.hasta);if(tk!==r.tk)return;r.data=d}
+  catch(e){if(tk!==r.tk)return;r.err=errMsg(e)}
+  if(stackView&&stackView.name==='sreport'){const y=window.scrollY;render();window.scrollTo(0,y)}
+}
+const srTitle=()=>{const r=S.sr;return r.mode==='dia'?'Balance de stock al '+fdate(r.desde):'Reporte de stock · '+fdate(r.desde)+' – '+fdate(r.hasta)};
+async function srShare(){
+  const r=S.sr;if(!r.data)return;const t=reportText(r.data,srTitle());
+  if(navigator.share){try{await navigator.share({title:srTitle(),text:t});return}catch(e){if(e&&e.name==='AbortError')return}}
+  try{await navigator.clipboard.writeText(t);toast('Resumen copiado')}
+  catch(e){const ta=document.createElement('textarea');ta.value=t;ta.style.cssText='position:fixed;opacity:0';document.body.appendChild(ta);ta.select();let ok=false;try{ok=document.execCommand('copy')}catch(e2){}ta.remove();toast(ok?'Resumen copiado':'No pude copiar',ok?'':'err')}
+}
+function srCsv(){
+  const r=S.sr;if(!r.data)return;
+  const blob=new Blob([reportCsv(r.data)],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download='reporte-stock_'+r.data.desde+(r.data.hasta!==r.data.desde?'_'+r.data.hasta:'')+'.csv';document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),4000);toast('CSV descargado');
+}
+document.addEventListener('change',e=>{
+  const t=e.target;if(!t||!t.classList||!t.classList.contains('srd')||!S.sr)return;
+  const r=S.sr;if(!/^\d{4}-\d{2}-\d{2}$/.test(t.value))return;
+  if(r.mode==='dia'){r.desde=r.hasta=t.value}else if(t.id==='srA'){r.desde=t.value;if(r.hasta<r.desde)r.hasta=r.desde}else{r.hasta=t.value;if(r.hasta<r.desde)r.desde=r.hasta}
+  srFetch();
+});
+
 // ===== PIN =====
 let pinBuf='';
 function paintPin(){document.querySelectorAll('#pDots i').forEach((x,k)=>x.classList.toggle('on',k<pinBuf.length))}
@@ -1412,7 +1656,7 @@ function showPin(msg){
   if(msg){const d=$('pDots');d.classList.remove('shake');void d.offsetWidth;d.classList.add('shake')}
 }
 function logout(msg){
-  PIN='';try{localStorage.removeItem('adv_ops_pin')}catch(e){}
+  PIN='';Q=[];clearTimeout(qTimer);try{localStorage.removeItem('adv_ops_pin')}catch(e){}
   cacheClear();S.date='';S.wk='';S.role='op';tab='op';stackView=null;closeSheet();$('app').innerHTML='';showPin(msg||'');
 }
 async function pinKey(k){
@@ -1427,11 +1671,11 @@ async function tryLogin(pin,remembered){
   try{
     const r=await API('login',pin);
     if(!r||!r.ok){setBusy(-1);if(remembered){try{localStorage.removeItem('adv_ops_pin')}catch(e){}}showPin(r&&r.error?r.error:'PIN incorrecto');return false}
-    PIN=pin;S.perms=r.perms;S.realRole=r.rol;S.role=r.rol;S.user=r.nombre;
+    PIN=pin;qLoad();S.perms=r.perms;S.realRole=r.rol;S.role=r.rol;S.user=r.nombre;
     try{localStorage.setItem('adv_ops_pin',pin)}catch(e){}
     $('pMsg').textContent='Cargando…';
     try{await load('','')}catch(e){setBusy(-1);bootError(errMsg(e));return false}
-    setBusy(-1);$('pin').hidden=true;$('boot').hidden=true;tab='op';stackView=null;render();return true;
+    setBusy(-1);$('pin').hidden=true;$('boot').hidden=true;tab='op';stackView=null;render();pump();return true;
   }catch(e){setBusy(-1);bootError(errMsg(e));return false}
 }
 function bootError(m){
@@ -1442,17 +1686,17 @@ function bootError(m){
 function start(){
   let pin='';try{pin=localStorage.getItem('adv_ops_pin')||''}catch(e){}
   if(!pin){showPin();return}
-  PIN=pin;
+  PIN=pin;qLoad();
   const c=cacheRead(pin,'','');
   if(c){ // se pinta al instante con lo último que había; lo nuevo llega enseguida
     const a=advanceClock(c.d.today,c.d.now,Date.now()-c.at);
     applyData(Object.assign({},c.d,{today:a.today,now:a.now}),c.at);
-    $('pin').hidden=true;$('boot').hidden=true;tab='op';stackView=null;render();
+    $('pin').hidden=true;$('boot').hidden=true;tab='op';stackView=null;render();pump();
     setBusy(1,true);load('','').then(()=>softRender()).catch(e=>{S.offline=/Sin conexión/.test(errMsg(e));paintStatus();if(PIN)toast(S.offline?'Sin conexión. Mostrando los últimos datos.':errMsg(e),'err')}).finally(()=>setBusy(-1,true));
     return;
   }
   setBusy(1);
-  load('','').then(()=>{setBusy(-1);$('pin').hidden=true;$('boot').hidden=true;tab='op';stackView=null;render()})
+  load('','').then(()=>{setBusy(-1);$('pin').hidden=true;$('boot').hidden=true;tab='op';stackView=null;render();pump()})
     .catch(e=>{setBusy(-1);if(PIN)bootError(errMsg(e))}); // PIN incorrecto → srv ya llamó logout()
 }
 
@@ -1491,7 +1735,7 @@ function autoRefresh(){
   const a=document.activeElement;if(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName))return;
   lastLoad=Date.now();refresh(true);
 }
-document.addEventListener('visibilitychange',()=>{autoRefresh();paintStatus()});setInterval(autoRefresh,120000);setInterval(paintStatus,60000);setInterval(tickClock,60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)qKick();autoRefresh();paintStatus()});setInterval(autoRefresh,120000);setInterval(paintStatus,60000);setInterval(tickClock,60000);
 document.addEventListener('click',e=>{
   const t=e.target,on=s=>t.closest(s);
   if(on('a[href]'))return; // enlaces a FareHarbor: los abre el navegador (pestaña nueva)
@@ -1504,9 +1748,8 @@ document.addEventListener('click',e=>{
       if(k==='inv'){counts={};invStep1()}else if(k==='aj')openAjuste(pre);else if(k==='edit')openEditCompra(pre);else if(k==='anul')openAnular(pre);return}
     if(on('[data-addp]')){cart.lines.push(emptyLine());renderCart();const li=document.querySelector(`.li[data-k="${cart.lines.length-1}"]`);if(li)li.scrollIntoView({block:'nearest'});return}
     const tr=on('[data-tkrm]');if(tr){setTicket(null);const f=$('tkFile');if(f)f.value='';return}
-    const cg=on('[data-chg]');if(cg){const l=cart.lines[+cg.dataset.chg];l.choosing=!l.choosing;renderCart();return}
-    const ch=on('[data-chip]');if(ch){const[k,id]=ch.dataset.chip.split(':'),old=cart.lines[+k];if(old.i!==id)cart.lines[+k]=newLine(id);else old.choosing=false;renderCart();applySup();return}
-    const an=on('[data-addnote]');if(an){an.hidden=true;$('noteF').hidden=false;$('sNote').focus();return}
+    const qr=on('[data-qretry]');if(qr){qRetry(qr.dataset.qretry);openQueue();return}
+    const qd=on('[data-qdrop]');if(qd){const i=Q.findIndex(x=>x.id===qd.dataset.qdrop);if(i>=0){Q.splice(i,1);qSave();load(S.win.from,S.win.to).then(softRender).catch(()=>{});pump()}openQueue();paintStatus();render();return}
     const ico=on('[data-ico]');if(ico&&!pe.ro){pe.icon=ico.dataset.ico;document.querySelectorAll('[data-ico]').forEach(b=>b.setAttribute('aria-pressed',b===ico));return}
     const asw=on('[data-actsw]');if(asw&&!pe.ro){pe.act=!pe.act;asw.setAttribute('aria-checked',pe.act);return}
     const rm=on('[data-rm]');if(rm){cart.lines.splice(+rm.dataset.rm,1);renderCart();return}
@@ -1525,9 +1768,17 @@ document.addEventListener('click',e=>{
     const tt=on('[data-tt]');if(tt){if(can('config')){(async()=>{const r=await act('saveTourBarco',[tt.dataset.ttn,tt.dataset.tt]);if(r){closeSheet();render();toast('Tipo de barco guardado')}})()}return}
     return;
   }
+  const sm=on('[data-srm]');if(sm&&S.sr){const m=sm.dataset.srm;if(S.sr.mode!==m){S.sr.mode=m;if(m==='dia')S.sr.hasta=S.sr.desde;srFetch()}return}
+  const sp=on('[data-srp]');if(sp&&S.sr){const [a,b]=srPreset(sp.dataset.srp);S.sr.desde=a;S.sr.hasta=b;srFetch();return}
+  if(on('[data-srgo]')){srFetch();return}
+  if(on('[data-srshare]')){srShare();return}
+  if(on('[data-srcsv]')){srCsv();return}
+  if(on('[data-qopen]')){openQueue();return}
+  const mdp=on('[data-mvdep]');if(mdp){const a=mdp.dataset.mvdep.split('|');openDepFrom(a[0],a[1]);return}
+  const mja=on('[data-mvaj]');if(mja){openAjDetail(mja.dataset.mvaj);return}
   const rs=on('[data-rolesw]');if(rs){S.role=rs.dataset.rolesw;render();return}
-  const b=on('[data-tab]');if(b){tab=b.dataset.tab;stackView=null;render();goTop();return}
-  const bk=on('[data-back]');if(bk){if(bk.dataset.back)tab=bk.dataset.back;stackView=bk.dataset.backview?{name:bk.dataset.backview}:null;render();goTop();return}
+  const b=on('[data-tab]');if(b){tab=b.dataset.tab;stackView=null;S.depFrom='';render();goTop();return}
+  const bk=on('[data-back]');if(bk){S.depFrom='';if(bk.dataset.back)tab=bk.dataset.back;stackView=bk.dataset.backview?{name:bk.dataset.backview}:null;render();goTop();return}
   const vw=on('[data-view]');if(vw){stackView={name:vw.dataset.view};render();goTop();return}
   const mv=on('[data-movs]');if(mv){stackView={name:'movs'};render();goTop();return}
   const ed=on('[data-edit]');if(ed){openProducto(ed.dataset.edit);return}
@@ -1548,7 +1799,7 @@ document.addEventListener('click',e=>{
   if(on('[data-cal]')){cal={y:pd(S.date).getFullYear(),m:pd(S.date).getMonth()};calMonth();return}
   const rv2=on('[data-rev]');if(rv2){doRev(rv2.dataset.rev);return}
   const bkr=on('[data-bk]');if(bkr){const a=bkr.dataset.bk.split('|');openBooking(a[0],a[1]);return}
-  const dp=on('[data-dep]');if(dp){stackView={name:'dep',arg:dp.dataset.dep};render();goTop();return}
+  const dp=on('[data-dep]');if(dp){S.depFrom='';stackView={name:'dep',arg:dp.dataset.dep};render();goTop();return}
   const wk=on('[data-wk]');if(wk){setWk(addD(S.wk,7*(+wk.dataset.wk)));return}
   const pe2=on('[data-person]');if(pe2){stackView={name:'person',arg:pe2.dataset.person};render();goTop();return}
   const py=on('[data-pay]');if(py){doPaid(py.dataset.pay);return}
@@ -1557,6 +1808,7 @@ document.addEventListener('click',e=>{
   const pd2=on('[data-pend]');if(pd2){openPend(+pd2.dataset.pend);return}
   const a=on('[data-act]');if(!a)return;const act2=a.dataset.act,pre=a.dataset.pre;
   if(act2==='compra'&&can('compras'))openCompra(pre);
+  if(act2==='sreport')openReport();
   if(act2==='addprod'&&can('config'))openProducto();
   if(act2==='menu'&&menuOk())openMenu(pre);
   if(act2==='pmenu'&&can('editar'))openPMenu(pre);

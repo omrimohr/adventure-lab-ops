@@ -162,5 +162,5 @@ test('app: booking sheet section order is exactly Check-in · Tipos · Canal · 
   assert.ok(/Debe/.test(fn));
   assert.ok(/b\.note\?`<span class="ni"/.test(html), 'note icon only when the booking has a note');
   assert.ok(/data-bk=/.test(html) && /const bkr=on\('\[data-bk\]'\)/.test(html));
-  assert.ok(/'al-ops-v3'/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'sw.js'), 'utf8')), 'CACHE bumped');
+  assert.ok(/'al-ops-v(?:[4-9]|\d\d+)'/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'sw.js'), 'utf8')), 'CACHE bumped');
 });

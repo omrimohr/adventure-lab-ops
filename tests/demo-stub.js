@@ -130,6 +130,8 @@ const D={};
 function init(){
   const T=addDays(0);
   D.deps=decorate(makeDeps());
+  // round 7: one departure per day whose bookings are ALL cancelled (no active bookings) and with a warning: it must not count in the day summary
+  [-1,0].forEach((off,n)=>{const b=D.deps[0];D.deps.push(Object.assign({},b,{id:String(9090+n),date:addDays(off),time:'18:'+(n?'30':'00'),end:addDays(off)+' 21:00',bookings:[],gross:0,res:[],crew:[{n:'Pedro Chan',r:'',pay:{base:0,hx:0,tot:0},alert:''}],out:null,back:null,costs:null,ca:{items:[],total:0,unparsed:false,rest:[],raw:''},extras:'',rev:null,bit:'Sin bitácora',ci:null,alerts:'',netSource:'',salidaId:'',regresoId:'',salidaUrl:'',regresoUrl:''}))});
   D.items=ITEMS.map(x=>Object.assign({},x));
   const buys=[
    {id:'c1',d:addDays(-6),sup:'Depósito Bacalar',lines:[{i:'cer',q:240,p:17.5},{i:'ref',q:120,p:14}],ticket:'',note:'',annulled:false,hasta:'',history:[{d:addDays(-6),a:'Registrada · Omri',r:''}]},
@@ -141,7 +143,7 @@ function init(){
   D.moves.push({d:addDays(-1),i:'cer',q:-70,c:17.5,t:'Bitácora',ref:'09:00 Bacalar Lagoon Boat Tour',dep:'9000'});
   D.moves.push({d:addDays(-1),i:'agu',q:-30,c:9,t:'Bitácora',ref:'09:00 Bacalar Lagoon Boat Tour',dep:'9000'});
   D.moves.push({d:addDays(-1),i:'gas',q:-45,c:24.8,t:'Bitácora',ref:'10:30 Shared Sailing Tour',dep:'9001'});
-  D.moves.push({d:addDays(-1),i:'cer',q:-6,c:17.5,t:'Ajuste · Merma',ref:'Se rompieron al descargar'});
+  D.moves.push({d:addDays(-1),i:'cer',q:-6,c:17.5,t:'Ajuste · Merma',ref:'Se rompieron al descargar',aj:true,mot:'Merma',nota:'Se rompieron al descargar',por:'Jesús',k:'seed-aj-1'});
   D.moves.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0);
   D.priceLog={cer:[{d:addDays(-30),p:16.5,cid:'x'},{d:addDays(-6),p:17.5,cid:'c1'}],gas:[{d:addDays(-3),p:24.8,cid:'c2'}]};
   D.rates=[
@@ -187,17 +189,25 @@ const API={
      tours:D.tours,comidas:D.comidas,fh:D.fh,pend:D.pend,salud:D.salud,fhOk:true,stale:stale,rebuildPending:false}));
  },
  refreshFin:()=>({ran:true}),
- addCompra:(pin,p)=>{const id='c'+(D.purchases.length+1)+Date.now()%1000;
-   D.purchases.push({id:id,d:p.d,sup:p.sup,lines:p.lines,ticket:p.ticket||'',note:p.note||'',annulled:false,hasta:p.hasta||'',history:[{d:addDays(0),a:'Registrada · Omri',r:''}]});
+ addCompra:(pin,p)=>{const dup=D.purchases.find(x=>p.cid&&x.cid===p.cid);if(dup)return {ok:true,id:dup.id,dup:true};
+   const id='c'+(D.purchases.length+1)+Date.now()%1000;
+   D.purchases.push({cid:p.cid||'',id:id,d:p.d,sup:p.sup,lines:p.lines,ticket:p.ticket||'',note:p.note||'',annulled:false,hasta:p.hasta||'',history:[{d:addDays(0),a:'Registrada · Omri',r:''}]});
    p.lines.forEach(l=>{const it=D.items.find(x=>x.id===l.i);if(it)it.price=l.p;D.moves.push({d:p.d,i:l.i,q:l.q,c:l.p,t:'Compra',ref:p.sup,cid:id,noStock:!it.controlStock})});return {ok:true,id:id}},
  anularCompra:(pin,id,reason)=>{const c=D.purchases.find(x=>x.id===id);if(c){c.annulled=true;c.history.push({d:addDays(0),a:'Anulada',r:reason||''});
    c.lines.forEach(l=>D.moves.push({d:addDays(0),i:l.i,q:-l.q,c:l.p,t:'Compra anulada',ref:reason||'',cid:id}))}return {ok:true}},
  editCompra:(pin,id,p,reason)=>{const c=D.purchases.find(x=>x.id===id);if(c){Object.assign(c,{d:p.d,sup:p.sup,note:p.note,hasta:p.hasta,lines:p.lines});c.history.push({d:addDays(0),a:'Editada',r:reason||''})}return {ok:true}},
- addAjuste:(pin,p)=>{D.moves.push({d:p.d,i:p.i,q:p.q,c:0,t:'Ajuste · '+p.motivo,ref:p.nota||p.motivo});return {ok:true}},
+ addAjuste:(pin,p)=>{if(p.cid&&D.moves.some(m=>m.k===p.cid))return {ok:true,dup:true};D.moves.push({d:p.d,i:p.i,q:p.q,c:0,t:'Ajuste · '+p.motivo,ref:p.nota||p.motivo,aj:true,mot:p.motivo,nota:p.nota||'',por:'Omri',k:p.cid||''});return {ok:true}},
+ stockReport:(pin,desde,hasta)=>{
+   if(hasta<desde){const t=desde;desde=hasta;hasta=t}
+   const rows=D.items.filter(i=>i.controlStock).map(i=>{const o={i:i.id,name:i.name,icon:i.icon,group:i.group,unit:i.unit,units:i.units,price:i.price,ini:0,com:0,con:0,aj:0,comV:0,conV:0};
+     D.moves.filter(m=>m.i===i.id&&!m.noStock).forEach(m=>{if(m.d<desde)o.ini+=m.q;else if(m.d<=hasta){if(m.t==='Bitácora'){o.con-=m.q;o.conV-=m.q*m.c}else if(/^Compra/.test(m.t)){o.com+=m.q;o.comV+=m.q*m.c}else o.aj+=m.q}});
+     o.fin=o.ini+o.com-o.con+o.aj;o.delta=o.fin-o.ini;o.val=Math.round(o.fin*i.price*100)/100;return o});
+   const sum=k=>Math.round(rows.reduce((a,r)=>a+r[k],0)*100)/100;
+   return {ok:true,desde:desde,hasta:hasta,rows:rows,totals:{consumo:sum('conV'),compras:sum('comV'),valor:sum('val')}}},
  addConteo:(pin,p)=>{Object.keys(p.counts||{}).forEach(i=>{const cur=D.moves.filter(m=>m.i===i&&!m.noStock).reduce((a,m)=>a+m.q,0),df=Number(p.counts[i])-cur;if(df)D.moves.push({d:p.d,i:i,q:df,c:0,t:'Inventario completo',ref:p.nota||''})});return {ok:true}},
  addComida:(pin,p)=>{D.comidas.unshift({d:p.d,n:p.nombre,tipo:p.tipo,q:p.cantidad,nota:p.nota||'',por:'Omri'});return {ok:true}},
  markPaid:(pin,ws,name)=>{D.paid[ws+'|'+name]=addDays(0);return {ok:true}},
- markRev:(pin,id)=>{const d=D.deps.find(x=>x.id===id);if(d)d.rev={by:'Omri',at:hm(),day:addDays(0),hm:hm()};return {ok:true}},
+ markRev:(pin,id,cid)=>{const d=D.deps.find(x=>x.id===id);if(d)d.rev={by:'Omri',at:hm(),day:addDays(0),hm:hm()};return {ok:true}},
  saveProducto:(pin,p)=>{const i=D.items.findIndex(x=>x.id===p.id);const it=Object.assign({units:p.unit+'s',unitIcon:''},p);
    if(i>=0)D.items[i]=Object.assign(D.items[i],it);else{it.id=(p.name||'prd').toLowerCase().slice(0,3)+D.items.length;D.items.push(it)}return {ok:true}},
  saveTarifa:(pin,row,v)=>{const r=D.rates.find(x=>x.id===row);if(r){r.amt=v.amt;r.pending=false}return {ok:true}},
@@ -205,14 +215,17 @@ const API={
  saveTourBarco:(pin,pk,b)=>{const t=D.tours.find(x=>x.pk===String(pk));if(t)t.barco=b;return {ok:true}},
  setMapeo:(pin,kind,clave)=>{D.pend=D.pend.filter(x=>!(x.kind===kind&&x.clave===clave));return {ok:true,rebuildPending:false}}
 };
+const WRITES={addCompra:1,addAjuste:1,addConteo:1,markRev:1,markPaid:1,setMapeo:1};
 window.fetch=function(url,opts){
-  return new Promise(res=>setTimeout(()=>{
+  let delay=350,fail='';try{delay=Number(localStorage.getItem('demo_delay'))||350;fail=localStorage.getItem('demo_fail')||''}catch(e){}   // demo_delay (ms) / demo_fail ('net' | 'final') para ver "guardando…" y el error
+  return new Promise((res,rej)=>setTimeout(()=>{
     let body;try{body=JSON.parse(opts.body)}catch(e){body={}}
     let out;
+    if(fail&&WRITES[body.fn]){if(fail==='net'){rej(new TypeError('Failed to fetch'));return}out={ok:false,error:'Producto desconocido'};res({ok:true,status:200,json:()=>Promise.resolve(out)});return}
     try{const f=API[body.fn];if(!f)throw new Error('Función desconocida');out={ok:true,result:f.apply(null,body.args||[])}}
     catch(e){out={ok:false,error:String(e.message||e)}}
     res({ok:true,status:200,json:()=>Promise.resolve(out)});
-  },350));
+  },delay));
 };
 // small unobtrusive label
 document.addEventListener('DOMContentLoaded',()=>{

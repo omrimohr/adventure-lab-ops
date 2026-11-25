@@ -985,10 +985,10 @@ const BARCO_SEED = {
   723914: 'otro', 721266: 'otro'
 };
 const COMPRA_HEADERS = ['Compra ID', 'Fecha', 'Proveedor', 'Producto ID', 'Cantidad (unidades)', 'Costo unitario (MXN)',
-  'Total (MXN)', 'Cubre hasta (fecha)', 'Nota', 'Ticket', 'Estado (activa/anulada)', 'Registrado', 'Por'];
-const AJUSTE_HEADERS = ['Fecha', 'Producto ID', 'Cantidad (+/-)', 'Motivo', 'Nota', 'Por', 'Registrado'];
-const COMIDA_HEADERS = ['Fecha', 'Nombre', 'Tipo (desayuno/almuerzo)', 'Cantidad', 'Nota', 'Por', 'Registrado'];
-const PAGO_HEADERS = ['Semana (jueves)', 'Nombre', 'Monto (MXN)', 'Fecha pago', 'Por', 'Nota'];
+  'Total (MXN)', 'Cubre hasta (fecha)', 'Nota', 'Ticket', 'Estado (activa/anulada)', 'Registrado', 'Por', 'ID cliente'];
+const AJUSTE_HEADERS = ['Fecha', 'Producto ID', 'Cantidad (+/-)', 'Motivo', 'Nota', 'Por', 'Registrado', 'ID cliente'];
+const COMIDA_HEADERS = ['Fecha', 'Nombre', 'Tipo (desayuno/almuerzo)', 'Cantidad', 'Nota', 'Por', 'Registrado', 'ID cliente'];
+const PAGO_HEADERS = ['Semana (jueves)', 'Nombre', 'Monto (MXN)', 'Fecha pago', 'Por', 'Nota', 'ID cliente'];
 const STOCK_HEADERS = ['Producto ID', 'Producto', 'Unidad', 'Compras', 'Consumo', 'Ajustes', 'Stock', 'Mínimo', 'Alerta',
   'Costo unitario (MXN)', 'Valor (MXN)'];
 const EV_HEADERS = ['Semana (jueves)', 'Fecha', 'Hora', 'Item', 'Availability pk', 'Nombre', 'Usuario', 'Rol', 'Barco',
