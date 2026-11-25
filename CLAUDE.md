@@ -82,3 +82,9 @@ FareHarbor work is done in the claude.ai chat (browser + change log); app/DB cod
 - Omri to change seed PIN 0000 (tab Usuarios) and add staff.
 - Phase 2 FareHarbor (chat side): Fruta on SUP items, full bitácora on 703536 Hobbie Cat Sailing Lesson, kayak field subset.
 - Next app work: simplify colours per Omri's comments; QuickBooks later.
+
+## Round 13 (25 Nov 2026)
+- Stock list: every product uses the SAME unit icon 🥫 (`packs`); 📦 only for boxes; no boxes = 🥫 + number.
+- Money: `fmt` (cents kept) / `fmt0` (whole pesos: stock value, report) put the minus BEFORE the $ (U+2212): "−$1,690", never "$-1,690". Use these for all money output.
+- Stock report: no Periodo/Un día toggle, no date inputs. The date line is a button (`data-srcal`) opening a custom calendar sheet (Monday first, tap start then end, swap if reversed, same day twice = single day "Balance al …", future days disabled; pure helpers `srPick`, `srLabel`, `calCells`). Chips: Hoy, Esta semana, Semana pasada, Este mes, Mes pasado. Server `stockReport_` is day-inclusive at both edges (Inicial = before the first day's movements, Final = after the last day's).
+- Report is one table (Producto | Inicial | Compras | Consumo | Ajuste | Final | Valor), fixed layout, grouped by Grupo, Total + "Compras $ · Consumo $" footer; fits 360px without scrolling (wrapper keeps overflow-x as fallback).

@@ -442,12 +442,31 @@ a.fhl:focus-visible{outline:2px solid var(--acc);outline-offset:-2px;border-radi
 .addp{background:none;border:0;font:inherit;font-weight:500;color:var(--acc);min-height:44px;padding:0;text-align:left;cursor:pointer;border-top:1px dashed var(--neutral);width:100%}
 .addp:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 /* Stock report */
-.srr{padding:12px var(--px);position:relative}
-.srh{display:flex;align-items:center;gap:12px;margin-bottom:8px}
-.srh .t{flex:1;min-width:0;font-weight:500}.srh .v{font-variant-numeric:tabular-nums;color:var(--ink2);font-weight:500}
-.srg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 4px;font-variant-numeric:tabular-nums;font-size:14px}
-.srg small{display:block;font-size:12px;color:var(--ink3)}
-.srg .fin{font-weight:500}
+.srdate{display:flex;align-items:center;gap:8px;min-height:44px;width:100%;background:none;border:0;padding:0;font:inherit;font-size:14px;font-weight:500;color:var(--ink);cursor:pointer;text-align:left}
+.srdate svg{color:var(--acc);flex:none}
+.srnote{font-size:12px;color:var(--ink3);margin:0 0 12px}
+.chips.sm{gap:8px;margin:0 0 20px}.chips.sm .chip{height:40px;padding:0 14px;font-size:14px}
+.srwrap{margin:0 calc(-1*var(--px));background:var(--paper);border-top:1px solid var(--hair);border-bottom:1px solid var(--hair);overflow-x:auto}
+.srt{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px;font-variant-numeric:tabular-nums}
+.srt col.c0{width:20%}.srt col.c1{width:10%}.srt col.c2{width:15%}.srt col.c3{width:15%}.srt col.c4{width:11%}.srt col.c5{width:9%}.srt col.c6{width:20%}
+.srt th,.srt td{padding:8px 2px;text-align:right;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-top:1px solid var(--hair)}
+.srt th:first-child,.srt td:first-child{text-align:left;padding-left:12px}
+.srt th:last-child,.srt td:last-child{padding-right:10px}
+.srt thead th{color:var(--ink3);font-size:11px;border-top:0;padding-top:10px;padding-bottom:6px}
+.srt tbody th[scope=row]{font-size:14px;color:var(--ink);font-weight:500}
+.srt tr.gr th{text-align:left;background:var(--paper2);color:var(--ink3);font-size:12px;padding-top:6px;padding-bottom:6px}
+.srt td.fin,.srt td.val{font-weight:500}.srt td.val{color:var(--ink2)}
+.srt .z{color:var(--ink3)}.srt .pos{color:var(--green)}.srt .neg,.srt td.neg{color:var(--red)}
+.srt tfoot tr.tot th,.srt tfoot tr.tot td{border-top:1px solid var(--rule);font-size:13px;font-weight:500;color:var(--ink)}
+.srt tfoot tr.sub td{border-top:0;text-align:right;color:var(--ink3);padding:0 10px 10px;white-space:normal}
+.cal.rng{column-gap:0}
+.cal.rng button{border-radius:0}
+.cal.rng button.cm{background:var(--acc-soft);color:var(--acc)}
+.cal.rng button.cs,.cal.rng button.ce{background:var(--acc);color:var(--acc-ink);font-weight:500}
+.cal.rng button.cs{border-radius:10px 0 0 10px}.cal.rng button.ce{border-radius:0 10px 10px 0}.cal.rng button.cs.ce{border-radius:10px}
+.cal.rng button.tdy:not(.cs):not(.ce) .n{font-weight:500;color:var(--acc);text-decoration:underline;text-underline-offset:4px}
+.cal.rng button:disabled{color:var(--ink3);opacity:.45;cursor:default}
+.calhead button:disabled{color:var(--ink3);opacity:.45;cursor:default}
 /* Ajustes */
 .setrow{display:grid;gap:8px;padding:12px var(--px)}
 .setrow .t{font-size:16px}
@@ -689,7 +708,10 @@ function level(it){const s=stock(it.id);return s<it.min?'low':s<it.min*1.5?'mid'
 // ===== Operación helpers =====
 // ==PURE-BEGIN== (sin DOM: tests/round2-ui.test.js ejecuta este bloque en node)
 const NB='  ';
-const fmt=n=>'$'+Number(n).toLocaleString('es-MX',{maximumFractionDigits:2});
+// Dinero: el signo menos (U+2212) va ANTES del $: «−$1,690», nunca «$-1,690». fmt conserva centavos donde existan; fmt0 redondea a pesos enteros (stock y reporte).
+const moneyS=(n,dec)=>{n=Number(n);if(!isFinite(n))return '$0';const k=dec?100:1,r=Math.round(Math.abs(n)*k)/k;return (n<0&&r>0?'\u2212':'')+'$'+r.toLocaleString('es-MX',{maximumFractionDigits:dec?2:0})};
+const fmt=n=>moneyS(n,true);
+const fmt0=n=>moneyS(n,false);
 const num=n=>Number(n).toLocaleString('es-MX',{maximumFractionDigits:1});
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const DOW=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'],WD3=['dom.','lun.','mar.','mié.','jue.','vie.','sáb.'],MON=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
@@ -774,9 +796,9 @@ const caHas=d=>!!(d&&d.ca&&(d.ca.items.length||d.ca.rest.length));
 // Por revisar: solo si el día ya terminó (fecha anterior a hoy) y nadie la marcó revisada
 const needsReview=(d,today)=>d.date<today&&!d.rev;
 const hasBk=d=>!!(d&&d.bookings&&d.bookings.length);   // salida con reservas activas (las canceladas no cuentan en ningún resumen)
-// Cantidad en bodega, SIEMPRE con íconos: 📦 cajas + ícono de la unidad y sueltas. Sin empaque (pack 1): solo ícono de la unidad y el total.
+// Cantidad en bodega, SIEMPRE con íconos: 📦 cajas + 🥫 sueltas (el mismo ícono para todos los productos). Sin cajas (pack 1): solo 🥫 y el total.
 function packs(it,s){
-  const ui=it.unitIcon||(it.pack>1?'🥫':(it.icon||'🥫'));
+  const ui='🥫';   // un solo ícono de unidad (lata) para TODOS los productos
   if(it.pack<=1)return `${ui} ${num(s)}`;
   if(s<0)return `📦 0${NB}${ui} ${num(s)}`;
   const p=Math.floor(s/it.pack),r=Math.round((s-p*it.pack)*100)/100;
@@ -825,7 +847,15 @@ function daySummary(ds,nowKey,today,date){
 // Proveedor recordado por producto (mapa {idProducto: proveedor}): el del primer producto del carrito que tenga uno; al guardar se recuerda para todos
 const supFor=(map,ids)=>{for(const i of ids){if(map&&map[i])return map[i]}return ''};
 const supRemember=(map,ids,name)=>{const m=Object.assign({},map);const n=String(name||'').trim();if(n&&n!=='Sin proveedor')ids.forEach(i=>{m[i]=n});return m};
-// --- Reporte de stock: texto para compartir y CSV (rep = respuesta de stockReport) ---
+// --- Reporte de stock: etiqueta de fechas, selección en el calendario, texto para compartir y CSV (rep = respuesta de stockReport) ---
+const srLabel=(a,b)=>{if(!b||a===b)return 'Balance al '+fdate(a);const sameY=pd(a).getFullYear()===pd(b).getFullYear();return fdate(a,sameY)+' – '+fdate(b)};
+// Dos toques: el primero fija el inicio, el segundo el final (si es anterior al inicio se intercambian; el mismo día dos veces = un solo día)
+function srPick(st,d){
+  if(st.phase===1&&st.a){const x=d<st.a?[d,st.a]:[st.a,d];return {a:x[0],b:x[1],phase:0}}
+  return {a:d,b:null,phase:1};
+}
+// Celdas del mes (lunes primero): pad = huecos antes del día 1, dim = días del mes
+const calCells=(y,m)=>({pad:(new Date(y,m,1).getDay()+6)%7,dim:new Date(y,m+1,0).getDate()});
 const repNum=n=>String(Math.round(Number(n)*100)/100);
 function reportCsv(rep){
   const q=v=>/[",\n]/.test(String(v))?'"'+String(v).replace(/"/g,'""')+'"':String(v);
@@ -836,8 +866,8 @@ function reportCsv(rep){
 }
 function reportText(rep,title){
   const sg2=n=>(n>0?'+':n<0?'−':'')+num(Math.abs(n));
-  return [title,''].concat(rep.rows.map(r=>`${r.name}: inicial ${num(r.ini)} · compras ${sg2(r.com)} · consumo ${r.con?'−'+num(r.con):'0'} · ajustes ${sg2(r.aj)} · final ${num(r.fin)} (${fmt(r.val)})`),
-    ['',`Consumo ${fmt(rep.totals.consumo)} · Compras ${fmt(rep.totals.compras)} · Valor final ${fmt(rep.totals.valor)}`]).join('\n');
+  return [title,''].concat(rep.rows.map(r=>`${r.name}: inicial ${num(r.ini)} · compras ${sg2(r.com)} · consumo ${r.con?'−'+num(r.con):'0'} · ajustes ${sg2(r.aj)} · final ${num(r.fin)} (${fmt0(r.val)})`),
+    ['',`Consumo ${fmt0(rep.totals.consumo)} · Compras ${fmt0(rep.totals.compras)} · Valor final ${fmt0(rep.totals.valor)}`]).join('\n');
 }
 // --- Cola de guardado en segundo plano ---
 const uuid=()=>'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==='x'?r:(r&3|8)).toString(16)});
@@ -1122,7 +1152,7 @@ stock(){
   const groups=[...new Set(its.map(i=>i.group))];
   const value=its.reduce((a,i)=>a+stock(i.id)*i.price,0);
   const recent=sortedMoves().slice(0,8);
-  return topBar('Stock actual',{acts:[S.role==='admin'&&{k:'sreport',l:'Reporte de stock',s:'Reporte'},PLUS(),DOTS()],lede:`Valor en bodega ${fmt(value)}`})+`
+  return topBar('Stock actual',{acts:[S.role==='admin'&&{k:'sreport',l:'Reporte de stock',s:'Reporte'},PLUS(),DOTS()],lede:`Valor en bodega ${fmt0(value)}`})+`
   <label class="search"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><input id="q" type="search" placeholder="Buscar" value="${esc(S.q||'')}" aria-label="Buscar producto"></label>
   ${groups.map(g=>`<div class="group"><div class="ghead">${esc(g)}</div><div class="list">
     ${its.filter(i=>i.group===g).map(i=>{const s=stock(i.id),l=level(i);return `<button class="cell" data-item="${i.id}"><span class="dot ${l}"></span><span class="ic">${i.icon}</span><span class="main"><span class="t">${esc(i.name)}</span><div class="s">${packs(i,s)}</div></span><span class="big">${num(s)}<small>${i.units}</small></span>${chev}</button>`}).join('')}
@@ -1136,22 +1166,22 @@ movs(){
   return topBar('Movimientos',{back:'Stock',backTo:'stock'})+(days.map(d=>`<div class="group"><div class="ghead">${esc(dayName(d))}</div><div class="list">${all.filter(m=>m.d===d).map(mvRow2).join('')}</div></div>`).join('')||'<div class="empty">Sin movimientos.</div>');
 },
 sreport(){
-  const r=S.sr,dia=r.mode==='dia',pre=dia?[['hoy','Hoy'],['ayer','Ayer']]:[['sem','Esta semana'],['sempas','Semana pasada'],['mes','Este mes'],['mespas','Mes pasado']];
-  let h=topBar(dia?'Balance al día':'Reporte de stock',{back:'Stock',backTo:'stock',lede:dia?fdate(r.desde):fdate(r.desde)+' – '+fdate(r.hasta)})+`
-  <div class="seg" role="group" aria-label="Tipo de reporte" style="margin-bottom:12px"><button type="button" data-srm="rango" aria-pressed="${!dia}">Periodo</button><button type="button" data-srm="dia" aria-pressed="${dia}">Un día</button></div>
-  <div class="chips" role="group" aria-label="Periodos rápidos" style="margin-bottom:12px">${pre.map(([k,l])=>`<button type="button" class="chip" data-srp="${k}">${l}</button>`).join('')}</div>
-  <div class="group"><div class="list">${dia?`<div class="field"><label for="srD">Día</label><input id="srD" class="srd" type="date" value="${r.desde}"></div>`:`<div class="field"><label for="srA">Desde</label><input id="srA" class="srd" type="date" value="${r.desde}"></div><div class="field"><label for="srB">Hasta</label><input id="srB" class="srd" type="date" value="${r.hasta}"></div>`}</div></div>`;
+  const r=S.sr,one=r.desde===r.hasta,pre=[['hoy','Hoy'],['sem','Esta semana'],['sempas','Semana pasada'],['mes','Este mes'],['mespas','Mes pasado']];
+  let h=topBar('Reporte de stock',{back:'Stock',backTo:'stock'})+`
+  <button type="button" class="srdate" data-srcal aria-label="Cambiar fechas del reporte">${svgI('cal',18)}<span>${srLabel(r.desde,r.hasta)}</span></button>
+  <p class="srnote">${one?'Incluye el día completo, hasta el cierre de operaciones.':'Incluye los dos días completos, hasta el cierre de operaciones.'}</p>
+  <div class="chips sm" role="group" aria-label="Periodos rápidos">${pre.map(([k,l])=>{const [a,b]=srPreset(k);return `<button type="button" class="chip" data-srp="${k}" aria-pressed="${a===r.desde&&b===r.hasta}">${l}</button>`}).join('')}</div>`;
   if(r.err)return h+`<div class="warn">${esc(r.err)} <button class="link" data-srgo>Reintentar</button></div>`;
   if(!r.data)return h+'<div class="empty">Calculando…</div>';
-  const d=r.data,sg2=n=>n?sg(n):'0',gs=[...new Set(d.rows.map(x=>x.group))];
-  h+=gs.map(g=>`<div class="group"><div class="ghead">${esc(g)}</div><div class="list">${d.rows.filter(x=>x.group===g).map(x=>`<div class="srr"><div class="srh"><span class="ic">${x.icon}</span><span class="t">${esc(x.name)}</span><span class="v">${fmt(x.val)}</span></div>
-    <div class="srg"><div><small>Inicial</small>${num(x.ini)}</div><div><small>Compras</small>${sg2(x.com)}</div><div><small>Consumo</small>${x.con?'−'+num(x.con):'0'}</div><div><small>Ajustes</small>${sg2(x.aj)}</div><div class="fin"><small>Final</small>${num(x.fin)}</div><div class="${x.delta<0?'neg':x.delta>0?'pos':''}"><small>Δ</small>${sg2(x.delta)}</div></div></div>`).join('')}</div></div>`).join('')||'<div class="empty">Sin productos con stock.</div>';
-  h+=`<div class="group"><div class="ghead">Totales</div><div class="list">
-    <div class="cell"><span class="main t">Consumo</span><span class="v">${fmt(d.totals.consumo)}</span></div>
-    <div class="cell"><span class="main t">Compras</span><span class="v">${fmt(d.totals.compras)}</span></div>
-    <div class="cell"><span class="main t"><b>Valor final</b></span><span class="big">${fmt(d.totals.valor)}</span></div></div>
-    <div class="gfoot">Inicial = stock al empezar el día ${dia?'':'«desde»'}; Final = al terminar el día ${dia?'':'«hasta»'}. El valor usa el costo unitario actual.</div></div>
-  <div class="stack"><button class="btn" data-srshare>Compartir</button><button class="btn plain" data-srcsv>Descargar CSV</button></div>`;
+  const d=r.data,gs=[...new Set(d.rows.map(x=>x.group))];
+  const z=(n,f)=>n?f(n):'<span class="z">0</span>',vc=n=>n<0?' neg':'';
+  const row=x=>`<tr><th scope="row" title="${esc(x.name)}">${esc(x.name)}</th><td>${num(x.ini)}</td><td class="${x.com>0?'pos':''}">${z(x.com,sg)}</td><td class="${x.con>0?'neg':''}">${z(x.con,n=>'−'+num(n))}</td><td class="${x.aj<0?'neg':''}">${z(x.aj,sg)}</td><td class="fin${vc(x.fin)}">${num(x.fin)}</td><td class="val${vc(x.val)}">${fmt0(x.val)}</td></tr>`;
+  h+=d.rows.length?`<div class="srwrap"><table class="srt"><colgroup><col class="c0"><col class="c1"><col class="c2"><col class="c3"><col class="c4"><col class="c5"><col class="c6"></colgroup>
+    <thead><tr><th scope="col">Producto</th><th scope="col">Inicial</th><th scope="col">Compras</th><th scope="col">Consumo</th><th scope="col">Ajuste</th><th scope="col">Final</th><th scope="col">Valor</th></tr></thead>
+    <tbody>${gs.map(g=>`<tr class="gr"><th colspan="7" scope="colgroup">${esc(g)}</th></tr>${d.rows.filter(x=>x.group===g).map(row).join('')}`).join('')}</tbody>
+    <tfoot><tr class="tot"><th scope="row" colspan="6">Total</th><td class="val${vc(d.totals.valor)}">${fmt0(d.totals.valor)}</td></tr><tr class="sub"><td colspan="7">Compras ${fmt0(d.totals.compras)} · Consumo ${fmt0(d.totals.consumo)}</td></tr></tfoot></table></div>
+  <div class="gfoot">El valor usa el costo unitario actual, en pesos enteros.</div>`:'<div class="empty">Sin productos con stock.</div>';
+  h+=`<div class="stack" style="margin-top:20px"><button class="btn" data-srshare>Compartir</button><button class="btn plain" data-srcsv>Descargar CSV</button></div>`;
   return h;
 },
 item(id){
@@ -1161,7 +1191,7 @@ item(id){
   <div class="group"><div class="list">
     <div class="cell"><span class="main t">Precio actual</span><span class="v">${fmt(i.price)} por ${i.unit}</span></div>
     ${i.controlStock?`<div class="cell"><span class="main t">Mínimo</span><span class="v">${num(i.min)} ${i.units}</span></div>
-    <div class="cell"><span class="main t">Valor en bodega</span><span class="v">${fmt(s*i.price)}</span></div>`:''}
+    <div class="cell"><span class="main t">Valor en bodega</span><span class="v">${fmt0(s*i.price)}</span></div>`:''}
     <div class="cell"><span class="main t">Campo en la bitácora</span><span class="v">${esc(i.field)}</span></div>
   </div></div>
   <div class="group"><div class="ghead">Precios anteriores</div><div class="list">${pl.map(p=>`<div class="cell"><span class="main t">${short(p.d)}</span><span class="v">${fmt(p.p)}</span></div>`).join('')}</div></div>
@@ -1706,16 +1736,38 @@ function srPreset(k){
 }
 function openReport(){
   if(S.role!=='admin')return;
-  if(!S.sr){const [a,b]=srPreset('sem');S.sr={mode:'rango',desde:a,hasta:b,data:null,err:'',tk:0}}
+  if(!S.sr){const [a,b]=srPreset('sem');S.sr={desde:a,hasta:b,data:null,err:'',tk:0}}
   stackView={name:'sreport'};render();goTop();srFetch();
 }
 async function srFetch(){
   const r=S.sr,tk=++r.tk;r.err='';r.data=null;render();
-  try{const d=await srv('stockReport',r.desde,r.mode==='dia'?r.desde:r.hasta);if(tk!==r.tk)return;r.data=d}
+  try{const d=await srv('stockReport',r.desde,r.hasta);if(tk!==r.tk)return;r.data=d}
   catch(e){if(tk!==r.tk)return;r.err=errMsg(e)}
   if(stackView&&stackView.name==='sreport'){const y=window.scrollY;render();window.scrollTo(0,y)}
 }
-const srTitle=()=>{const r=S.sr;return r.mode==='dia'?'Balance de stock al '+fdate(r.desde):'Reporte de stock · '+fdate(r.desde)+' – '+fdate(r.hasta)};
+// Calendario propio del reporte (sin <input type=date>): sc = {y,m,a,b,phase}; primer toque = inicio, segundo = final
+let sc=null;
+function openSrCal(){
+  const r=S.sr,d=pd(r.hasta);sc={y:d.getFullYear(),m:d.getMonth(),a:r.desde,b:r.hasta,phase:0};
+  sheet('Fechas del reporte','<div id="scBody"></div>',{closeLabel:'Cancelar'});paintSrCal();
+}
+function paintSrCal(){
+  const el=$('scBody');if(!el||!sc)return;
+  const {pad,dim}=calCells(sc.y,sc.m),ty=pd(TODAY),atMax=sc.y>ty.getFullYear()||(sc.y===ty.getFullYear()&&sc.m>=ty.getMonth());
+  const lo=sc.b?sc.a:sc.a,hi=sc.b||sc.a;
+  let cells=['L','M','M','J','V','S','D'].map(x=>`<span class="wd">${x}</span>`).join('')+'<span></span>'.repeat(pad);
+  for(let k=1;k<=dim;k++){const ds=sc.y+'-'+p2(sc.m+1)+'-'+p2(k),fut=ds>TODAY,st=sc.a&&ds===lo,en=sc.a&&ds===hi,mid=sc.a&&ds>lo&&ds<hi;
+    cells+=`<button type="button" data-scd="${ds}" ${fut?'disabled':''} class="${[st?'cs':'',en?'ce':'',mid?'cm':'',ds===TODAY?'tdy':''].join(' ')}" aria-pressed="${!!(st||en||mid)}" aria-label="${fdate(ds)}${ds===TODAY?', hoy':''}"><span class="n">${k}</span></button>`}
+  const hint=sc.phase===1?'Toca el día final, o el mismo día para un solo día.':'Toca el día inicial.';
+  el.innerHTML=`<div class="calhead"><button type="button" data-scnav="-1" aria-label="Mes anterior">${svgI('left',18)}</button><b>${cap(MONTHS[sc.m])} ${sc.y}</b><button type="button" data-scnav="1" aria-label="Mes siguiente" ${atMax?'disabled':''}>${svgI('right',18)}</button></div>
+    <div class="cal rng">${cells}</div>
+    <p class="srnote" style="margin:12px 0 4px">${sc.a?esc(sc.b||sc.phase===0?srLabel(sc.a,sc.b||sc.a):'Desde '+fdate(sc.a)):'Elige las fechas'}</p><p class="srnote" style="margin:0 0 20px">${hint}</p>
+    <div class="stack" style="margin:0"><button class="btn" data-scok ${sc.a?'':'disabled'}>Aplicar</button></div>`;
+}
+function srApply(){
+  if(!sc||!sc.a)return;const r=S.sr;r.desde=sc.a;r.hasta=sc.b||sc.a;sc=null;closeSheet();srFetch();
+}
+const srTitle=()=>{const r=S.sr;return r.desde===r.hasta?'Balance de stock al '+fdate(r.desde):'Reporte de stock · '+srLabel(r.desde,r.hasta)};
 async function srShare(){
   const r=S.sr;if(!r.data)return;const t=reportText(r.data,srTitle());
   if(navigator.share){try{await navigator.share({title:srTitle(),text:t});return}catch(e){if(e&&e.name==='AbortError')return}}
@@ -1728,13 +1780,6 @@ function srCsv(){
   a.href=url;a.download='reporte-stock_'+r.data.desde+(r.data.hasta!==r.data.desde?'_'+r.data.hasta:'')+'.csv';document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),4000);toast('CSV descargado');
 }
-document.addEventListener('change',e=>{
-  const t=e.target;if(!t||!t.classList||!t.classList.contains('srd')||!S.sr)return;
-  const r=S.sr;if(!/^\d{4}-\d{2}-\d{2}$/.test(t.value))return;
-  if(r.mode==='dia'){r.desde=r.hasta=t.value}else if(t.id==='srA'){r.desde=t.value;if(r.hasta<r.desde)r.hasta=r.desde}else{r.hasta=t.value;if(r.hasta<r.desde)r.desde=r.hasta}
-  srFetch();
-});
-
 // ===== PIN =====
 let pinBuf='';
 function paintPin(){document.querySelectorAll('#pDots i').forEach((x,k)=>x.classList.toggle('on',k<pinBuf.length))}
@@ -1848,6 +1893,9 @@ document.addEventListener('click',e=>{
     const ct=on('[data-ctl]');if(ct&&!pe.ro){pe.ctl=!pe.ctl;ct.setAttribute('aria-checked',pe.ctl);
       document.querySelectorAll('[data-only="stock"]').forEach(x=>x.hidden=!pe.ctl);
       $('ctlHint').textContent=(pe.ctl?'Se guarda en bodega y se descuenta con la bitácora.':'Se paga al usarlo y no se guarda en bodega. Solo se registra el costo.')+(pe.id?' Los productos inactivos no aparecen en el stock ni en las compras.':'');return}
+    const sd2=on('[data-scd]');if(sd2&&sc){Object.assign(sc,srPick(sc,sd2.dataset.scd));paintSrCal();return}
+    const sn=on('[data-scnav]');if(sn&&sc){sc.m+=+sn.dataset.scnav;if(sc.m<0){sc.m=11;sc.y--}if(sc.m>11){sc.m=0;sc.y++}paintSrCal();return}
+    if(on('[data-scok]')){srApply();return}
     const cn=on('[data-calnav]');if(cn){cal.m+=+cn.dataset.calnav;if(cal.m<0){cal.m=11;cal.y--}if(cal.m>11){cal.m=0;cal.y++}calMonth();return}
     const cd=on('[data-calday]');if(cd){S.date=cd.dataset.calday;stackView=null;tab='op';closeSheet();render();goTop();return}
     const pcb=on('[data-pc]');if(pcb&&pc){const x=pcb.dataset.pc,i=x.indexOf(':'),g=x.slice(0,i),val=x.slice(i+1);
@@ -1856,7 +1904,7 @@ document.addEventListener('click',e=>{
     const tt=on('[data-tt]');if(tt){if(can('config')){(async()=>{const r=await act('saveTourBarco',[tt.dataset.ttn,tt.dataset.tt]);if(r){closeSheet();render();toast('Tipo de barco guardado')}})()}return}
     return;
   }
-  const sm=on('[data-srm]');if(sm&&S.sr){const m=sm.dataset.srm;if(S.sr.mode!==m){S.sr.mode=m;if(m==='dia')S.sr.hasta=S.sr.desde;srFetch()}return}
+  if(on('[data-srcal]')&&S.sr){openSrCal();return}
   const sp=on('[data-srp]');if(sp&&S.sr){const [a,b]=srPreset(sp.dataset.srp);S.sr.desde=a;S.sr.hasta=b;srFetch();return}
   if(on('[data-srgo]')){srFetch();return}
   if(on('[data-srshare]')){srShare();return}

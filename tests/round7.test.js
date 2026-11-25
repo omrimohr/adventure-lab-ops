@@ -148,8 +148,8 @@ test('packs: every product in the same icon format (📦 boxes + unit icon + loo
   const NB = '  ';
   assert.strictEqual(U.packs({ pack: 24, unitIcon: '🥫', units: 'latas' }, 212), `📦 8${NB}🥫 20`);
   assert.strictEqual(U.packs({ pack: 12, unitIcon: '', units: 'botellas' }, 114), `📦 9${NB}🥫 6`);
-  assert.strictEqual(U.packs({ pack: 6, unitIcon: '🍶', units: 'botellas' }, 12), `📦 2${NB}🍶 0`);
-  assert.strictEqual(U.packs({ pack: 1, unitIcon: '', icon: '⛽', units: 'litros' }, 155), '⛽ 155');
+  assert.strictEqual(U.packs({ pack: 6, unitIcon: '🍶', units: 'botellas' }, 12), `📦 2${NB}🥫 0`, 'round 13: same unit icon for every product');
+  assert.strictEqual(U.packs({ pack: 1, unitIcon: '', icon: '⛽', units: 'litros' }, 155), '🥫 155', 'no boxes: can icon + number, whatever the product icon');
   assert.strictEqual(U.packs({ pack: 24, unitIcon: '🥫' }, -5), `📦 0${NB}🥫 -5`);
   assert.ok(!/[a-zñ]{3}/i.test(U.packs({ pack: 12, unitIcon: '', units: 'botellas' }, 30)));
 });
