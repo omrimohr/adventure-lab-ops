@@ -57,6 +57,7 @@ FareHarbor work is done in the claude.ai chat (browser + change log); app/DB cod
 `node tests/run.js` (no dependencies). Includes an equivalence test of the old name-based code (`git show c5177f3:apps-script/*.gs`, override with `OLD_REF`) vs the pk-mapping code seeded from the same payloads, unit tests (unknown detection, health rules, setMapeo validation) and an in-memory Spreadsheet run of doPost/seed/setMapeo/rebuild. `tests/` is outside `apps-script/` so clasp never pushes it.
 
 ## Open items (24 Nov 2026)
+- Check-in: FareHarbor does NOT fire a webhook on check-in/no-show, so Check-in counts only refresh when a guest booking changes for another reason. Omri: fine for now (options parked: bitácora field "Personas a bordo", or check-in column from Comercial's daily report).
 - Pay adjustments (decided 24 Nov): no automatic festivo. Jesús adds manual extra/deduction lines per person/week from pre-made concepts (e.g. "Día festivo +150") with a reason. Needs an app feature + config tab of concepts.
 - Traslado (decided 24 Nov): FareHarbor bitácora will get fields "Traslado ida" / "Traslado regreso" (cost; default ON on HBTS tours). Pay per way: 100 sailing, 50 pontón. DB must read them once the fields exist (chat side creates them, then posts the field pks here).
 - Hobie has no marinero: remove the 'marinero · hobie' row from Tarifas (capitán hobie 600 stays).
