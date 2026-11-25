@@ -1758,7 +1758,7 @@ function paintSrCal(){
   let cells=['L','M','M','J','V','S','D'].map(x=>`<span class="wd">${x}</span>`).join('')+'<span></span>'.repeat(pad);
   for(let k=1;k<=dim;k++){const ds=sc.y+'-'+p2(sc.m+1)+'-'+p2(k),fut=ds>TODAY,st=sc.a&&ds===lo,en=sc.a&&ds===hi,mid=sc.a&&ds>lo&&ds<hi;
     cells+=`<button type="button" data-scd="${ds}" ${fut?'disabled':''} class="${[st?'cs':'',en?'ce':'',mid?'cm':'',ds===TODAY?'tdy':''].join(' ')}" aria-pressed="${!!(st||en||mid)}" aria-label="${fdate(ds)}${ds===TODAY?', hoy':''}"><span class="n">${k}</span></button>`}
-  const hint=sc.phase===1?'Toca el día final, o el mismo día para un solo día.':'Toca el día inicial.';
+  const hint=sc.phase===1?'Toca el día final, o el mismo día para un solo día.':(sc.a?'Listo. Toca otro día para empezar de nuevo.':'Toca el día inicial.');
   el.innerHTML=`<div class="calhead"><button type="button" data-scnav="-1" aria-label="Mes anterior">${svgI('left',18)}</button><b>${cap(MONTHS[sc.m])} ${sc.y}</b><button type="button" data-scnav="1" aria-label="Mes siguiente" ${atMax?'disabled':''}>${svgI('right',18)}</button></div>
     <div class="cal rng">${cells}</div>
     <p class="srnote" style="margin:12px 0 4px">${sc.a?esc(sc.b||sc.phase===0?srLabel(sc.a,sc.b||sc.a):'Desde '+fdate(sc.a)):'Elige las fechas'}</p><p class="srnote" style="margin:0 0 20px">${hint}</p>
