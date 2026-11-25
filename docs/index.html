@@ -608,7 +608,7 @@ const isRenta=d=>String((d&&d.tipo)||'').toLowerCase().trim()==='renta';
 const noRes=d=>!!(((d&&d.bookings)||[]).length&&!((d&&d.res)||[]).length);
 // Falta bitácora: misma regla que los puntos rojos (ida vencida al empezar, regreso vencido al terminar). Sin nowKey no se evalúa. No aplica / sin reservas / aún no toca: nada.
 const bitAlert=(d,nowKey)=>{if(!d||!nowKey)return '';const p=bitParts(d,nowKey);if(p.na)return '';const a=p.ida==='late',r=p.reg==='late';return a&&r?'Falta bitácora de ida y regreso':a?'Falta bitácora de ida':r?'Falta bitácora de regreso':''};
-const depAlerts=(d,nowKey)=>String((d&&d.alerts)||'').split(' | ').filter(a=>a&&!/^Sin recurso asignado/.test(a)).concat(noRes(d)?['Sin recurso asignado']:[]).concat(bitAlert(d,nowKey)||[]);
+const depAlerts=(d,nowKey)=>String((d&&d.alerts)||'').split(' | ').filter(a=>a&&!/^Sin recurso asignado|^Costo adicional sin monto/.test(a)).concat(noRes(d)?['Sin recurso asignado']:[]).concat(bitAlert(d,nowKey)||[]).concat(d&&d.ca&&d.ca.unparsed?['Costo adicional sin monto']:[]);
 const depAlertN=(d,nowKey)=>depAlerts(d,nowKey).length+(d.crew||[]).filter(c=>(!c.r&&!c.ext)||c.alert).length;
 // Costos adicionales (texto libre ya leído por el servidor: ca = {items:[{label,amount,ext}], total, unparsed, rest:[..], raw})
 // Alertas de un externo sin la de nota (esa se pinta aparte)
