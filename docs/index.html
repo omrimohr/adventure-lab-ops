@@ -77,7 +77,15 @@ b,strong{font-weight:500}
 .mut{color:var(--ink2)}
 /* Top: status row, then (per screen) nav + serif title */
 .rolebar{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:44px;font-size:12px;color:var(--ink2)}
-.rolebar .seg{width:168px;flex:none}
+.rbr{display:inline-flex;align-items:center;flex:none}
+.rbr .stat{margin-right:0!important}
+.bell{position:relative;width:44px;height:44px;margin-right:-10px;border:0;background:none;color:var(--ink2);cursor:pointer;display:grid;place-items:center;padding:0}
+.bell:focus-visible{outline:2px solid var(--acc);outline-offset:-6px;border-radius:10px}
+.bell .nb{position:absolute;top:5px;right:3px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--badge);color:#fff;font:500 11px/16px var(--font);font-style:normal;text-align:center;font-variant-numeric:tabular-nums}
+.drow.hl{animation:hl 2s ease-out}
+@keyframes hl{0%,60%{box-shadow:inset 0 0 0 2px var(--acc)}100%{box-shadow:inset 0 0 0 2px transparent}}
+@media (prefers-reduced-motion:reduce){.drow.hl{animation:none;box-shadow:inset 0 0 0 2px var(--acc)}}
+.list.deps{scroll-margin-top:12px}
 .nav{display:flex;justify-content:space-between;align-items:center;min-height:44px}
 .nav .back{display:inline-flex;align-items:center;gap:4px;color:var(--acc);background:none;border:0;font:inherit;font-weight:500;padding:0 8px 0 0;min-height:44px;cursor:pointer}
 .nav .back svg{width:18px;height:18px}
@@ -695,7 +703,8 @@ const IC={
  logout:'<path d="M10 4H6a2 2 0 00-2 2v12a2 2 0 002 2h4"/><path d="M15 8l4 4-4 4M19 12H9"/>',
  okc:'<circle cx="12" cy="12" r="8.5"/><path d="M8 12.5l3 3 5-6"/>',
  kayak:'<path d="M3 15.5c4-3.2 14-3.2 18 0-4 3.2-14 3.2-18 0z"/><path d="M6.5 5.5l11 11"/><path d="M4.8 8.2l3-3M16.2 18.8l3-3"/>',
- boat:'<path d="M12 3v12"/><path d="M12 4.5l6 9.5h-6"/><path d="M12 8L7 14h5"/><path d="M4 17.5h16l-2.2 3.2H6.2z"/>'};
+ boat:'<path d="M12 3v12"/><path d="M12 4.5l6 9.5h-6"/><path d="M12 8L7 14h5"/><path d="M4 17.5h16l-2.2 3.2H6.2z"/>',
+ bell:'<path d="M6 16v-5a6 6 0 1112 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 004 0"/>'};
 const svgI=(k,sz)=>`<svg class="gi" viewBox="0 0 24 24" width="${sz||16}" height="${sz||16}" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg>`;
 const WI=svgI('alert',14).replace('class="gi"','class="wi"');   // aviso inline (sin emoji)
 const gh=(k,t)=>`<div class="ghead gh">${svgI(k)}<span>${t}</span></div>`;   // encabezado de sección: ícono (mismo color que el texto) + palabra
@@ -784,7 +793,7 @@ const fhA=(url,text,{gray,label}={})=>`<a class="fhl${gray?' gray':''}" href="${
 const isRenta=d=>String((d&&d.tipo)||'').toLowerCase().trim()==='renta';
 const isPase=d=>String((d&&d.barco)||'').toLowerCase().trim()==='otro'; // day passes: no cuentan en Tours, Rentas ni pax del día
 // "Sin recurso": salida con reservas activas de clientes y ningún recurso (se calcula aquí también, así no espera al recálculo del servidor)
-const noRes=d=>!!(((d&&d.bookings)||[]).length&&!((d&&d.res)||[]).length);
+const noRes=d=>!!(((d&&d.bookings)||[]).length&&!((d&&d.res)||[]).length&&(d&&d.resKnown)!==false); // resKnown=false: early short-form import without resource_uses → no se sabe, no se avisa
 // Falta bitácora: misma regla que los puntos rojos (ida vencida al empezar, regreso vencido al terminar). Sin nowKey no se evalúa. No aplica / sin reservas / aún no toca: nada.
 const bitAlert=(d,nowKey)=>{if(!d||!nowKey)return '';const p=bitParts(d,nowKey);if(p.na)return '';const a=p.ida==='late',r=p.reg==='late';return a&&r?'Falta bitácora de ida y regreso':a?'Falta bitácora de ida':r?'Falta bitácora de regreso':''};
 const depAlerts=(d,nowKey)=>String((d&&d.alerts)||'').split(' | ').filter(a=>a&&!/^Sin recurso asignado|^Costo adicional sin monto/.test(a)).concat(noRes(d)?['Sin recurso asignado']:[]).concat(bitAlert(d,nowKey)||[]).concat(d&&d.ca&&d.ca.unparsed?['Costo adicional sin monto']:[]);
@@ -910,6 +919,17 @@ function optMark(S,q){
   if(q.fn==='markPaid'){const p=(S.paidPend||{})[a[0]+'|'+a[1]];if(p){p.pend=mark;p.pf=pf}}
   if(q.fn==='setMapeo')(S.pend||[]).forEach(x=>{if(x.pend&&x.kind===a[0]&&String(x.clave)===String(a[1])){x.pend=mark;x.pf=pf}});
 }
+// Notificaciones del sistema: [{id, kind, text, go}] (go: {t:'dep',date,av} | {t:'pend'} | {t:'fh'} | null). Para sumar otra clase de aviso, agrega aquí un push con su {kind,text,go}.
+function notifBuild(salud,pend,role){
+  const out=[],adm=role==='admin',pn=adm?(pend||[]).length:0;
+  (salud||[]).filter(a=>adm||a.rol==='todos').forEach((a,i)=>{
+    if(a.tipo==='config'&&pn)return; // ya sale como "N elementos por configurar"
+    const go=a.fecha&&a.av?{t:'dep',date:a.fecha,av:String(a.av)}:a.tipo==='config'?{t:'pend'}:(a.tipo==='webhook'||a.tipo==='reporte'||a.tipo==='errores')?{t:'fh'}:null;
+    out.push({id:'s'+i,kind:a.tipo||'aviso',text:fixDates(a.texto),go:go});
+  });
+  if(pn)out.unshift({id:'pend',kind:'pend',text:pn+(pn===1?' elemento por configurar':' elementos por configurar'),go:{t:'pend'}});
+  return out;
+}
 // ==PURE-END==
 try{S.filter=depFilter(localStorage.getItem('adv_ops_depfilter')||'todas').key}catch(e){} // último filtro usado
 
@@ -985,7 +1005,7 @@ function topBar(title,{back,backTo,backView,acts=[],lede}={}){
   const nav=(back||a)?`<div class="nav">${back?`<button class="back" data-back="${backTo||''}" ${backView?`data-backview="${backView}"`:''}>${svgI('left',18)}${esc(back)}</button>`:'<span></span>'}<span class="acts">${a}</span></div>`:'';
   return nav+`<h1>${esc(title)}</h1>${lede?`<p class="lede">${lede}</p>`:''}`;
 }
-function roleBar(){const adm=S.realRole==='admin';return `<div class="rolebar">${adm?`<div class="seg" role="group" aria-label="Viendo como">${ROLES.map(([k,l])=>`<button type="button" data-rolesw="${k}" aria-pressed="${S.role===k}">${l}</button>`).join('')}</div>`:`<span>Hola, ${esc(S.user)}</span>`}${statusHtml()}</div>`}
+function roleBar(){const n=notifList().length;return `<div class="rolebar"><span>Hola, ${esc(S.user)}</span><span class="rbr">${statusHtml()}<button type="button" class="bell" data-bell aria-label="${n?'Notificaciones, '+n:'Notificaciones'}">${svgI('bell',20)}${n?`<i class="nb">${n>9?'9+':n}</i>`:''}</button></span></div>`}
 // Control de estado (arriba a la derecha): punto de conexión con FareHarbor, botón de actualizar y hora de los datos mostrados
 function statusHtml(){
   const ok=S.fhOk!==false&&!S.offline,ago=S.dataAt?relAgo(S.dataAt,Date.now()):'';
@@ -1033,10 +1053,7 @@ const PEND_GROUPS=[['tipo','Customer types','tag'],['campo','Custom fields','sli
 const PEND_TITLE={tipo:'Customer type',campo:'Custom field',rol:'Crew role',item:'Item nuevo'};
 const pendN=()=>S.role==='admin'?S.pend.length:0;
 const saludList=()=>(S.salud||[]).filter(a=>S.role==='admin'||a.rol==='todos');
-function saludBox(){
-  const l=saludList();if(!l.length)return '';
-  return `<div class="warn" role="status"><b>Avisos</b><ul>${l.slice(0,3).map(a=>`<li>${esc(fixDates(a.texto))}</li>`).join('')}</ul>${l.length>3?`<button class="link" data-view="fh">Ver los ${l.length} avisos</button>`:''}</div>`;
-}
+const notifList=()=>notifBuild(S.salud,S.pend,S.role);
 function saludRows(){
   const l=saludList();
   return l.map(a=>`<div class="cell w-orange"><span class="main"><span class="s" style="margin:0">${WI}${esc(fixDates(a.texto))}</span></span></div>`).join('')||`<div class="cell"><span class="main t okc">${svgI('okc',18).replace('class="gi"','class="wi"')}Todo en orden</span></div>`;
@@ -1057,7 +1074,7 @@ const V={
 op(){
   const date=S.date,ds=depsOn(date),fut=date>TODAY,fOn=S.filter!=='todas';
   let h=`<div class="dnav"><button class="nx" data-day="-1" aria-label="Día anterior">${svgI('left',18)}</button><button class="dt" data-cal aria-label="Abrir calendario">${fd(date)}${svgI('cal',18)}</button><button class="nx" data-day="1" aria-label="Día siguiente">${svgI('right',18)}</button><span class="sp"></span>${date!==TODAY?'<button class="hoy" data-today>Hoy</button>':''}<button class="fbtn${fOn?' on':''}" data-fopen aria-label="Filtrar salidas" aria-expanded="${S.fopen}">${svgI('filter',20)}${fOn?'<i class="fdot"></i>':''}</button></div>
-  <div class="ttl"><h1>Operación</h1>${can('compras')?'<button class="tlink" data-act="compra" data-pre="" aria-label="Agregar gasto o compra">+ Gasto</button>':''}</div>`+saludBox()+(S.fopen?`<div class="chips fchips" role="group" aria-label="Filtro de salidas">${DEP_FILTERS.map(f=>`<button type="button" class="chip" data-filter="${f.key}" aria-pressed="${S.filter===f.key}">${f.label}</button>`).join('')}</div>`:'')+(fOn?`<div class="fline">Filtro: <b>${esc(depFilter(S.filter).label)}</b> · <button type="button" class="link" data-filter="todas">quitar</button></div>`:'');
+  <div class="ttl"><h1>Operación</h1>${can('compras')?'<button class="tlink" data-act="compra" data-pre="" aria-label="Agregar gasto o compra">+ Gasto</button>':''}</div>`+(S.fopen?`<div class="chips fchips" role="group" aria-label="Filtro de salidas">${DEP_FILTERS.map(f=>`<button type="button" class="chip" data-filter="${f.key}" aria-pressed="${S.filter===f.key}">${f.label}</button>`).join('')}</div>`:'')+(fOn?`<div class="fline">Filtro: <b>${esc(depFilter(S.filter).label)}</b> · <button type="button" class="link" data-filter="todas">quitar</button></div>`:'');
   if(!ds.length)return h+`<div class="group"><div class="list"><div class="empty">${S.loadingRange?'Cargando…':'Sin salidas este día.'}${!S.loadingRange&&pd(date).getDay()===3?' Los miércoles no hay tours.':''}</div></div></div>`;
   // Resumen del día: un grupo plano. Todo se cuenta SOLO sobre salidas con reservas activas.
   const sm=daySummary(ds,nowKey(),TODAY,date),dact=ds.filter(hasBk);
@@ -1846,6 +1863,25 @@ function render(){
   const q=$('q');if(q)q.oninput=()=>{S.q=q.value;const pos=q.selectionStart;render();const n=$('q');n.focus();n.setSelectionRange(pos,pos)};
 }
 const goTop=()=>window.scrollTo(0,0);
+// Baja suave a la lista de salidas (primera fila filtrada) tras tocar un aviso o un filtro del resumen del día
+const goList=()=>requestAnimationFrame(()=>{const el=document.querySelector('.list.deps')||document.querySelector('.dsum');if(el)el.scrollIntoView({behavior:'smooth',block:'start'})});
+function flashDep(av){requestAnimationFrame(()=>{const el=[...document.querySelectorAll('.drow[data-dep]')].find(x=>x.dataset.dep===String(av));if(!el)return;el.scrollIntoView({behavior:'smooth',block:'center'});el.classList.add('hl');setTimeout(()=>el.classList.remove('hl'),2000)})}
+function openNotifs(){
+  const l=notifList();
+  sheet('Notificaciones',`<div class="group"><div class="list">${l.map(n=>{const ic=n.kind==='pend'?'inbox':'alert',inner=`<span class="ic acc">${svgI(ic,20)}</span><span class="main t" style="white-space:normal">${esc(n.text)}</span>`;
+    return n.go?`<button class="cell" data-notif="${esc(n.id)}">${inner}${chev}</button>`:`<div class="cell">${inner}</div>`}).join('')||'<div class="empty">Sin notificaciones</div>'}</div></div>`,{closeLabel:'Cerrar'});
+}
+async function notifGo(id){
+  const n=notifList().find(x=>x.id===id);if(!n||!n.go)return;
+  closeSheet();const g=n.go;
+  if(g.t==='dep'){
+    tab='op';stackView=null;S.fopen=false;S.filter='todas';S.date=g.date;
+    if(g.date<S.win.from||g.date>S.win.to){try{await ensureRange(g.date,g.date)}catch(e){}}
+    render();flashDep(g.av);return;
+  }
+  if(g.t==='pend'){tab='mas';stackView={name:'pend'};render();goTop();return}
+  if(g.t==='fh'){tab='mas';stackView={name:'fh'};render();goTop()}
+}
 // Cambiar de día o semana nunca espera al servidor: se pinta ya y, si falta rango, llega en segundo plano
 function setDate(d){S.date=d;const p=(d<S.win.from||d>S.win.to)?ensureRange(d,d):null;render();if(p)p.then(softRender)}
 function setWk(ws){S.wk=ws;const p=(ws<S.win.from||addD(ws,6)>S.win.to)?ensureRange(ws,addD(ws,6)):null;render();if(p)p.then(softRender)}
@@ -1877,6 +1913,7 @@ document.addEventListener('click',e=>{
   // Sheet layer
   if(on('#sheetRoot')){
     if(t.matches('[data-scrim]')||on('[data-close]')){closeSheet();return}
+    const nt0=on('[data-notif]');if(nt0){notifGo(nt0.dataset.notif);return}
     const m=on('[data-m]');if(m){const k=m.dataset.m,pre=menuPre;closeSheet();
       if(k==='inv'){counts={};invStep1()}else if(k==='aj')openAjuste(pre);else if(k==='edit')openEditCompra(pre);else if(k==='anul')openAnular(pre);return}
     if(on('[data-addp]')){cart.lines.push(emptyLine());renderCart();const li=document.querySelector(`.li[data-k="${cart.lines.length-1}"]`);if(li)li.scrollIntoView({block:'nearest'});return}
@@ -1912,7 +1949,6 @@ document.addEventListener('click',e=>{
   if(on('[data-qopen]')){openQueue();return}
   const mdp=on('[data-mvdep]');if(mdp){const a=mdp.dataset.mvdep.split('|');openDepFrom(a[0],a[1]);return}
   const mja=on('[data-mvaj]');if(mja){openAjDetail(mja.dataset.mvaj);return}
-  const rs=on('[data-rolesw]');if(rs){S.role=rs.dataset.rolesw;render();return}
   const b=on('[data-tab]');if(b){tab=b.dataset.tab;stackView=null;S.depFrom='';render();goTop();return}
   const bk=on('[data-back]');if(bk){S.depFrom='';if(bk.dataset.back)tab=bk.dataset.back;stackView=bk.dataset.backview?{name:bk.dataset.backview}:null;render();goTop();return}
   const vw=on('[data-view]');if(vw){stackView={name:vw.dataset.view};render();goTop();return}
@@ -1930,8 +1966,9 @@ document.addEventListener('click',e=>{
   const cfb=on('[data-cfg]');if(cfb){const i=cfb.dataset.cfg.indexOf(':');setCfg(cfb.dataset.cfg.slice(0,i),cfb.dataset.cfg.slice(i+1));return}
   if(on('[data-logout]')){logout();return}
   if(on('[data-refresh]')){refresh();return}
+  if(on('[data-bell]')){openNotifs();return}
   if(on('[data-fopen]')){S.fopen=!S.fopen;render();return}
-  const fl=on('[data-filter]');if(fl){S.filter=depFilter(fl.dataset.filter).key;S.fopen=false;try{localStorage.setItem('adv_ops_depfilter',S.filter)}catch(e){}render();return}
+  const fl=on('[data-filter]');if(fl){S.filter=depFilter(fl.dataset.filter).key;S.fopen=false;try{localStorage.setItem('adv_ops_depfilter',S.filter)}catch(e){}render();goList();return}
   if(on('[data-today]')){setDate(TODAY);return}
   const bx=on('[data-bitx]');if(bx){bitOpen=bitOpen===bx.dataset.bitx?null:bx.dataset.bitx;render();return}
   const dy=on('[data-day]');if(dy){setDate(addD(S.date,+dy.dataset.day));return}

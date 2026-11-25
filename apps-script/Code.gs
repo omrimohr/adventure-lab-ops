@@ -36,7 +36,8 @@ const RES_HEADERS = ['Booking pk', 'Display ID', 'Estado', 'Cuenta', 'Reemplazad
 const SAL_HEADERS = ['Availability pk', 'Item pk', 'Item', 'Tipo tour', 'Fecha', 'Hora', 'Inicio', 'Fin',
   'Reservas activas', 'Pax', 'Unidades', 'Bitácora', 'Reserva salida', 'Reserva regreso', 'Tripulación',
   'Alertas', 'Actualizado', 'Ingreso neto (MXN)', 'Fuente ingreso', 'Recursos', 'Recursos pk',
-  'Check-in', 'No show']; // round 6: "in de total" over active customer bookings, no-show count
+  'Check-in', 'No show', // round 6: "in de total" over active customer bookings, no-show count
+  'Recursos conocidos']; // round 14: 'sí' when at least one customer booking carries resource_uses (early short-form imports don't)
 const ING_HEADERS = ['Booking pk', 'Ingreso neto (MXN)', 'Fecha tour', 'Archivo', 'Subido', 'Fila reporte'];
 const CARGA_HEADERS = ['Subido', 'Archivo', 'Hash', 'Duplicado', 'Filas', 'Reservas encontradas', 'No encontradas',
   'Fechas', 'Notas'];
@@ -487,7 +488,9 @@ function computeSalida_(avPk, list, tours, now, ing, M) {
   if (ci.ns > 0) alerts.push('No show: ' + ci.ns);
 
   const resources = resourcesFrom_(custBk.map(x => x.b));
-  if (custBk.length && !resources.length) alerts.push('Sin recurso asignado');
+  // round 14: early short-form imports (`_source`, no resource_uses key) say nothing about resources → no false alert
+  const resKnown = custBk.some(x => Array.isArray(x.b.resource_uses));
+  if (custBk.length && resKnown && !resources.length) alerts.push('Sin recurso asignado');
   const sal = opsBk.filter(x => /Salida/.test(opsType_(x.b, M)));
   const reg = opsBk.filter(x => /Regreso/.test(opsType_(x.b, M)));
   if (sal.length > 1) alerts.push('Más de una reserva de salida');
@@ -529,7 +532,7 @@ function computeSalida_(avPk, list, tours, now, ing, M) {
     crew.map(c => (c[4] || 'sin rol') + ': ' + (c[5] || c[6])).join(' · '),
     alerts.join(' | '), now, Math.round(ingreso * 100) / 100, estimados ? 'estimado' : '',
     resources.map(r => r.name + ' (' + r.n + ')').join(' · '), resources.map(r => r.pk + ':' + r.name + ':' + r.n).join('|'),
-    checkinText_(ci.in, ci.n), ci.n ? ci.ns : ''];
+    checkinText_(ci.in, ci.n), ci.n ? ci.ns : '', resKnown ? 'sí' : 'no'];
   return { salida: salida, bit: bit, crew: crew, hasCustomers: custBk.length > 0 };
 }
 

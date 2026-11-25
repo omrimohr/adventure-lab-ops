@@ -348,7 +348,7 @@ function buildDeps_(inp) {
     const barco = inp.barcos[String(s[1])] || '';
     return {
       id: pk, itemPk: String(s[1]), date: fmtDate_(s[6], 'yyyy-MM-dd'), time: fmtDate_(s[6], 'HH:mm'), end: s[7] ? fmtDate_(s[7], 'yyyy-MM-dd HH:mm') : '', item: String(s[2]), label: '',
-      gross: r2_(bookings.reduce((a, x) => a + x.gross, 0)), res: resFromText_(s[20]),
+      gross: r2_(bookings.reduce((a, x) => a + x.gross, 0)), res: resFromText_(s[20]), resKnown: String(s[23] || '') !== 'no',
       boat: BARCO_LABEL[barco] || '', barco: barco, tipo: String(s[3] || ''), crew: crew, bookings: bookings,
       out: hasOut ? bq.out : null, back: hasBack ? bq.back : null, extras: extrasText_(bits, inp.M, true), ca: parseCostos_(costoAdicionalText_(bits, inp.M)), hx: hx,
       rev: inp.revs[pk] || null, bit: st, alerts: String(s[15] || ''), netSource: String(s[18] || ''),
@@ -404,13 +404,13 @@ function fieldsFromBookings_(bookings) {
 
 /**
  * Health warnings (shown in the app only). inp: {nowMs, today, hhmm 'HH:mm', dow 0-6 (3 = Wednesday), lastRawMs|null,
- * salidas: [{fecha, hora, item, activas, bitacora (Salidas "Bitácora" col), tipo (Tours tipo; rentals don't need bitácora unless they have an OPS booking), hasOps}],
+ * salidas: [{av, fecha, hora, item, activas, bitacora (Salidas "Bitácora" col), tipo (Tours tipo; rentals don't need bitácora unless they have an OPS booking), hasOps}],
  * control: [{d, est}] (Control días), pendMs: [ms first seen of every "Nuevo – revisar"], erroresHoy, ctrlFrom}
  * → [{nivel:'warn', tipo, texto, rol:'admin'|'todos'}]
  */
 function saludAlerts_(inp) {
   const out = [], today = inp.today, hhmm = inp.hhmm || '00:00';
-  const warn = (tipo, texto, rol) => out.push({ nivel: 'warn', tipo: tipo, texto: texto, rol: rol });
+  const warn = (tipo, texto, rol, extra) => out.push(Object.assign({ nivel: 'warn', tipo: tipo, texto: texto, rol: rol }, extra || {}));
   const mins = Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
   // 1. webhook silence: only 07:00–21:00, never on Wednesday. The overnight gap doesn't count (silence is measured from 07:00 at the earliest).
   if (inp.lastRawMs && inp.dow !== 3 && mins >= 420 && mins < 1260) {
@@ -426,7 +426,7 @@ function saludAlerts_(inp) {
     miss.push(s);
   });
   miss.sort((a, b) => (b.fecha + b.hora).localeCompare(a.fecha + a.hora));
-  miss.slice(0, 8).forEach(s => warn('bitacora', 'Falta bitácora: ' + s.fecha + ' ' + s.hora + ' ' + s.item, 'todos'));
+  miss.slice(0, 8).forEach(s => warn('bitacora', 'Falta bitácora: ' + s.fecha + ' ' + s.hora + ' ' + s.item, 'todos', { fecha: s.fecha, av: String(s.av || '') }));
   if (miss.length > 8) warn('bitacora', 'Faltan ' + (miss.length - 8) + ' bitácoras más', 'todos');
   // 3. Comercial's report missing (day D still "estimado", checked from 12:00 of D+1; D ≥ control start, last 14 days)
   const ctrlFrom = inp.ctrlFrom || CTRL_FROM, y1 = addDays_(today, -1), lim = addDays_(today, -14), days = [];
@@ -626,7 +626,7 @@ function getData(pin, desde, hasta) {
   const inRecent = windowTest_(addDays_(today, -8), '9999-12-30');
   const saludAll = saludAlerts_({
     nowMs: Date.now(), today: today, hhmm: now, dow: new Date(today + 'T00:00:00Z').getUTCDay(), lastRawMs: lastRawMs_(ss),
-    salidas: salidas.filter(r => inRecent(r[6])).map(r => ({ fecha: fmtDate_(r[6], 'yyyy-MM-dd'), hora: fmtDate_(r[6], 'HH:mm'), item: String(r[2]),
+    salidas: salidas.filter(r => inRecent(r[6])).map(r => ({ av: String(r[0]), fecha: fmtDate_(r[6], 'yyyy-MM-dd'), hora: fmtDate_(r[6], 'HH:mm'), item: String(r[2]),
       activas: Number(r[8]) || 0, bitacora: String(r[11] || ''), tipo: String(r[3] || ''), hasOps: !!(r[12] || r[13]) })),
     control: control.map(c => ({ d: c.d, est: c.est })), pendMs: pend.map(x => x.ms), erroresHoy: fh.errores
   });

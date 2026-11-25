@@ -169,7 +169,7 @@ function init(){
    {kind:'tipo',clave:'4242',name:'Student',pk:'4242',en:'258806 · Bacalar Lagoon Boat Tour',ejemplo:'',actual:{uso:'pax'},opciones:['pax','no cuenta','ops salida','ops regreso'],visto:addDays(-3)+' 11:20',ms:ms-3*86400000},
    {kind:'campo',clave:'8888',name:'Pet name',pk:'8888',en:'244132 · Private Boat Tour',ejemplo:'Rex',actual:{uso:'ignorar',prod:''},opciones:[],visto:addDays(-1)+' 09:05',ms:ms-86400000},
    {kind:'item',clave:'999001',name:'Sunset Cruise',pk:'999001',en:'',ejemplo:'',actual:{tipo:'compartido',barco:'',bitacora:'no',fields:[]},opciones:{tipos:[],barcos:[],campos:[]},visto:T+' 07:10',ms:ms-3600000}];
-  D.salud=[{nivel:'warn',tipo:'bitacora',texto:'Falta bitácora: '+addDays(-1)+' 14:00 Private Boat Tour',rol:'todos'},
+  D.salud=[{nivel:'warn',tipo:'bitacora',texto:'Falta bitácora: '+addDays(-1)+' 14:00 Private Boat Tour',rol:'todos',fecha:addDays(-1),av:(D.deps.find(x=>x.date===addDays(-1)&&x.time==='14:00')||D.deps[0]||{}).id},
            {nivel:'warn',tipo:'reporte',texto:'Falta reporte de Comercial del '+addDays(-1),rol:'admin'},
            {nivel:'warn',tipo:'config',texto:'1 cosa por configurar desde hace más de 2 días',rol:'admin'}];
   D.perms={admin:{compras:true,revisar:true,pagar:true,inventario:true,ajuste:true,editar:true,comida:true,config:true},
