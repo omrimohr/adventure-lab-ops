@@ -54,12 +54,12 @@ test('costoAdicionalText_: only fields with Uso costo adicional; text first, num
   assert.strictEqual(E.costoAdicionalText_([], null), '');
 });
 
-test('headers: new columns are appended at the END; BITACORA_RULE_V is 4 (one-time rebuild)', () => {
+test('headers: new columns are appended at the END; BITACORA_RULE_V is 5 (general history version; one-time rebuild)', () => {
   assert.strictEqual(E.COSTO_HEADERS[E.COSTO_HEADERS.length - 1], 'Costos adicionales (MXN)');
   assert.strictEqual(E.COSTO_HEADERS[E.COSTO_HEADERS.length - 2], 'Alertas');
   assert.strictEqual(E.EXT_HEADERS[E.EXT_HEADERS.length - 1], 'Monto (MXN)');
   assert.strictEqual(E.EXT_HEADERS[E.EXT_HEADERS.length - 2], 'Alerta');
-  assert.strictEqual(E.BITACORA_RULE_V, '4');
+  assert.strictEqual(E.BITACORA_RULE_V, '5');
   assert.strictEqual(E.bitacoraRuleStale_('3'), true);
 });
 

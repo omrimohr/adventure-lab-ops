@@ -36,10 +36,10 @@ test('computeSalida_: resources from active customer bookings only (not cancelle
   list[3].b.resource_uses = [ru(9, 888, 'OPS barco', 5)];
   const s = J(E.computeSalida_('9300', list, tours, NOW, {}, null)).salida;
   const H = E.SAL_HEADERS;
-  assert.deepStrictEqual(J(H.slice(-2)), ['Recursos', 'Recursos pk']);
+  assert.deepStrictEqual(J(H.slice(-4, -2)), ['Recursos', 'Recursos pk'], 'round 6 appended Check-in / No show after them');
   assert.strictEqual(s.length, H.length);
-  assert.strictEqual(s[H.length - 2], 'Barracuda (5) · Ramona (1)');
-  assert.strictEqual(s[H.length - 1], '309946:Barracuda:5|309950:Ramona:1');
+  assert.strictEqual(s[H.indexOf('Recursos')], 'Barracuda (5) · Ramona (1)');
+  assert.strictEqual(s[H.indexOf('Recursos pk')], '309946:Barracuda:5|309950:Ramona:1');
 });
 
 test('salHeaderStale_: shorter header row (older version) is stale', () => {
@@ -109,12 +109,12 @@ test('old Salidas sheet (fewer columns): trigger sets REBUILD_PENDING, full rebu
   dep().forEach(p => e.post(p)); e.G.ex.ensureMapeos_(e.ss); e.G.ex.rebuildAll();
   const sal = e.ss.getSheetByName('Salidas'), H = E.SAL_HEADERS;
   sal._d.rows[0] = H.slice(0, H.length - 2);           // pretend the sheet was written by the previous version
-  sal._d.rows.slice(1).forEach(r => { r[H.length - 2] = ''; r[H.length - 1] = ''; });
+  sal._d.rows.slice(1).forEach(r => { r[H.indexOf('Recursos')] = ''; r[H.indexOf('Recursos pk')] = ''; });
   delete e.fe.props.REBUILD_PENDING;
   e.G.ex.rebuildFinanzas();                              // 15-min trigger
   assert.strictEqual(e.fe.props.REBUILD_PENDING, undefined, 'the rebuild ran and cleared the flag');
   assert.strictEqual(e.ss.getSheetByName('Salidas')._d.rows[0].length, H.length);
-  assert.strictEqual(e.rows('Salidas')[0][H.length - 2], 'Barracuda (5) · Ramona (1)');
+  assert.strictEqual(e.rows('Salidas')[0][H.indexOf('Recursos')], 'Barracuda (5) · Ramona (1)');
 });
 
 test('webhook on an old Salidas sheet: header gets the new columns and REBUILD_PENDING is set (history not left half-empty)', () => {
@@ -124,19 +124,19 @@ test('webhook on an old Salidas sheet: header gets the new columns and REBUILD_P
   delete e.fe.props.REBUILD_PENDING;
   e.post(F.booking({ pk: 7011, av: 9300, item: 258806, itemName: 'Bacalar Lagoon Boat Tour', start: '2026-11-25T14:00:00Z', end: '2026-11-25T17:00:00Z', customers: [F.cust(100, 'Adult')] }));
   assert.strictEqual(e.fe.props.REBUILD_PENDING, '1');
-  assert.strictEqual(e.ss.getSheetByName('Salidas')._d.rows[0][H.length - 1], 'Recursos pk');
+  assert.strictEqual(e.ss.getSheetByName('Salidas')._d.rows[0][H.length - 1], H[H.length - 1]);
 });
 
 // ---------- round 3: FareHarbor links, staff meals ----------
-test('Reservas: "Link FareHarbor" is the LAST column, filled from booking.dashboard_url (blank when absent)', () => {
+test('Reservas: "Link FareHarbor" is column 33 (round 6 appended five columns after it), filled from booking.dashboard_url (blank when absent)', () => {
   const H = E.RES_HEADERS;
-  assert.strictEqual(H[H.length - 1], 'Link FareHarbor');
+  assert.strictEqual(H.indexOf('Link FareHarbor'), 32);
   const url = 'https://fareharbor.com/thegaiaexperience/dashboard/?overlay=/contacts/1/bookings/abc/';
   const p = dep()[0]; p.booking.dashboard_url = url;
   const row = J(E.reservaRow_(p.booking, NOW, 5, tours, {}, null));
   assert.strictEqual(row.length, H.length);
-  assert.strictEqual(row[H.length - 1], url);
-  assert.strictEqual(J(E.reservaRow_(dep()[1].booking, NOW, 5, tours, {}, null))[H.length - 1], '');
+  assert.strictEqual(row[32], url);
+  assert.strictEqual(J(E.reservaRow_(dep()[1].booking, NOW, 5, tours, {}, null))[32], '');
 });
 
 test('old Reservas sheet (no link column): header fixed + REBUILD_PENDING; full rebuild refills links from Raw; getData exposes url, salidaUrl, regresoUrl, itemPk', () => {
@@ -144,11 +144,11 @@ test('old Reservas sheet (no link column): header fixed + REBUILD_PENDING; full 
   const ps = dep(); ps.forEach(p => { p.booking.dashboard_url = U(p.booking.pk); });
   ps.forEach(p => e.post(p)); e.G.ex.ensureMapeos_(e.ss); e.G.ex.rebuildAll();
   const H = E.RES_HEADERS, rs = e.ss.getSheetByName('Reservas');
-  rs._d.rows[0] = H.slice(0, H.length - 1); rs._d.rows.slice(1).forEach(r => { r[H.length - 1] = ''; });
+  rs._d.rows[0] = H.slice(0, H.length - 1); rs._d.rows.slice(1).forEach(r => { r[H.length - 1] = ''; r[32] = ''; });
   delete e.fe.props.REBUILD_PENDING;
   e.G.ex.rebuildFinanzas();                               // trigger notices the short header → full rebuild
   assert.strictEqual(e.fe.props.REBUILD_PENDING, undefined);
-  assert.strictEqual(e.ss.getSheetByName('Reservas')._d.rows[0][H.length - 1], 'Link FareHarbor');
+  assert.strictEqual(e.ss.getSheetByName('Reservas')._d.rows[0][H.length - 1], H[H.length - 1]);
   const d = J(e.G.ex.getData('0000', '2026-11-20', '2026-11-30')), dd = d.deps.find(x => x.id === '9300');
   assert.strictEqual(dd.itemPk, '258806');
   assert.ok(dd.bookings.length && dd.bookings.every(b => b.url === U(b.id.replace('#', '')) || /^https:\/\/fareharbor\.com\//.test(b.url)));
@@ -158,7 +158,7 @@ test('old Reservas sheet (no link column): header fixed + REBUILD_PENDING; full 
   rs._d.rows[0] = H.slice(0, H.length - 1); delete e.fe.props.REBUILD_PENDING;
   e.post(F.booking({ pk: 7012, av: 9300, item: 258806, itemName: 'x', start: '2026-11-25T14:00:00Z', end: '2026-11-25T17:00:00Z', customers: [F.cust(100, 'Adult')] }));
   assert.strictEqual(e.fe.props.REBUILD_PENDING, '1');
-  assert.strictEqual(e.ss.getSheetByName('Reservas')._d.rows[0][H.length - 1], 'Link FareHarbor');
+  assert.strictEqual(e.ss.getSheetByName('Reservas')._d.rows[0][H.length - 1], H[H.length - 1]);
 });
 
 test('staff meals: cde/cda are reused and renamed only while they still carry the old seed name; missing ones are added; idempotent', () => {

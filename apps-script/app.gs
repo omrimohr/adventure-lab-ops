@@ -299,6 +299,11 @@ function staleFin_(salidas, finAt) {
   salidas.forEach(r => { const t = r[16] instanceof Date ? r[16].getTime() : Date.parse(r[16]); if (t > max) max = t; });
   return max > Number(finAt || 0);
 }
+/** Pure: Reservas 'Check-in' / 'No show' / 'Check-in detalle' → {in, n, ns, det:[{t, s: in|pending|noshow}]} or null (no pax customers / not computed yet) */
+function ciFrom_(text, ns, det) {
+  const k = parseCheckin_(text); if (!k) return null;
+  return { in: k.in, n: k.n, ns: Number(ns) || 0, det: String(det || '').split('|').filter(String).map(x => { const i = x.lastIndexOf(':'); return { t: x.slice(0, i), s: x.slice(i + 1) }; }) };
+}
 function buildDeps_(inp) {
   const group = (rows, col) => { const m = {}; rows.forEach(r => { const k = String(r[col]); (m[k] = m[k] || []).push(r); }); return m; };
   const inWin = windowTest_(inp.desde, inp.hasta);
@@ -329,7 +334,9 @@ function buildDeps_(inp) {
       id: String(r[1] || r[0]), name: String(r[17] || ''), pax: numOr_(r[14], 0), types: String(r[16] || ''),
       gross: r2_(numOr_(r[22], 0)), // FareHarbor receipt total (Reservas 'Total (MXN)'); cancelled and OPS bookings are filtered out above
       net: r[30] === '' || r[30] === null ? null : Number(r[30]), est: r[31] === 'estimado', alert: String(r[28] || ''),
-      url: String(r[32] || '') // FareHarbor dashboard link of the booking ('' until the Reservas rebuild fills it)
+      url: String(r[32] || ''), // FareHarbor dashboard link of the booking ('' until the Reservas rebuild fills it)
+      pk: String(r[0]), note: String(r[21] || ''), paid: r2_(numOr_(r[23], 0)), aff: String(r[18] || ''), src: String(r[19] || ''), by: String(r[20] || ''),
+      created: r[25] ? fmtDate_(r[25], 'yyyy-MM-dd HH:mm') : '', ci: ciFrom_(r[33], r[34], r[35]), campos: String(r[36] || ''), tel: String(r[37] || '')
     }));
     const firstUrl = list => { for (let i = 0; i < list.length; i++) if (urls[list[i]]) return urls[list[i]]; return ''; };
     const k = costBy[pk];
@@ -341,6 +348,7 @@ function buildDeps_(inp) {
       out: hasOut ? bq.out : null, back: hasBack ? bq.back : null, extras: extrasText_(bits, inp.M, true), ca: parseCostos_(costoAdicionalText_(bits, inp.M)), hx: hx,
       rev: inp.revs[pk] || null, bit: st, alerts: String(s[15] || ''), netSource: String(s[18] || ''),
       costs: k ? { b: r2_(k[8]), g: r2_(k[10]), h: r2_(k[9]), f: r2_(k[11]), des: r2_(k[12]), ev: r2_(k[13]), tot: r2_(k[14]), pct: k[15] === '' ? null : Number(k[15]), ca: r2_(k[18]) } : null,
+      ci: (k => k ? { in: k.in, n: k.n, ns: Number(s[22]) || 0 } : null)(parseCheckin_(s[21])),
       paxTxt: String(s[9]), salidaUrl: firstUrl(ids(s[12])), regresoUrl: firstUrl(ids(s[13])), salidaPk: ids(s[12]).join(', '), regresoPk: ids(s[13]).join(', '),
       salidaId: ids(s[12]).map(x => disp[x] || x).join(', '), regresoId: ids(s[13]).map(x => disp[x] || x).join(', ')
     };
@@ -933,6 +941,6 @@ function migrate20261124() {
 
 if (typeof module !== 'undefined') module.exports = {
   pinStr_, findUser_, permsFromRows_, permOk_, guessIcon_, buildItems_, groupCompras_, lastCostFrom_, priceLogFrom_, buildMoves_, stockMap_, countDiffs_,
-  cleanLines_, slugId_, rateLabel_, buildRates_, latestRevs_, roleLabel_, bitQty_, extrasText_, buildDeps_, buildPend_, fieldsFromBookings_, saludAlerts_, setMapeo, planTarifasMigration_, pluralEs_, appendNote_,
+  cleanLines_, slugId_, rateLabel_, buildRates_, latestRevs_, roleLabel_, bitQty_, extrasText_, ciFrom_, buildDeps_, buildPend_, fieldsFromBookings_, saludAlerts_, setMapeo, planTarifasMigration_, pluralEs_, appendNote_,
   login, getData, refreshFin, windowTest_, staleFin_, addCompra, anularCompra, editCompra, addAjuste, addConteo, addComida, markPaid, markRev, saveProducto, saveTarifa, savePerm, saveTourBarco, migrate20261124
 };

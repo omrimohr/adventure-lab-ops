@@ -152,7 +152,7 @@ test('round 4 UI: sin recurso, por revisar only for finished days, sections by t
   assert.deepStrictEqual(pick('avisos'), [2]);
   assert.deepStrictEqual(pick('tours'), [0, 2, 3]);
   assert.deepStrictEqual(pick('rentas'), [1]);
-  assert.deepStrictEqual(Array.from(U.DEP_FILTERS.map(f => f.label)), ['Todas', 'Por revisar', 'Con advertencias', 'Tours', 'Rentas']);
+  assert.deepStrictEqual(Array.from(U.DEP_FILTERS.map(f => f.label)), ['Todas', 'Por revisar', 'Con advertencias', 'Sin check-in', 'Tours', 'Rentas']);
   assert.strictEqual(U.depFilter('nope').key, 'todas');
   // counts: only departures with active bookings
   const c = JSON.parse(JSON.stringify(U.dayCounts([dep({ bookings: [b(3), b(2)] }), dep({ bookings: [] }), dep({ tipo: 'renta', bookings: [b(4)] }), dep({ tipo: 'renta', bookings: [] }), dep({ bookings: [b(1)] })])));

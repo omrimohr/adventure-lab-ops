@@ -30,10 +30,13 @@ const RAW_HEADERS = ['Recibido', 'Hash', 'Duplicado', 'Booking pk', 'Booking uui
 const RES_HEADERS = ['Booking pk', 'Display ID', 'Estado', 'Cuenta', 'Reemplazada por (uuid)', 'Reemplaza a (uuid)',
   'Availability pk', 'Item pk', 'Item', 'Fecha', 'Hora', 'Inicio', 'Fin', 'Tipo OPS', 'Pax', 'Unidades',
   'Customer types', 'Contacto', 'Afiliado', 'Origen', 'Creada por', 'Nota', 'Total (MXN)', 'Pagado (MXN)',
-  'Invoice (MXN)', 'Creada', 'Último evento', 'Booking uuid', 'Alerta pax', 'Fila Raw', 'Ingreso neto (MXN)', 'Fuente ingreso', 'Link FareHarbor'];
+  'Invoice (MXN)', 'Creada', 'Último evento', 'Booking uuid', 'Alerta pax', 'Fila Raw', 'Ingreso neto (MXN)', 'Fuente ingreso', 'Link FareHarbor',
+  // round 6 (appended at the END): check-in "2 de 3", no-show count, "Adult:in|Adult:pending|Child:noshow", custom-field answers, phone
+  'Check-in', 'No show', 'Check-in detalle', 'Campos', 'Teléfono'];
 const SAL_HEADERS = ['Availability pk', 'Item pk', 'Item', 'Tipo tour', 'Fecha', 'Hora', 'Inicio', 'Fin',
   'Reservas activas', 'Pax', 'Unidades', 'Bitácora', 'Reserva salida', 'Reserva regreso', 'Tripulación',
-  'Alertas', 'Actualizado', 'Ingreso neto (MXN)', 'Fuente ingreso', 'Recursos', 'Recursos pk'];
+  'Alertas', 'Actualizado', 'Ingreso neto (MXN)', 'Fuente ingreso', 'Recursos', 'Recursos pk',
+  'Check-in', 'No show']; // round 6: "in de total" over active customer bookings, no-show count
 const ING_HEADERS = ['Booking pk', 'Ingreso neto (MXN)', 'Fecha tour', 'Archivo', 'Subido', 'Fila reporte'];
 const CARGA_HEADERS = ['Subido', 'Archivo', 'Hash', 'Duplicado', 'Filas', 'Reservas encontradas', 'No encontradas',
   'Fechas', 'Notas'];
@@ -379,8 +382,10 @@ function resHeaderStale_(headerRow) {
 /** Pure: rentals (Tours tipo 'renta') are the only items without bitácora; the Tours column 'Lleva bitácora' is no longer read. */
 // Bitácora applies to every item except rentals and day passes (barco 'otro', e.g. 723914 Yak day pass, 721266 Carmelita Day Pass)
 function bitacoraNoAplica_(tipo, barco) { return String(tipo || '').toLowerCase().trim() === 'renta' || norm_(barco) === 'otro'; }
-// '4' (25 Nov 2026): Costos adicionales amounts (Costos salida col S, Externos col I) and the Bitácora text of costo adicional/extras fields → one full recompute
-const BITACORA_RULE_V = '4';
+// General HISTORY-VERSION flag (the name is historical; it is no longer only about bitácora): bump it whenever history must be recalculated from Raw once.
+// '4' (25 Nov 2026): Costos adicionales amounts (Costos salida col S, Externos col I) and the Bitácora text of costo adicional/extras fields.
+// '5' (26 Nov 2026): check-in / no-show (Reservas + Salidas columns, alert "No show: N"), Reservas Campos / Teléfono.
+const BITACORA_RULE_V = '5';
 // Items that got OPS · Salida/Regreso bitácora fields in FareHarbor on 24 Nov 2026 → Tours "Lleva bitácora" = sí (sheet record only)
 const BITACORA_SI_20261124 = [244134, 398421, 243654, 398153, 337343, 337931, 398154, 703654, 689738, 185852, 703536, 770935];
 function markBitacoraSi_(ss) {
@@ -392,6 +397,62 @@ function markBitacoraSi_(ss) {
 }
 /** Pure: true when the stored rule version differs → Salidas must be recomputed once. */
 function bitacoraRuleStale_(stored) { return String(stored || '') !== BITACORA_RULE_V; }
+
+
+// ---------------- Check-in (round 6) ----------------
+/**
+ * Pure: FareHarbor customer.checkin_status → 'in' | 'noshow' | 'pending'.
+ * null/undefined/'' → pending; object/string whose type or name matches no-show → noshow; "not checked in" → pending; anything else non-null → in.
+ */
+function checkinOf_(c) {
+  const st = c ? c.checkin_status : null;
+  if (st === null || st === undefined || st === '' || st === false) return 'pending';
+  const txt = (typeof st === 'object') ? [st.type, st.name].filter(x => x !== undefined && x !== null).map(String).join(' ') : String(st);
+  if (/no[\s_-]?show/i.test(txt)) return 'noshow';
+  if (/not[\s_-]?checked|un[\s_-]?checked/i.test(txt)) return 'pending';
+  return 'in';
+}
+/** Pure: check-in of one booking over its pax customers only (OPS / 'no cuenta' excluded) → {in, ns, pend, n, det:"Adult:in|Adult:pending"} */
+function checkinSummary_(b, M) {
+  const o = { in: 0, ns: 0, pend: 0, n: 0, det: [] };
+  (b.customers || []).forEach(c => {
+    if (typeUso_(M, c) !== 'pax') return;
+    const k = checkinOf_(c);
+    o.n++;
+    if (k === 'in') o.in++; else if (k === 'noshow') o.ns++; else o.pend++;
+    o.det.push(String(custType_(c) || 'Cliente').replace(/[:|]/g, ' ').replace(/\s+/g, ' ').trim() + ':' + (k === 'in' ? 'in' : k === 'noshow' ? 'noshow' : 'pending'));
+  });
+  o.det = o.det.join('|');
+  return o;
+}
+/** "2 de 3" (text, so Sheets never turns it into a date); '' when there are no pax customers */
+function checkinText_(n, total) { return total ? n + ' de ' + total : ''; }
+/** Pure: "2 de 3" → {in, n} or null */
+function parseCheckin_(t) {
+  const m = /^\s*(\d+)\s*(?:de|\/)\s*(\d+)\s*$/.exec(String(t === null || t === undefined ? '' : t));
+  return m ? { in: Number(m[1]), n: Number(m[2]) } : null;
+}
+/**
+ * Pure: booking-level and customer-level custom field answers that are not bitácora/OPS fields → "Name: value | Name: value" (max ~500 chars).
+ * Excluded: fields of non-pax (OPS) customers, and Uso producto / hora extra / extras / costo adicional. Identical pairs are collapsed ("× 3").
+ */
+function camposText_(b, M) {
+  const seen = {}, order = [];
+  allCfvs_(b, M).forEach(x => {
+    if (x.ops) return;
+    const u = fieldUso_(M, x.v).uso;
+    if (/^(producto|hora extra|extras|costo adicional)$/.test(u)) return;
+    const raw = (x.v.display_value !== undefined && x.v.display_value !== null && x.v.display_value !== '') ? x.v.display_value : x.v.value;
+    const val = String(raw === undefined || raw === null ? '' : raw).replace(/\s+/g, ' ').trim();
+    if (!val) return;
+    const key = (cfName_(x.v) || 'Campo') + ': ' + val.replace(/\|/g, '/');
+    if (!seen[key]) { seen[key] = 0; order.push(key); }
+    seen[key]++;
+  });
+  const t = order.map(k => k + (seen[k] > 1 ? ' ×' + seen[k] : '')).join(' | ');
+  return t.length > 500 ? t.slice(0, 499) + '…' : t;
+}
+function phoneOf_(b) { const c = (b && b.contact) || {}; return String(c.normalized_phone || c.phone || '').trim(); }
 
 /**
  * One departure from its bookings (latest version of each).
@@ -420,6 +481,10 @@ function computeSalida_(avPk, list, tours, now, ing, M) {
     if (p.pax === '') paxPend = true; else pax += p.pax;
     if (p.alerta) alerts.push('#' + x.b.pk + ' ' + p.alerta);
   });
+
+  const ci = { in: 0, ns: 0, n: 0 };
+  custBk.forEach(x => { const k = checkinSummary_(x.b, M); ci.in += k.in; ci.ns += k.ns; ci.n += k.n; });
+  if (ci.ns > 0) alerts.push('No show: ' + ci.ns);
 
   const resources = resourcesFrom_(custBk.map(x => x.b));
   if (custBk.length && !resources.length) alerts.push('Sin recurso asignado');
@@ -463,7 +528,8 @@ function computeSalida_(avPk, list, tours, now, ing, M) {
     sal.map(x => x.b.pk).join(', '), reg.map(x => x.b.pk).join(', '),
     crew.map(c => (c[4] || 'sin rol') + ': ' + (c[5] || c[6])).join(' · '),
     alerts.join(' | '), now, Math.round(ingreso * 100) / 100, estimados ? 'estimado' : '',
-    resources.map(r => r.name + ' (' + r.n + ')').join(' · '), resources.map(r => r.pk + ':' + r.name + ':' + r.n).join('|')];
+    resources.map(r => r.name + ' (' + r.n + ')').join(' · '), resources.map(r => r.pk + ':' + r.name + ':' + r.n).join('|'),
+    checkinText_(ci.in, ci.n), ci.n ? ci.ns : ''];
   return { salida: salida, bit: bit, crew: crew, hasCustomers: custBk.length > 0 };
 }
 
@@ -492,7 +558,8 @@ function reservaRow_(b, eventTime, rawRow, tours, ing, M) {
     money_(b.receipt_total), money_(b.amount_paid), money_(b.invoice_price),
     b.created_at || '', eventTime, b.uuid || '', p.alerta, rawRow || '',
     ...incomeCells_(b, status, ops, ing),
-    b.dashboard_url || '' // 'Link FareHarbor' (last column; older sheets get it on the next full rebuild)
+    b.dashboard_url || '', // 'Link FareHarbor' (older sheets get it on the next full rebuild)
+    ...(ops ? ['', '', '', '', phoneOf_(b)] : (k => [checkinText_(k.in, k.n), k.n ? k.ns : '', k.det, camposText_(b, M), phoneOf_(b)])(checkinSummary_(b, M)))
   ];
 }
 
@@ -1729,4 +1796,4 @@ function sheet_(ss, name, headers) {
 if (typeof module !== 'undefined') module.exports = { ctKey_, cfKey_, roleKey_, guessCtype_, guessFieldUso_, guessRolTarifa_, camposMap_, typeUso_, fieldUso_, bitUso_, crewTarifa_,
   mapeosFromRows_, observe_, collectUnknowns_, seedMapeos_, validateMapeo_, toursFromRows_, tourEstado_, TOURS_SEED_ROWS: TOURS_SEED, USOS_CT, USOS_CF,
   CT_HEADERS, CF_HEADERS, ROL_HEADERS, CREW_HEADERS, BIT_HEADERS, ESTADO_NUEVO, ESTADO_OK, rawRowFor_, doPost, rebuildFinanzas, rebuildAll, ensureMapeos_, loadMapeos_,
-  registerUnknowns_, prepararMapeos, parseCostos_, costoAdicionalText_, EXT_HEADERS, COSTO_HEADERS, bitacoraNoAplica_, bitacoraRuleStale_, markBitacoraSi_, BITACORA_RULE_V, reservaRow_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };
+  registerUnknowns_, prepararMapeos, parseCostos_, costoAdicionalText_, EXT_HEADERS, COSTO_HEADERS, bitacoraNoAplica_, bitacoraRuleStale_, markBitacoraSi_, BITACORA_RULE_V, checkinOf_, checkinSummary_, checkinText_, parseCheckin_, camposText_, phoneOf_, reservaRow_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };

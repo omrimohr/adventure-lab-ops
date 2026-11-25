@@ -103,11 +103,33 @@ function makeDeps(){
   });
 }
 
+// round 6: check-in / no-show + booking detail (note, pago, canal, campos, teléfono). Deterministic by index (no rnd → the rest of the demo is unchanged).
+function decorate(deps){
+  const T=addDays(0),now=mins(hm());
+  deps.forEach((d,i)=>{
+    const started=d.date<T||(d.date===T&&mins(d.time)<=now);let dn=0,dt=0,dns=0;
+    d.bookings.forEach((b,k)=>{
+      const det=[];String(b.types).split(', ').forEach(t=>{const m=/^(\d+)× (.*)$/.exec(t);for(let j=0;j<+m[1];j++)det.push({t:m[2],s:'pending'})});
+      const mode=!started?'none':(i%4===1&&k===0)?'part':(i%4===2&&k===0)?'noshow':'all';
+      det.forEach((x,j)=>{x.s=mode==='all'?'in':mode==='part'?(j===0?'pending':'in'):mode==='noshow'?(j===0?'noshow':'in'):'pending'});
+      const c={in:det.filter(x=>x.s==='in').length,n:det.length,ns:det.filter(x=>x.s==='noshow').length,det:det};
+      b.ci=c;dn+=c.in;dt+=c.n;dns+=c.ns;
+      b.pk=String(393004100+i*10+k);b.paid=(i%5===0&&k===0)?Math.round(b.gross/2):b.gross;
+      b.note=(k===0&&i%3===0)?'Cumpleaños de la abuela. Llegan en 2 carros, pedir estacionamiento. Sin gluten en la fruta.':'';
+      b.aff=(i%6===2&&k===0)?'Hotel Magic Bacalar':'';b.src=b.aff?'':(i%2?'Sitio web':'Mostrador');b.by=b.aff?'Hotel Magic Bacalar':'Omri';
+      b.created=addDays(-3-(i%4))+' 1'+(k+1)+':2'+(i%6);
+      b.tel=(i%7===3)?'':'+52 983 '+(100+i*13)+' '+(2000+i*37+k);
+      b.campos=(k===0&&i%2===0)?'Hotel: Magic Bacalar | Alergias: nueces | Talla chaleco: M ×2':'';
+    });
+    d.ci=dt?{in:dn,n:dt,ns:dns}:null;if(dns)d.alerts='No show: '+dns;
+  });
+  return deps;
+}
 // ---------- state ----------
 const D={};
 function init(){
   const T=addDays(0);
-  D.deps=makeDeps();
+  D.deps=decorate(makeDeps());
   D.items=ITEMS.map(x=>Object.assign({},x));
   const buys=[
    {id:'c1',d:addDays(-6),sup:'Depósito Bacalar',lines:[{i:'cer',q:240,p:17.5},{i:'ref',q:120,p:14}],ticket:'',note:'',annulled:false,hasta:'',history:[{d:addDays(-6),a:'Registrada · Omri',r:''}]},
