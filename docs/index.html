@@ -8,8 +8,25 @@
 <meta name="apple-mobile-web-app-title" content="AL Ops">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#F7F3EC" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#1E1C18" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" id="tcL" content="#F7F3EC" media="(prefers-color-scheme: light)">
+<meta name="theme-color" id="tcD" content="#1E1C18" media="(prefers-color-scheme: dark)">
+<script>
+/* Apariencia (por dispositivo): 'auto' (sigue al teléfono) | 'light' | 'dark'. Se aplica antes de pintar, para que no parpadee. */
+(function(){
+  var K='adv_ops_theme',C={light:'#F7F3EC',dark:'#1E1C18'};
+  window.getTheme=function(){var m='auto';try{m=localStorage.getItem(K)||'auto'}catch(e){}return m==='light'||m==='dark'?m:'auto'};
+  window.applyTheme=function(m){
+    var h=document.documentElement,l=document.getElementById('tcL'),d=document.getElementById('tcD');
+    if(m==='light'||m==='dark')h.setAttribute('data-theme',m);else h.removeAttribute('data-theme');
+    if(l&&d){
+      if(m==='light'||m==='dark'){l.content=d.content=C[m];l.removeAttribute('media');d.removeAttribute('media')}
+      else{l.content=C.light;d.content=C.dark;l.setAttribute('media','(prefers-color-scheme: light)');d.setAttribute('media','(prefers-color-scheme: dark)')}
+    }
+  };
+  window.setTheme=function(m){try{if(m==='auto')localStorage.removeItem(K);else localStorage.setItem(K,m)}catch(e){}window.applyTheme(m)};
+  window.applyTheme(window.getTheme());
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:wght@400;500&display=swap">
@@ -44,6 +61,7 @@ img{max-width:100%}
   --acc:#8FAF8C; --acc-ink:#1E1C18; --acc-soft:#2F3A2E; --fill:#34302A;
   --green:#7FB08A; --dotg:#7FB08A; --orange:#D4A257; --red:#E0805F; --neutral:#4A443A;
   --scrim:rgba(0,0,0,.55); color-scheme:dark}}
+:root[data-theme="light"]{color-scheme:light}
 :root[data-theme="dark"]{
   --sand:#1E1C18; --paper:#2A2722; --paper2:#25221E; --hair:#3A352E; --sep2:#322E28; --rule:#4A443A;
   --ink:#E8E0D2; --ink2:#B3A895; --ink3:#8C826F;
@@ -67,14 +85,16 @@ b,strong{font-weight:500}
 .nav .act{display:grid;place-items:center;color:var(--acc);background:none;border:0;font:inherit;font-weight:500;min-width:44px;height:44px;padding:0 10px;cursor:pointer}
 .nav .act svg{width:20px;height:20px}
 h1{font-family:var(--serif);font-size:26px;font-weight:500;line-height:32px;margin:0 0 4px}
-.lede{color:var(--ink2);font-size:14px;margin:0 0 16px}
+.lede{color:var(--ink2);font-size:14px;margin:0 0 24px}
 .rolebar+h1{margin-top:4px}
 .ttl{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:44px;margin:0 0 12px}
 .ttl h1{margin:0}
 .tlink{background:none;border:0;font:inherit;font-weight:500;color:var(--acc);min-height:44px;padding:0 0 0 12px;cursor:pointer;white-space:nowrap}
 /* Flat lists: full-width rows on paper, hairline top/bottom on the group, thin separators between rows. No radius. */
-.group{margin:0 0 16px}
-.ghead{font-size:12px;color:var(--ink3);margin:0 0 8px}
+.group{margin:0 0 28px}
+.sheet .group{margin-bottom:20px}
+h1+.group{margin-top:24px}
+.ghead{font-size:12px;color:var(--ink3);margin:0 0 8px;padding-top:4px}
 .gfoot{font-size:12px;color:var(--ink3);margin:8px 0 0}
 .list{background:var(--paper);margin:0 calc(-1*var(--px));border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
 .list>*+*{border-top:1px solid var(--sep2)}
@@ -104,11 +124,11 @@ button.cell:active,.cell.tap:active,.drow:active{background:var(--fill)}
 .btn.plain{background:var(--acc-soft);color:var(--acc)}
 .btn:disabled{opacity:.4;cursor:default}
 .btn:focus-visible,.cell:focus-visible,.tab:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,.seg button:focus-visible,.sw:focus-visible,.drow:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
-.stack{display:grid;gap:8px;margin:0 0 16px}
+.stack{display:grid;gap:8px;margin:0 0 28px}
 .link{background:none;border:0;font:inherit;font-weight:500;color:var(--acc);min-height:44px;padding:0 0 0 12px;cursor:pointer}
 .sbtn,.gbtn{min-height:44px;padding:0 16px;border-radius:10px;border:0;background:var(--acc-soft);color:var(--acc);font:inherit;font-weight:500;cursor:pointer;flex:none;white-space:nowrap}
 /* Summary groups (flat) */
-.today{background:var(--paper);margin:0 calc(-1*var(--px)) 16px;padding:12px var(--px);border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
+.today{background:var(--paper);margin:0 calc(-1*var(--px)) 28px;padding:12px var(--px);border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
 .today .state{font-size:14px;color:var(--ink2)}
 .today .head{font-family:var(--serif);font-size:16px;font-weight:500;margin:4px 0 12px}
 .hero{text-align:center;padding:4px 0 16px}
@@ -120,7 +140,7 @@ button.cell:active,.cell.tap:active,.drow:active{background:var(--fill)}
 .live{display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;color:var(--ink2);margin:0 0 12px}
 button.live{width:100%;background:none;border:0;font:inherit;font-size:12px;color:var(--ink2);cursor:pointer;min-height:44px;margin:0 0 4px}
 /* Search + segmented */
-.search{display:flex;align-items:center;gap:8px;background:var(--fill);border-radius:10px;padding:0 12px;height:44px;margin:0 0 16px}
+.search{display:flex;align-items:center;gap:8px;background:var(--fill);border-radius:10px;padding:0 12px;height:44px;margin:0 0 24px}
 .search input{border:0;background:none;font:inherit;color:var(--ink);width:100%;outline:none}
 .search svg{width:16px;height:16px;color:var(--ink2);flex:none}
 .seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:var(--fill);border-radius:10px;padding:2px;gap:2px}
@@ -153,7 +173,7 @@ button.live{width:100%;background:none;border:0;font:inherit;font-size:12px;colo
 .mini{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:44px}
 .mini input{width:104px;height:44px;text-align:right;border:0;background:var(--fill);border-radius:10px;font:inherit;font-variant-numeric:tabular-nums;color:var(--ink);padding:0 12px}
 /* Warnings: flat band */
-.warn{background:color-mix(in srgb,var(--orange) 12%,var(--paper));margin:0 calc(-1*var(--px)) 16px;border-top:1px solid color-mix(in srgb,var(--orange) 40%,var(--hair));border-bottom:1px solid color-mix(in srgb,var(--orange) 40%,var(--hair));padding:12px var(--px)}
+.warn{background:color-mix(in srgb,var(--orange) 12%,var(--paper));margin:0 calc(-1*var(--px)) 28px;border-top:1px solid color-mix(in srgb,var(--orange) 40%,var(--hair));border-bottom:1px solid color-mix(in srgb,var(--orange) 40%,var(--hair));padding:12px var(--px)}
 .warn ul{margin:4px 0 0;padding-left:16px}.warn li{margin:4px 0}
 .warn .link{padding:0;margin-top:0}
 .cell.w-orange{box-shadow:inset 3px 0 0 var(--orange)}.cell.w-orange .s{color:var(--orange)}
@@ -233,7 +253,7 @@ button.live{width:100%;background:none;border:0;font:inherit;font-size:12px;colo
 .m2.big .mn{font-size:11px}
 .kpi .m2{align-items:flex-start;text-align:left;margin-top:4px}
 /* Day summary: one flat group */
-.dsum{background:var(--paper);margin:0 calc(-1*var(--px)) 16px;border-top:1px solid var(--hair);border-bottom:1px solid var(--hair);font-variant-numeric:tabular-nums}
+.dsum{background:var(--paper);margin:0 calc(-1*var(--px)) 28px;border-top:1px solid var(--hair);border-bottom:1px solid var(--hair);font-variant-numeric:tabular-nums}
 .dsum .r{display:grid;grid-template-columns:1fr 1fr;padding:12px var(--px)}
 .dsum .r+.r{border-top:1px solid var(--sep2)}
 .dsum .r.f{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-block:4px}
@@ -253,9 +273,9 @@ button.live{width:100%;background:none;border:0;font:inherit;font-size:12px;colo
 /* Departure row: 4 fixed lines, nothing jumps */
 .drow{display:block;width:100%;text-align:left;background:none;border:0;font:inherit;color:inherit;padding:12px var(--px);cursor:pointer}
 .drow .l1,.drow .l2,.drow .l4{display:flex;justify-content:space-between;align-items:center;gap:12px}
-.drow .l1{min-height:20px;font-size:12px;color:var(--ink2)}
+.drow .l1{min-height:24px;font-size:12px;color:var(--ink2)}
 .drow .l1 .st.now{color:var(--acc);font-weight:500}
-.drow .l1 .hr{font-variant-numeric:tabular-nums}
+.drow .l1 .hr{font-size:16px;font-weight:500;color:var(--ink);font-variant-numeric:tabular-nums}
 .drow .l1 .mg{font-size:14px;font-weight:500;color:var(--green);font-variant-numeric:tabular-nums;white-space:nowrap}
 .drow .l2{min-height:24px;margin-top:2px}
 .drow .tn{flex:1;min-width:0;font-family:var(--serif);font-size:16px;font-weight:500;line-height:24px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -273,9 +293,23 @@ button.live{width:100%;background:none;border:0;font:inherit;font-size:12px;colo
 .drow .wn svg{width:16px;height:16px}
 .ri{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;color:var(--orange)}
 .ri svg{width:18px;height:18px}.ri.ok{color:var(--green)}
-.sech{margin:0 0 8px;font-size:12px;color:var(--ink3)}
+/* Rentas y pases de día: fila compacta de 2 líneas (ícono + hora + nombre en sistema 14 + etiqueta «Renta»); los tours conservan las 4 líneas con serif */
+.drow.dcompact{padding-block:8px}
+.drow.dcompact .l1,.drow.dcompact .l2{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.drow.dcompact .l1{min-height:24px}
+.drow.dcompact .ln{flex:1;min-width:0;display:flex;align-items:center;gap:8px}
+.drow.dcompact .ki{display:inline-flex;color:var(--ink2);flex:none}.drow.dcompact .ki svg{width:16px;height:16px}
+.drow.dcompact .hr{flex:none}
+.drow.dcompact .st-w{display:inline-flex;align-items:baseline;gap:4px;flex:none;font-size:12px;color:var(--ink2)}
+.drow.dcompact .cn{flex:1;min-width:0;font-size:14px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.drow.dcompact .rtag{flex:none;font-size:11px;line-height:16px;color:var(--ink3);border:1px solid var(--rule);border-radius:99px;padding:0 8px}
+.drow.dcompact .l2{min-height:24px;margin-top:0;font-size:12px;color:var(--ink2)}
+.drow.dcompact .l2 .lf{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.drow.dcompact .l2 .nores{color:var(--orange);font-weight:500}
+.drow.dcompact .l2 .rt{gap:8px}
+.sech{margin:0 0 8px;padding-top:4px;font-size:12px;color:var(--ink3)}
 .sech.live{color:var(--acc)}
-.sec{margin:0 0 16px}
+.sec{margin:0 0 28px}
 .bdot{display:inline-block;width:8px;height:8px;border-radius:50%;flex:none;background:var(--neutral)}
 .bdot.ok{background:var(--dotg)}.bdot.wr{background:var(--orange)}.bdot.late{background:var(--red)}.bdot.mut{background:var(--neutral)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
@@ -451,7 +485,7 @@ const RB={'Capitán':'Cap.','Marinero':'Mar.','Instructor':'Inst.','Auxiliar':'A
 const rb=r=>RB[r]||(r.length>5?r.slice(0,4)+'.':r);
 const S={role:'op',realRole:'op',user:'',date:'',wk:'',
   perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},pend:[],salud:[],rebuildPending:false,fhOk:true,offline:false,dataAt:0,
-  win:{from:'',to:''},fetchedAt:'',q:'',filter:'todas',fopen:false,config:{semana_inicio:'jueves'}};
+  win:{from:'',to:''},fetchedAt:'',q:'',filter:'todas',fopen:false,config:{semana_inicio:'jueves',semana_pago:'jueves'}};
 let PIN='';
 
 // ===== Servidor =====
@@ -484,11 +518,11 @@ function flushRender(){if(pendingRender)softRender()}
 let lastLoad=Date.now(),finBusy=false,finLast=0;
 function applyData(d,at){lastLoad=Date.now();S.dataAt=at||Date.now();S.fhOk=d.fhOk!==false;
   ['items','purchases','moves','priceLog','deps','rates','paid','weekly','externos','control','tours','comidas','fh','pend','salud','rebuildPending'].forEach(k=>{S[k]=d[k]});
-  S.pend=d.pend||[];S.salud=d.salud||[];S.config=Object.assign({semana_inicio:'jueves'},d.config||{});S.rebuildPending=!!d.rebuildPending;
+  S.pend=d.pend||[];S.salud=d.salud||[];S.config=Object.assign({semana_inicio:'jueves',semana_pago:'jueves'},d.config||{});S.rebuildPending=!!d.rebuildPending;
   S.perms=d.perms;S.realRole=d.user.rol;S.user=d.user.nombre;
   if(S.realRole!=='admin'||!S.date)S.role=S.realRole;
   TODAY=d.today;NOW=d.now;S.clk={today:d.today,now:d.now,at:Date.now()};S.fetchedAt=d.now;S.win={from:d.desde,to:d.hasta};
-  if(!S.date)S.date=TODAY;if(!S.wk)S.wk=wkStart(TODAY);
+  if(!S.date)S.date=TODAY;S.wk=wkStart(S.wk||TODAY,S.config.semana_pago);
   S.paidPend={};qOverlay();indexMoves();
 }
 // Caché local de la última respuesta (por usuario y rango): se pinta al instante y luego se pide lo nuevo
@@ -638,6 +672,7 @@ const IC={
  inbox:'<path d="M4 13l2.5-7h11L20 13v6H4z"/><path d="M4 13h5l1 2h4l1-2h5"/>',
  logout:'<path d="M10 4H6a2 2 0 00-2 2v12a2 2 0 002 2h4"/><path d="M15 8l4 4-4 4M19 12H9"/>',
  okc:'<circle cx="12" cy="12" r="8.5"/><path d="M8 12.5l3 3 5-6"/>',
+ kayak:'<path d="M3 15.5c4-3.2 14-3.2 18 0-4 3.2-14 3.2-18 0z"/><path d="M6.5 5.5l11 11"/><path d="M4.8 8.2l3-3M16.2 18.8l3-3"/>',
  boat:'<path d="M12 3v12"/><path d="M12 4.5l6 9.5h-6"/><path d="M12 8L7 14h5"/><path d="M4 17.5h16l-2.2 3.2H6.2z"/>'};
 const svgI=(k,sz)=>`<svg class="gi" viewBox="0 0 24 24" width="${sz||16}" height="${sz||16}" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg>`;
 const WI=svgI('alert',14).replace('class="gi"','class="wi"');   // aviso inline (sin emoji)
@@ -659,7 +694,11 @@ const MONTHS=['enero','febrero','marzo','abril','mayo','junio','julio','agosto',
 const p2=n=>String(n).padStart(2,'0');
 const pd=d=>new Date(d+'T12:00:00');
 const addD=(d,n)=>{const x=pd(d);x.setDate(x.getDate()+n);return x.getFullYear()+'-'+p2(x.getMonth()+1)+'-'+p2(x.getDate())};
-const wkStart=d=>addD(d,-((pd(d).getDay()-4+7)%7));   // semana de pago de eventuales: SIEMPRE jueves → miércoles
+// Semana de pago de eventuales: empieza el día del ajuste «semana_pago» (jueves por defecto)
+const PAYDOW={domingo:0,lunes:1,martes:2,miercoles:3,jueves:4,viernes:5,sabado:6};
+const PAYD=[['lunes','Lunes'],['martes','Martes'],['miercoles','Miércoles'],['jueves','Jueves'],['viernes','Viernes'],['sabado','Sábado'],['domingo','Domingo']];
+const payDayName=k=>(PAYD.find(x=>x[0]===k)||PAYD[3])[1].toLowerCase();
+const wkStart=(d,dia)=>addD(d,-((pd(d).getDay()-(PAYDOW[dia]===undefined?4:PAYDOW[dia])+7)%7));
 // Semana de los reportes de stock: según el ajuste «Inicio de semana» (jueves por defecto o lunes)
 const weekStartOf=(d,inicio)=>addD(d,-((pd(d).getDay()-(inicio==='lunes'?1:4)+7)%7));
 // Fechas: "dom. 15/nov 2026" (un solo formato en toda la app). noYear → "dom. 15/nov"
@@ -1053,7 +1092,7 @@ dep(id){
 ev(){
   const ws=S.wk,we=addD(ws,6),ps=weekPeople(ws),tot=ps.reduce((a,p)=>a+p.tot,0),paid=ps.filter(p=>S.paid[ws+'|'+p.n]).length;
   const ext=S.externos.filter(x=>x.d>=ws&&x.d<=we).sort((a,b)=>a.d<b.d?-1:1);
-  let h=topBar('Eventuales',{lede:'Semana de jueves a miércoles. Se paga los jueves.'})+`<div class="daterow"><button class="nx" data-wk="-1" aria-label="Semana anterior">‹</button><span class="wk">${wkLabel(ws)}</span><button class="nx" data-wk="1" aria-label="Semana siguiente">›</button></div>
+  let h=topBar('Eventuales',{lede:`Semana de ${payDayName(S.config.semana_pago)} a ${payDayName(PAYD[(PAYD.findIndex(x=>x[0]===S.config.semana_pago)+6)%7][0])}.`})+`<div class="daterow"><button class="nx" data-wk="-1" aria-label="Semana anterior">‹</button><span class="wk">${wkLabel(ws)}</span><button class="nx" data-wk="1" aria-label="Semana siguiente">›</button></div>
   <div class="live" style="margin-top:2px">Pago: ${short(addD(ws,7))}</div>`;
   if(!ps.length&&!ext.length)return h+`<div class="group"><div class="list"><div class="empty">Sin salidas en esta semana.</div></div></div>`;
   if(ps.length)h+=`<section class="today"><div class="kpis" style="grid-template-columns:1.4fr 1fr 1fr"><div class="kpi"><div class="k">Total a pagar</div><div class="n">${fmt(tot)}</div></div><div class="kpi"><div class="k">Personas</div><div class="n">${ps.length}</div></div><div class="kpi"><div class="k">Pagados</div><div class="n">${paid}</div></div></div></section>
@@ -1147,7 +1186,7 @@ mas(){
     ${row('tarifas','costos','Tarifas eventuales','Pago por rol y tipo de barco')}
     ${row('tours','boat','Items','Tipo de barco de cada item')}
     ${row('permisos','shield','Permisos',`${ROLES.length} roles`)}
-    ${adm?row('ajustes','sliders','Ajustes',`Semana de reportes: ${S.config.semana_inicio==='lunes'?'lunes':'jueves'}`):''}
+    ${adm?row('ajustes','sliders','Ajustes',`Apariencia · semana de pago: ${payDayName(S.config.semana_pago)}`):''}
   </div></div>
   <div class="group"><div class="list">
     ${row('fh','link','Conexión FareHarbor',`<i class="dot ${S.fhOk===false?'mid':''}" style="display:inline-block;margin-right:8px"></i>${S.fh&&S.fh.ultimo?'Último evento '+esc(fdt(S.fh.ultimo)):'Webhook'}`)}
@@ -1159,11 +1198,17 @@ mas(){
   <div class="group"><div class="list"><button class="cell" data-logout><span class="ic acc">${svgI('logout',20)}</span><span class="main"><span class="t">Cerrar sesión</span><div class="s">${esc(S.user)} · ${S.realRole==='admin'?'Admin':'Operación'}</div></span></button></div></div>`;
 },
 ajustes(){
-  const w=S.config.semana_inicio==='lunes'?'lunes':'jueves',adm=S.role==='admin';
+  const w=S.config.semana_inicio==='lunes'?'lunes':'jueves',adm=S.role==='admin',tm=window.getTheme?window.getTheme():'auto',pw=S.config.semana_pago||'jueves';
   return topBar('Ajustes',{back:'Más',backTo:'mas'})+`
-  <div class="group"><div class="list"><div class="setrow"><span class="t" id="cfgL">Inicio de semana</span>
+  <div class="group"><div class="ghead" id="thL">Apariencia</div><div class="list"><div class="setrow">
+    <div class="seg" role="group" aria-labelledby="thL">${[['auto','Automático'],['light','Claro'],['dark','Oscuro']].map(([k,l])=>`<button type="button" data-theme-set="${k}" aria-pressed="${tm===k}">${l}</button>`).join('')}</div></div></div>
+  <div class="gfoot">Solo en este teléfono. Automático sigue el modo del teléfono.</div></div>
+  <div class="group"><div class="ghead" id="pwL">Semana de pago de eventuales: empieza el</div><div class="list"><div class="setrow">
+    <div class="chips" role="group" aria-labelledby="pwL" style="margin:0">${PAYD.map(([k,l])=>`<button type="button" class="chip" data-payw="${k}" aria-pressed="${pw===k}" ${adm?'':'disabled'}>${l}</button>`).join('')}</div></div></div>
+  <div class="gfoot">${adm?'':'Solo el admin puede cambiar los ajustes. '}Define cómo se agrupan las semanas de pago en Eventuales. Los pagos ya hechos se quedan con su fecha.</div></div>
+  <div class="group"><div class="ghead" id="cfgL">Semana del reporte de stock</div><div class="list"><div class="setrow">
     <div class="seg" role="group" aria-labelledby="cfgL">${[['jueves','Jueves'],['lunes','Lunes']].map(([k,l])=>`<button type="button" data-cfg="semana_inicio:${k}" aria-pressed="${w===k}" ${adm?'':'disabled'}>${l}</button>`).join('')}</div></div></div>
-  <div class="gfoot">${adm?'':'Solo el admin puede cambiar los ajustes. '}Define qué día empieza «Esta semana» y «Semana pasada» en el reporte de stock. El pago de eventuales siempre es de jueves a miércoles.</div></div>`;
+  <div class="gfoot">Define qué día empieza «Esta semana» y «Semana pasada» en el reporte de stock. No afecta el pago de eventuales.</div></div>`;
 },
 tarifas(){
   const val=r=>r.pending?'<span style="color:var(--orange)">Pendiente</span>':r.u==='factor'?'× '+num(r.amt):`${fmt(r.amt)} por ${r.u}`;
@@ -1508,6 +1553,13 @@ function depCard(d,sec){
   else if(needsReview(d,TODAY))rt+=`<span class="ri" role="img" aria-label="Por revisar">${svgI('clock',18)}</span>`;
   const l3=[res||(nores?`<span class="nores">${WI}Sin recurso</span>`:''),crew||(rent?'':'Sin tripulación')].filter(Boolean).join(' · ');
   const netT=fut?'':n===null?'<span class="nt pend">neto pendiente</span>':`<span class="nt">neto ${fmt(n)}${est?' est.':''}</span>`;
+  if(rent||d.barco==='otro'){
+    const pax=(d.bookings||[]).reduce((a,b)=>a+(Number(b.pax)||0),0);
+    const lf=[res||(nores?`<span class="nores">${WI}Sin recurso</span>`:''),pax?`${pax} ${pax===1?'persona':'personas'}`:''].filter(Boolean).join(' · ');
+    return `<button class="drow dcompact dcard s-${sec||'x'}" data-dep="${d.id}">
+    <span class="l1"><span class="ln"><span class="ki">${svgI('kayak',16)}</span><span class="hr">${d.time}</span>${sec==='live'?`<span class="st-w">· <span class="st now">${word}</span></span>`:''}<span class="cn">${esc(d.item)}${d.label?` · ${esc(d.label)}`:''}</span><span class="rtag">${rent?'Renta':'Pase'}</span></span><span class="mg">${d.gross===null||d.gross===undefined||d.gross===''?'—':fmt(d.gross)}</span></span>
+    <span class="l2"><span class="lf">${lf||'&nbsp;'}</span><span class="rt">${rt}${netT}</span></span></button>`;
+  }
   return `<button class="drow dcard s-${sec||'x'}" data-dep="${d.id}">
     <span class="l1"><span class="st-w"><span class="hr">${d.time}</span> · <span class="st${sec==='live'?' now':''}">${word}</span></span><span class="mg">${d.gross===null||d.gross===undefined||d.gross===''?'—':fmt(d.gross)}</span></span>
     <span class="l2"><span class="tn">${esc(d.item)}${d.label?` <span class="lbl">· ${esc(d.label)}</span>`:''}</span>${netT}</span>
@@ -1626,11 +1678,21 @@ async function savePend(){
   closeSheet();pc=null;enqueue('setMapeo',[p.kind,p.clave,val]);toast('Guardado. Recalculando historial…')
 }
 // ===== Ajustes (guardados en el servidor, hoja Config; solo admin) =====
+// Cambiar la semana de pago: las semanas se recalculan al instante en la app (las salidas ya están aquí); los pagos hechos se re-ubican en la semana que contiene su fecha
+function remapPaid(dia){const o={};Object.keys(S.paid).forEach(k=>{const i=k.indexOf('|');o[wkStart(k.slice(0,i),dia)+'|'+k.slice(i+1)]=S.paid[k]});S.paid=o}
+function askPayWeek(dia){
+  if(S.role!=='admin'||S.config.semana_pago===dia)return;
+  const nm=(PAYD.find(x=>x[0]===dia)||PAYD[3])[1];
+  sheet('Semana de pago',`<div class="group"><div class="list"><div class="cell"><span class="main"><span class="t">La semana de pago empezará el ${nm.toLowerCase()}</span><div class="s">Cambia cómo se agrupan las semanas de pago. Los pagos ya hechos se quedan con su fecha.</div></span></div></div></div>`,{ok:()=>{closeSheet();setCfg('semana_pago',dia)},okLabel:'Cambiar'});
+}
 async function setCfg(k,v){
   if(S.role!=='admin'||S.config[k]===v)return;
-  const old=S.config[k];S.config[k]=v;S.sr=null;render();           // se ve al instante; si el servidor lo rechaza, se regresa
+  const old=S.config[k],oldPaid=S.paid,oldWk=S.wk;
+  S.config[k]=v;S.sr=null;
+  if(k==='semana_pago'){remapPaid(v);S.wk=wkStart(TODAY,v);S.rebuildPending=true}
+  render();           // se ve al instante; si el servidor lo rechaza, se regresa
   try{const r=await srv('setConfig',k,v);if(r&&r.config)S.config=Object.assign({},S.config,r.config);render()}
-  catch(e){S.config[k]=old;render();toast(errMsg(e),'err')}
+  catch(e){S.config[k]=old;if(k==='semana_pago'){S.paid=oldPaid;S.wk=oldWk;S.rebuildPending=false}render();toast(errMsg(e),'err')}
 }
 // ===== Reporte de stock =====
 function srPreset(k){
@@ -1811,6 +1873,8 @@ document.addEventListener('click',e=>{
   const pm=on('[data-perm]');if(pm){const[r,p]=pm.dataset.perm.split(':');
     if(can('config')&&!(r==='admin'&&p==='config')){const cur=!!S.perms[r][p];S.perms[r][p]=!cur;render();
       srv('savePerm',r,p,!cur).catch(er=>{S.perms[r][p]=cur;render();toast(errMsg(er),'err')})}return}
+  const thb=on('[data-theme-set]');if(thb){const m=thb.dataset.themeSet;window.setTheme(m);render();return}
+  const pwb=on('[data-payw]');if(pwb){askPayWeek(pwb.dataset.payw);return}
   const cfb=on('[data-cfg]');if(cfb){const i=cfb.dataset.cfg.indexOf(':');setCfg(cfb.dataset.cfg.slice(0,i),cfb.dataset.cfg.slice(i+1));return}
   if(on('[data-logout]')){logout();return}
   if(on('[data-refresh]')){refresh();return}

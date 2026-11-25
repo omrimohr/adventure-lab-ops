@@ -14,7 +14,7 @@ test('validateConfig_: semana_inicio accepts jueves | lunes (any case/accents), 
   assert.throws(() => E.validateConfig_('otra', 'x'), /desconocido/);
 });
 test('configFromRows_: default jueves; valid rows apply; bad keys / values are ignored', () => {
-  assert.deepStrictEqual(J(E.configFromRows_([])), { semana_inicio: 'jueves' });
+  assert.deepStrictEqual(J(E.configFromRows_([])), { semana_inicio: 'jueves', semana_pago: 'jueves' });
   assert.strictEqual(E.configFromRows_([['semana_inicio', 'lunes', '', '']]).semana_inicio, 'lunes');
   assert.strictEqual(E.configFromRows_([['semana_inicio', 'sabado'], ['x', 'y']]).semana_inicio, 'jueves');
 });
@@ -44,7 +44,7 @@ test('setConfig: only admin — an op user is refused even if the "config" permi
   assert.throws(() => G.setConfig('9999', 'semana_inicio', 'lunes'), /PIN/);
   assert.strictEqual(J(G.getData('1234', '', '')).config.semana_inicio, 'jueves');
 });
-test('weekStartOf: report weeks start Thursday (default) or Monday; the crew pay week (wkStart) is ALWAYS Thursday', () => {
+test('weekStartOf: report weeks start Thursday (default) or Monday; the pay week (wkStart) defaults to Thursday (own setting semana_pago since round 9)', () => {
   // 2026-11-25 is a Wednesday
   assert.strictEqual(U.weekStartOf('2026-11-25', 'jueves'), '2026-11-19');
   assert.strictEqual(U.weekStartOf('2026-11-25', undefined), '2026-11-19');
@@ -57,7 +57,7 @@ test('weekStartOf: report weeks start Thursday (default) or Monday; the crew pay
 test('app: srPreset uses the config, setConfig wiring + Ajustes screen, sw CACHE bumped', () => {
   assert.ok(/weekStartOf\(TODAY,S\.config&&S\.config\.semana_inicio\)/.test(html), 'presets read the setting');
   assert.ok(/srv\('setConfig'/.test(html) && /ajustes\(\)\{/.test(html) && /data-view="\$\{view\}"|data-view="ajustes"|row\('ajustes'/.test(html));
-  assert.ok(/'al-ops-v5'/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'sw.js'), 'utf8')));
+  assert.ok(/'al-ops-v6'/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'sw.js'), 'utf8')));
 });
 test('design tokens: Arena · salvia light + dark, Lora loaded, no turquoise, no 34pt title, weights 400/500 only', () => {
   const css = html.slice(html.indexOf('<style>\n/* Design system'), html.indexOf('</style>', html.indexOf('<style>\n/* Design system')));

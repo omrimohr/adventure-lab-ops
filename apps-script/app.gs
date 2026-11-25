@@ -17,7 +17,7 @@ const REV_HEADERS = ['Availability pk', 'Por', 'Fecha/hora', 'ID cliente'];
 const CID_HDR = 'ID cliente';
 const CONFIG_HEADERS = ['Clave', 'Valor', 'Actualizado', 'Por'];
 // App settings kept in tab "Config" (Clave | Valor). Add a key here + in validateConfig_ and it is validated, stored and returned by getData.
-const CONFIG_DEFAULTS_ = { semana_inicio: 'jueves' };
+const CONFIG_DEFAULTS_ = { semana_inicio: 'jueves', semana_pago: 'jueves' };
 const PERM_SEED = [
   ['compras', 'Agregar compras', 'sí', 'sí'],
   ['revisar', 'Marcar revisado', 'sí', 'sí'],
@@ -534,13 +534,17 @@ function login(pin) {
   } catch (e) { return { ok: false, error: String(e.message || e) }; }
 }
 
-/** Pure: validates one app setting → normalized value, or throws a Spanish error. semana_inicio: jueves | lunes (stock report weeks; crew pay week is always Thursday→Wednesday). */
+/** Pure: validates one app setting → normalized value, or throws a Spanish error. semana_inicio: jueves | lunes (stock report weeks). semana_pago: lunes … domingo (day the eventuales pay week starts; accents/case ignored, stored without accents). */
 function validateConfig_(key, value) {
   const k = String(key === null || key === undefined ? '' : key).trim();
   if (!Object.prototype.hasOwnProperty.call(CONFIG_DEFAULTS_, k)) throw new Error('Ajuste desconocido');
   const v = norm_(value);
   if (k === 'semana_inicio') {
     if (v !== 'jueves' && v !== 'lunes') throw new Error('Inicio de semana inválido (jueves o lunes)');
+    return { key: k, value: v };
+  }
+  if (k === 'semana_pago') {
+    if (!Object.prototype.hasOwnProperty.call(PAY_DOW_, v)) throw new Error('Día de semana de pago inválido (lunes … domingo)');
     return { key: k, value: v };
   }
   throw new Error('Ajuste desconocido');
@@ -563,7 +567,9 @@ function setConfig(pin, key, value) {
     const ss = ss_(), sh = sheet_(ss, 'Config', CONFIG_HEADERS), n = sh.getLastRow() - 1;
     const k = n >= 1 ? sh.getRange(2, 1, n, 1).getValues().findIndex(r => String(r[0]) === x.key) : -1;
     const row = [x.key, x.value, new Date(), u.nombre];
+    const before = k >= 0 ? String(sh.getRange(k + 2, 2).getValue()) : CONFIG_DEFAULTS_[x.key];
     if (k >= 0) sh.getRange(k + 2, 1, 1, 4).setValues([row]); else sh.appendRow(row);
+    if (x.key === 'semana_pago' && before !== x.value) setRebuildPending_(); // Eventuales / Resumen semanal are recomputed by the next rebuildFinanzas
     return { ok: true, config: readConfig_(ss) };
   });
 }
@@ -607,7 +613,8 @@ function getData(pin, desde, hasta) {
   });
 
   const paid = {};
-  readTab_(ss, 'Pagos', PAGO_HEADERS).filter(r => r[1] !== '').forEach(r => { paid[ymd_(r[0]) + '|' + r[1]] = ymd_(r[3]); });
+  const pdw = payDow_(readConfig_(ss)); // payments made under another week setting attach to the week that contains their stored date
+  readTab_(ss, 'Pagos', PAGO_HEADERS).filter(r => r[1] !== '').forEach(r => { paid[weekStart_(ymd_(r[0]), pdw) + '|' + r[1]] = ymd_(r[3]); });
   const weekly = readTab_(ss, 'Resumen semanal', RESUMEN_HEADERS).map(r => ({ w: ymd_(r[0]), n: String(r[1]), s: Number(r[2]) || 0, t: Number(r[3]) || 0, paid: Number(r[4]) || 0, pend: Number(r[5]) || 0, alerts: String(r[6] || '') }));
   const externos = extRows.map(r => ({ d: ymd_(r[0]), time: String(r[1]), item: String(r[2]), pk: String(r[3]), r: String(r[4]), n: String(r[5]), note: String(r[6] || ''), alert: String(r[7] || ''), monto: r[8] === '' || r[8] === undefined ? null : r2_(r[8]) }));
   const control = readTab_(ss, 'Control días', CTRL_HEADERS).map(r => ({ d: ymd_(r[0]), dia: String(r[1]), sal: Number(r[2]) || 0, res: Number(r[3]) || 0, ex: Number(r[4]) || 0, est: Number(r[5]) || 0, estado: String(r[6]) }));
@@ -897,7 +904,8 @@ function markPaid(pin, weekStart, name, monto, cidIn) {
     if (!ws || !n) throw new Error('Datos incompletos');
     if (!isFinite(m) || m < 0) throw new Error('Monto inválido');
     const rows = readTab_(ss, 'Pagos', PAGO_HEADERS);
-    if (rows.some(r => ymd_(r[0]) === ws && String(r[1]) === n)) return { ok: true, dup: true }; // already paid: never double-count
+    const pdw = payDow_(readConfig_(ss));
+    if (rows.some(r => weekStart_(ymd_(r[0]), pdw) === weekStart_(ws, pdw) && String(r[1]) === n)) return { ok: true, dup: true }; // already paid: never double-count
     const sh = sheet_(ss, 'Pagos', PAGO_HEADERS), cid = cidOf_(cidIn);
     ensureCidCol_(sh, PAGO_HEADERS);
     if (cidRow_(sh, PAGO_HEADERS.length, cid)) return { ok: true, dup: true };

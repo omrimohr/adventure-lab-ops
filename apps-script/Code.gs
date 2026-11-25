@@ -988,12 +988,12 @@ const COMPRA_HEADERS = ['Compra ID', 'Fecha', 'Proveedor', 'Producto ID', 'Canti
   'Total (MXN)', 'Cubre hasta (fecha)', 'Nota', 'Ticket', 'Estado (activa/anulada)', 'Registrado', 'Por', 'ID cliente'];
 const AJUSTE_HEADERS = ['Fecha', 'Producto ID', 'Cantidad (+/-)', 'Motivo', 'Nota', 'Por', 'Registrado', 'ID cliente'];
 const COMIDA_HEADERS = ['Fecha', 'Nombre', 'Tipo (desayuno/almuerzo)', 'Cantidad', 'Nota', 'Por', 'Registrado', 'ID cliente'];
-const PAGO_HEADERS = ['Semana (jueves)', 'Nombre', 'Monto (MXN)', 'Fecha pago', 'Por', 'Nota', 'ID cliente'];
+const PAGO_HEADERS = ['Semana', 'Nombre', 'Monto (MXN)', 'Fecha pago', 'Por', 'Nota', 'ID cliente'];
 const STOCK_HEADERS = ['Producto ID', 'Producto', 'Unidad', 'Compras', 'Consumo', 'Ajustes', 'Stock', 'Mínimo', 'Alerta',
   'Costo unitario (MXN)', 'Valor (MXN)'];
-const EV_HEADERS = ['Semana (jueves)', 'Fecha', 'Hora', 'Item', 'Availability pk', 'Nombre', 'Usuario', 'Rol', 'Barco',
+const EV_HEADERS = ['Semana (inicio)', 'Fecha', 'Hora', 'Item', 'Availability pk', 'Nombre', 'Usuario', 'Rol', 'Barco',
   'Duración (h)', 'Tarifa (MXN)', 'Factor', 'Horas extra', 'Hora extra (MXN)', 'Total (MXN)', 'Regla', 'Alerta'];
-const RESUMEN_HEADERS = ['Semana (jueves)', 'Nombre', 'Salidas', 'Total (MXN)', 'Pagado (MXN)', 'Pendiente (MXN)', 'Alertas'];
+const RESUMEN_HEADERS = ['Semana (inicio)', 'Nombre', 'Salidas', 'Total (MXN)', 'Pagado (MXN)', 'Pendiente (MXN)', 'Alertas'];
 const EXT_HEADERS = ['Fecha', 'Hora', 'Item', 'Availability pk', 'Rol', 'Nombre', 'A quién se debe (nota)', 'Alerta', 'Monto (MXN)'];
 const COSTO_HEADERS = ['Availability pk', 'Fecha', 'Hora', 'Item', 'Barco', 'Pax', 'Ingreso neto (MXN)', 'Fuente ingreso',
   'Bebidas (MXN)', 'Hielo (MXN)', 'Gasolina (MXN)', 'Fruta (MXN)', 'Desayuno (MXN)', 'Tripulación (MXN)', 'Costo total (MXN)',
@@ -1008,11 +1008,14 @@ function addDays_(d, n) {
   const [y, m, dd] = d.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, dd) + n * 86400000).toISOString().slice(0, 10);
 }
-// Pay week runs Thursday → Wednesday
-function weekStart_(d) {
+// Pay week: starts on the day set in Config `semana_pago` (default jueves = 4; 0 = domingo … 6 = sábado)
+const PAY_DOW_ = { domingo: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6 };
+function payDow_(cfg) { const v = cfg && PAY_DOW_[cfg.semana_pago]; return v === undefined ? 4 : v; }
+function weekStart_(d, startDow) {
   const [y, m, dd] = d.split('-').map(Number);
   const wd = new Date(Date.UTC(y, m - 1, dd)).getUTCDay();
-  return addDays_(d, -((wd - 4 + 7) % 7));
+  const sd = (startDow === undefined || startDow === null) ? 4 : startDow;
+  return addDays_(d, -((wd - sd + 7) % 7));
 }
 function hoursBetween_(a, b) {
   if (!a || !b) return null;
@@ -1107,7 +1110,7 @@ function costoAdicionalText_(bitRows, M) {
 }
 
 /** Eventuales for one departure. sal: Salidas row (array), crew: rows, bitRows: rows of that departure */
-function payForSalida_(sal, crew, bitRows, rules, barco, M, now) {
+function payForSalida_(sal, crew, bitRows, rules, barco, M, now, payDow) {
   const out = [], ext = [];
   const fecha = fmtDate_(sal[6], 'yyyy-MM-dd') || ymd_(sal[4]), hora = fmtDate_(sal[6], 'HH:mm'), horas = hoursBetween_(sal[6], sal[7]);
   const activas = Number(sal[8]) || 0;
@@ -1133,7 +1136,7 @@ function payForSalida_(sal, crew, bitRows, rules, barco, M, now) {
     else tarifa = rate.monto;
     const extra = /capitan|marinero/.test(norm_(rolT)) ? horasExtra : 0;
     const extraMx = extra * extraRate;
-    out.push([weekStart_(fecha), fecha, hora, sal[2], sal[0], nombre, usuario, rol, barco, horas, tarifa, factor,
+    out.push([weekStart_(fecha, payDow), fecha, hora, sal[2], sal[0], nombre, usuario, rol, barco, horas, tarifa, factor,
       extra, extraMx, Math.round((tarifa * factor + extraMx) * 100) / 100, rate ? 'Tarifas fila ' + rate.regla : '', alerta]);
   });
   // Externos: the amount comes from the "barco externo" lines of Costos adicionales (OPS · Regreso bookings); one external → all of it, several → total on the first
@@ -1282,6 +1285,7 @@ function rebuildFinanzas_() {
   const ajustes = readTab_(ss, 'Ajustes', AJUSTE_HEADERS).filter(r => r[1] !== '');
   sheet_(ss, 'Comida empleado', COMIDA_HEADERS);
   const pagos = readTab_(ss, 'Pagos', PAGO_HEADERS).filter(r => r[1] !== '');
+  const payDow = payDow_(readConfig_(ss)); // pay week start day (Config semana_pago)
   const salidas = readTab_(ss, 'Salidas', SAL_HEADERS).filter(r => r[0] !== '');
   const crew = readTab_(ss, 'Tripulación', CREW_HEADERS);
   const bit = readTab_(ss, 'Bitácora', BIT_HEADERS);
@@ -1312,7 +1316,7 @@ function rebuildFinanzas_() {
     const pk = String(s[0]);
     const barco = barcos[String(s[1])] || '';
     const b = bitBy[pk] || [];
-    const p = payForSalida_(s, crewBy[pk] || [], b, rules, barco, M, new Date());
+    const p = payForSalida_(s, crewBy[pk] || [], b, rules, barco, M, new Date(), payDow);
     p.pay.forEach(x => ev.push(x)); p.ext.forEach(x => ext.push(x));
     const cons = consumoSalida_(b, productos, M);
     Object.keys(cons).forEach(id => { consumoTot[id] = (consumoTot[id] || 0) + cons[id]; });
@@ -1355,7 +1359,9 @@ function rebuildFinanzas_() {
     o.s++; o.t += Number(x[14]) || 0; if (x[16]) o.a.push(x[1] + ' ' + x[16]);
   });
   const paid = {};
-  pagos.forEach(p => { const k = ymd_(p[0]) + '|' + p[1]; paid[k] = (paid[k] || 0) + (Number(p[2]) || 0); });
+  // A payment keeps its stored week start; if the pay-week setting changed it is attached to the (new) week that contains that date, and shown even without earnings there
+  pagos.forEach(p => { const k = weekStart_(ymd_(p[0]), payDow) + '|' + p[1]; paid[k] = (paid[k] || 0) + (Number(p[2]) || 0); });
+  Object.keys(paid).forEach(k => { if (!sum[k]) { const i = k.indexOf('|'); sum[k] = { w: k.slice(0, i), n: k.slice(i + 1), s: 0, t: 0, a: ['Pago sin salidas en esta semana'] }; } });
   const resumen = Object.keys(sum).sort().reverse().map(k => {
     const o = sum[k], pg = paid[k] || 0;
     return [o.w, o.n, o.s, r2_(o.t), pg, r2_(o.t - pg), o.a.slice(0, 5).join(' | ')];
@@ -1796,4 +1802,4 @@ function sheet_(ss, name, headers) {
 if (typeof module !== 'undefined') module.exports = { ctKey_, cfKey_, roleKey_, guessCtype_, guessFieldUso_, guessRolTarifa_, camposMap_, typeUso_, fieldUso_, bitUso_, crewTarifa_,
   mapeosFromRows_, observe_, collectUnknowns_, seedMapeos_, validateMapeo_, toursFromRows_, tourEstado_, TOURS_SEED_ROWS: TOURS_SEED, USOS_CT, USOS_CF,
   CT_HEADERS, CF_HEADERS, ROL_HEADERS, CREW_HEADERS, BIT_HEADERS, ESTADO_NUEVO, ESTADO_OK, rawRowFor_, doPost, rebuildFinanzas, rebuildAll, ensureMapeos_, loadMapeos_,
-  registerUnknowns_, prepararMapeos, parseCostos_, costoAdicionalText_, EXT_HEADERS, COSTO_HEADERS, bitacoraNoAplica_, bitacoraRuleStale_, markBitacoraSi_, BITACORA_RULE_V, checkinOf_, checkinSummary_, checkinText_, parseCheckin_, camposText_, phoneOf_, reservaRow_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };
+  registerUnknowns_, prepararMapeos, parseCostos_, costoAdicionalText_, EXT_HEADERS, COSTO_HEADERS, bitacoraNoAplica_, bitacoraRuleStale_, markBitacoraSi_, BITACORA_RULE_V, checkinOf_, checkinSummary_, checkinText_, parseCheckin_, camposText_, phoneOf_, reservaRow_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payDow_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };
