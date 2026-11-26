@@ -521,10 +521,10 @@ const TYPES=[['ponton','Pontón'],['catamaran','Catamarán'],['monocasco','Monoc
 const RB={'Capitán':'Cap.','Marinero':'Mar.','Instructor':'Inst.','Auxiliar':'Aux.','Guía':'Guía'};
 const rb=r=>RB[r]||(r.length>5?r.slice(0,4)+'.':r);
 const S={role:'op',realRole:'op',user:'',date:'',wk:'',
-  perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},pend:[],salud:[],feedback:[],fbf:'nuevo',fbEdit:null,rebuildPending:false,fhOk:true,offline:false,dataAt:0,
+  perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},pend:[],salud:[],feedback:[],fbf:'nuevo',fbEdit:null,evp:null,users:null,usersErr:'',rebuildPending:false,fhOk:true,offline:false,dataAt:0,
   win:{from:'',to:''},fetchedAt:'',q:'',filter:'todas',fopen:false,config:{semana_inicio:'jueves',semana_pago:'jueves'}};
 let PIN='';
-const APP_VER='v13';   // = sufijo de CACHE en docs/sw.js ('al-ops-v13'); se manda con cada reporte
+const APP_VER='v14';   // = sufijo de CACHE en docs/sw.js ('al-ops-v14'); se manda con cada reporte
 
 // ===== Servidor =====
 // Servidor: Apps Script web app (misma URL que el webhook de FareHarbor). POST text/plain = sin preflight CORS.
@@ -713,6 +713,7 @@ const IC={
  kayak:'<path d="M3 15.5c4-3.2 14-3.2 18 0-4 3.2-14 3.2-18 0z"/><path d="M6.5 5.5l11 11"/><path d="M4.8 8.2l3-3M16.2 18.8l3-3"/>',
  boat:'<path d="M12 3v12"/><path d="M12 4.5l6 9.5h-6"/><path d="M12 8L7 14h5"/><path d="M4 17.5h16l-2.2 3.2H6.2z"/>',
  report:'<path d="M4 5.5A1.5 1.5 0 015.5 4h13A1.5 1.5 0 0120 5.5v9a1.5 1.5 0 01-1.5 1.5H10l-4.5 4v-4h0A1.5 1.5 0 014 14.5z"/><path d="M12 7.5v4M12 13.6v.1"/>',
+ users:'<circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.5-3.4 2.7-5 5.5-5s5 1.6 5.5 5"/><path d="M16.5 5.2a3 3 0 010 5.6M18 14.3c1.6.6 2.6 2 3 4.7"/>',
  bell:'<path d="M6 16v-5a6 6 0 1112 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 004 0"/>'};
 const svgI=(k,sz)=>`<svg class="gi" viewBox="0 0 24 24" width="${sz||16}" height="${sz||16}" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg>`;
 const WI=svgI('alert',14).replace('class="gi"','class="wi"');   // aviso inline (sin emoji)
@@ -973,7 +974,29 @@ const fbCount=(l,key)=>fbFilter(l,key).length;
 const FB_MAX_IMG=3500000;                                   // caracteres del data URL en base64 (≈ 2.5 MB de imagen)
 const fbImgOk=u=>!u||String(u).length<=FB_MAX_IMG;
 const fbScale=(w,h,max)=>{const k=Math.min(1,(max||1600)/Math.max(w,h,1));return {w:Math.max(1,Math.round(w*k)),h:Math.max(1,Math.round(h*k))}};
-const SCREENS={dep:'Detalle de salida',pend:'Por configurar',fh:'Conexión FareHarbor',feedback:'Feedback',fbd:'Reporte',productos:'Productos',tarifas:'Tarifas eventuales',tours:'Items',permisos:'Permisos',ajustes:'Ajustes',item:'Producto',purchase:'Compra',movs:'Movimientos',person:'Eventual',role:'Permisos'};
+// --- Eventuales por periodo (ronda 17): semana de pago (modo semana) o rango libre (mes, mes pasado, fechas) ---
+const EVP=[['sem','Esta semana'],['sempas','Semana pasada'],['mes','Este mes'],['mespas','Mes pasado']];
+function evPreset(k,today,dia){
+  const ws=wkStart(today,dia),y=pd(today).getFullYear(),m=pd(today).getMonth(),pm=m?m-1:11,py=m?y:y-1,last=(yy,mm)=>new Date(yy,mm+1,0).getDate(),ymd=(yy,mm,dd)=>yy+'-'+p2(mm+1)+'-'+p2(dd);
+  return {sem:[ws,addD(ws,6)],sempas:[addD(ws,-7),addD(ws,-1)],mes:[ymd(y,m,1),ymd(y,m,last(y,m))],mespas:[ymd(py,pm,1),ymd(py,pm,last(py,pm))]}[k];
+}
+// ¿Qué chip está activo? Las semanas de pago son el modo semana (evp = null, ws = semana mostrada); los meses y las fechas son un rango (evp = {desde,hasta})
+function evChip(evp,ws,today,dia){
+  if(!evp)return ws===wkStart(today,dia)?'sem':ws===addD(wkStart(today,dia),-7)?'sempas':'';
+  const f=EVP.slice(2).find(([k])=>{const r=evPreset(k,today,dia);return r[0]===evp.desde&&r[1]===evp.hasta});return f?f[0]:'';
+}
+const evLabel=(a,b)=>(!b||a===b)?fdate(a):srLabel(a,b);
+// ¿Cuántos días/salidas? (texto): "3 días · 5 salidas"
+const evCount=(d,s)=>d+' '+(d===1?'día':'días')+' · '+s+' '+(s===1?'salida':'salidas');
+// --- Usuarios (ronda 17): validación en la app antes de mandar (el servidor vuelve a validar y revisa PIN repetido y admins) ---
+function userCheck(p,users,orig){
+  const nom=String(p.nombre||'').replace(/\s+/g,' ').trim(),pin=String(p.pin||'').trim();
+  if(!nom)return {f:'nombre',m:'Escribe el nombre'};
+  if(!orig&&(users||[]).some(u=>String(u.nombre).trim().toLowerCase()===nom.toLowerCase()))return {f:'nombre',m:'Ya existe un usuario con ese nombre'};
+  if((!orig||pin)&&!/^\d{4}$/.test(pin))return {f:'pin',m:'El PIN debe tener 4 dígitos'};
+  return null;
+}
+const SCREENS={usuarios:'Usuarios',dep:'Detalle de salida',pend:'Por configurar',fh:'Conexión FareHarbor',feedback:'Feedback',fbd:'Reporte',productos:'Productos',tarifas:'Tarifas eventuales',tours:'Items',permisos:'Permisos',ajustes:'Ajustes',item:'Producto',purchase:'Compra',movs:'Movimientos',person:'Eventual',role:'Permisos'};
 const screenName=(tab,view,tabs)=>view?(SCREENS[view]||view):((tabs||{})[tab]||tab);
 const fbContext=(screen,date,user,ver)=>'Se envía con: pantalla '+screen+' · '+date+' · '+user+' · versión '+ver;
 function fbPayload(f,ctx){return {cid:ctx.cid,tipo:f.tipo==='Sugerencia'?'Sugerencia':'Error',texto:String(f.texto||'').trim(),pantalla:ctx.screen,fecha:ctx.date,version:ctx.ver,img:f.img||''}}
@@ -1188,15 +1211,29 @@ dep(id){
   return h;
 },
 ev(){
+  if(S.evp)return V.evrange();
   const ws=S.wk,we=addD(ws,6),ps=weekPeople(ws),tot=ps.reduce((a,p)=>a+p.tot,0),paid=ps.filter(p=>S.paid[ws+'|'+p.n]).length;
   const ext=S.externos.filter(x=>x.d>=ws&&x.d<=we).sort((a,b)=>a.d<b.d?-1:1);
-  let h=topBar('Eventuales',{lede:`Semana de ${payDayName(S.config.semana_pago)} a ${payDayName(PAYD[(PAYD.findIndex(x=>x[0]===S.config.semana_pago)+6)%7][0])}.`})+`<div class="daterow"><button class="nx" data-wk="-1" aria-label="Semana anterior">‹</button><span class="wk">${wkLabel(ws)}</span><button class="nx" data-wk="1" aria-label="Semana siguiente">›</button></div>
+  let h=topBar('Eventuales',{lede:`Semana de ${payDayName(S.config.semana_pago)} a ${payDayName(PAYD[(PAYD.findIndex(x=>x[0]===S.config.semana_pago)+6)%7][0])}.`})+evChips(true)+`<div class="daterow"><button class="nx" data-wk="-1" aria-label="Semana anterior">‹</button><span class="wk">${wkLabel(ws)}</span><button class="nx" data-wk="1" aria-label="Semana siguiente">›</button></div>
   <div class="live" style="margin-top:2px">Pago: ${short(addD(ws,7))}</div>`;
   if(!ps.length&&!ext.length)return h+`<div class="group"><div class="list"><div class="empty">Sin salidas en esta semana.</div></div></div>`;
   if(ps.length)h+=`<section class="today"><div class="kpis" style="grid-template-columns:1.4fr 1fr 1fr"><div class="kpi"><div class="k">Total a pagar</div><div class="n">${fmt(tot)}</div></div><div class="kpi"><div class="k">Personas</div><div class="n">${ps.length}</div></div><div class="kpi"><div class="k">Pagados</div><div class="n">${paid}</div></div></div></section>
   <div class="group"><div class="list">${ps.map(p=>{const pg=S.paid[ws+'|'+p.n];return `<button class="cell" data-person="${esc(p.n)}"><span class="main"><span class="t">${esc(p.n)}</span><div class="s">${[...p.roles].join(', ')||'Sin rol'} · ${p.lines.length} ${p.lines.length===1?'salida':'salidas'}${p.hx?` · ${p.hx} h extra`:''}</div>${p.miss?`<div class="s" style="color:var(--orange)">${WI}Falta rol en una salida</div>`:''}${p.rate?`<div class="s" style="color:var(--orange)">${WI}Tarifa pendiente o sin tarifa</div>`:''}</span><span class="v" style="text-align:right">${fmt(p.tot)}${pg?'<div class="s" style="color:var(--green)">Pagado</div>':''}</span>${chev}</button>`}).join('')}</div></div>`;
   if(ext.length)h+=`<div class="group">${gh('crew','Externos (se pagan aparte)')}<div class="list">${ext.map(x=>`<div class="cell"><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${sd(x.d)} · ${esc(x.time)} · ${esc(x.item)}</div>${x.note?`<div class="s">Se debe a: ${esc(x.note)}</div>`:`<div class="s" style="color:var(--orange)">${WI}Falta nota: ¿a quién se debe?</div>`}${extAlerts(x).map(a=>`<div class="s" style="color:var(--orange)">${WI}${esc(a)}</div>`).join('')}</span>${x.monto?`<span class="v">${fmt(x.monto)}</span>`:''}</div>`).join('')}</div></div>`;
   return h;
+},
+evrange(){
+  const r=S.evp,d=r.data,dia=S.config.semana_pago;
+  let h=topBar('Eventuales',{lede:'Lo ganado y lo pagado en el periodo. Para pagar, elige una semana.'})+evChips(false)+`
+  <button type="button" class="srdate" data-evcal aria-label="Cambiar fechas del periodo">${svgI('cal',18)}<span>${evLabel(r.desde,r.hasta)}</span></button>
+  <p class="srnote">Incluye los días completos. Lo pagado cuenta por la fecha en que se pagó; si pagaste una semana que empezó antes, puede salir «pagado de más».</p>`;
+  if(r.err)return h+`<div class="warn">${esc(r.err)} <button class="link" data-evgo>Reintentar</button></div>`;
+  if(!d)return h+'<div class="empty">Calculando…</div>';
+  if(!d.rows.length)return h+'<div class="group"><div class="list"><div class="empty">Sin salidas ni pagos en este periodo.</div></div></div>';
+  const t=d.totals,pend=n=>n>0?`<span style="color:var(--orange)">Pendiente ${fmt(n)}</span>`:n<0?`<span style="color:var(--orange)">Pagado de más ${fmt(-n)}</span>`:'<span style="color:var(--green)">Al corriente</span>';
+  return h+`<section class="today"><div class="kpis" style="grid-template-columns:1.4fr 1fr 1fr"><div class="kpi"><div class="k">Ganado</div><div class="n">${fmt(t.ganado)}</div></div><div class="kpi"><div class="k">Pagado</div><div class="n">${fmt(t.pagado)}</div></div><div class="kpi"><div class="k">Pendiente</div><div class="n">${fmt(t.pendiente)}</div></div></div></section>
+  <div class="group"><div class="list evl">${d.rows.map(x=>`<div class="cell"><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${esc(x.roles.join(', ')||'Sin rol')} · ${evCount(x.dias,x.salidas)}</div><div class="s">Pagado ${fmt(x.pagado)} · ${pend(x.pendiente)}</div></span><span class="big">${fmt(x.ganado)}</span></div>`).join('')}
+    <div class="cell"><span class="main"><span class="t"><b>Total</b></span><div class="s">${t.personas} ${t.personas===1?'persona':'personas'} · ${t.salidas} ${t.salidas===1?'salida':'salidas'}</div><div class="s">Pagado ${fmt(t.pagado)} · ${pend(t.pendiente)}</div></span><span class="big">${fmt(t.ganado)}</span></div></div></div>`;
 },
 person(name){
   const ws=S.wk,p=weekPeople(ws).find(x=>x.n===name);
@@ -1287,6 +1324,7 @@ mas(){
     ${row('tarifas','costos','Tarifas eventuales','Pago por rol y tipo de barco')}
     ${row('tours','boat','Items','Tipo de barco de cada item')}
     ${row('permisos','shield','Permisos',`${ROLES.length} roles`)}
+    ${adm?row('usuarios','users','Usuarios',S.users?`${S.users.filter(u=>u.activo).length} activos`:'Agregar y editar quién entra'):''}
     ${adm?row('ajustes','sliders','Ajustes',`Apariencia · semana de pago: ${payDayName(S.config.semana_pago)}`):''}
   </div></div>
   <div class="group"><div class="list">
@@ -1358,6 +1396,15 @@ fbd(id){
     <textarea id="fbNote" class="note" placeholder="Nota (opcional)" aria-label="Nota">${esc(r.notas||'')}</textarea>
     <div style="margin-top:16px"><button type="button" class="btn" data-fbsave="${esc(r.id)}"${String(r.id).indexOf('q:')===0?' disabled':''}>Guardar</button></div></div>`:'');
 },
+usuarios(){
+  const l=S.users;
+  let h=topBar('Usuarios',{back:'Más',backTo:'mas',lede:'Quién puede entrar a la app y con qué rol. Los PIN no se muestran.'});
+  if(S.usersErr)return h+`<div class="warn">${esc(S.usersErr)} <button class="link" data-usersgo>Reintentar</button></div>`;
+  if(!l)return h+'<div class="empty">Cargando…</div>';
+  return h+`<div class="group"><div class="list">${l.map(u=>`<button class="cell" data-user="${esc(u.nombre)}"><span class="main"><span class="t${u.activo?'':' mut'}">${esc(u.nombre)}${u.nombre===S.user?' (tú)':''}</span><div class="s">PIN ••••</div></span><span class="v" style="text-align:right"><span class="fbs${u.rol==='admin'?' n':''}">${u.rol==='admin'?'Admin':'Operación'}</span><div class="s"${u.activo?' style="color:var(--green)"':''}>${u.activo?'Activo':'Inactivo'}</div></span>${chev}</button>`).join('')}
+    <button class="cell" data-useradd><span class="ic acc">${svgI('plus',20)}</span><span class="main t" style="color:var(--acc)">Agregar usuario</span></button></div></div>
+  <div class="gfoot">Cada compra, ajuste, pago y revisión queda con el nombre de quien entró. Un usuario inactivo ya no puede entrar.</div>`;
+},
 pend(){
   const l=S.pend;
   let h=topBar('Por configurar',{back:'Más',backTo:'mas',lede:'FareHarbor mandó cosas nuevas. Toca una para decir qué es; el historial se recalcula solo.'});
@@ -1379,7 +1426,7 @@ permisos(){
   return topBar('Permisos',{back:'Más',backTo:'mas'})+`
   <div class="group"><div class="list">
     ${ROLES.map(([k,l])=>`<button class="cell" data-roleview="${k}"><span class="main t">${l}</span><span class="v">${Object.values(S.perms[k]).filter(Boolean).length} de ${PERMS.length}</span>${chev}</button>`).join('')}
-    <div class="cell"><span class="main"><span class="t">Usuarios</span><div class="s">Se administran en la hoja "Usuarios" del Sheet</div></span></div>
+    ${S.role==='admin'?`<button class="cell" data-view="usuarios"><span class="main"><span class="t">Usuarios</span><div class="s">Agregar, cambiar rol o PIN</div></span>${chev}</button>`:'<div class="cell"><span class="main"><span class="t">Usuarios</span><div class="s">Solo el admin los administra</div></span></div>'}
   </div></div>`;
 },
 role(k){
@@ -1867,9 +1914,10 @@ async function srFetch(){
 }
 // Calendario propio del reporte (sin <input type=date>): sc = {y,m,a,b,phase}; primer toque = inicio, segundo = final
 let sc=null;
-function openSrCal(){
-  const r=S.sr,d=pd(r.hasta);sc={y:d.getFullYear(),m:d.getMonth(),a:r.desde,b:r.hasta,phase:0};
-  sheet('Fechas del reporte','<div id="scBody"></div>',{closeLabel:'Cancelar'});paintSrCal();
+function openSrCal(which){
+  const ev=which==='ev',r=ev?(S.evp||{desde:S.wk,hasta:addD(S.wk,6)}):S.sr,d=pd(r.hasta>TODAY&&r.desde<=TODAY?TODAY:r.hasta);
+  sc={y:d.getFullYear(),m:d.getMonth(),a:r.desde,b:r.hasta,phase:0,ev:ev};
+  sheet(ev?'Fechas del periodo':'Fechas del reporte','<div id="scBody"></div>',{closeLabel:'Cancelar'});paintSrCal();
 }
 function paintSrCal(){
   const el=$('scBody');if(!el||!sc)return;
@@ -1885,7 +1933,57 @@ function paintSrCal(){
     <div class="stack" style="margin:0"><button class="btn" data-scok ${sc.a?'':'disabled'}>Aplicar</button></div>`;
 }
 function srApply(){
-  if(!sc||!sc.a)return;const r=S.sr;r.desde=sc.a;r.hasta=sc.b||sc.a;sc=null;closeSheet();srFetch();
+  if(!sc||!sc.a)return;
+  if(sc.ev){S.evp={desde:sc.a,hasta:sc.b||sc.a,data:null,err:'',tk:0};sc=null;closeSheet();evFetch();return}
+  const r=S.sr;r.desde=sc.a;r.hasta=sc.b||sc.a;sc=null;closeSheet();srFetch();
+}
+// ===== Eventuales por periodo =====
+const evOk=()=>S.realRole==='admin'||can('pagar');
+function evChips(week){
+  if(!evOk())return '';
+  const on=evChip(S.evp,S.wk,TODAY,S.config.semana_pago);
+  return `<div class="chips sm" role="group" aria-label="Periodos rápidos">${EVP.map(([k,l])=>`<button type="button" class="chip" data-evp="${k}" aria-pressed="${on===k}">${l}</button>`).join('')}${week?`<button type="button" class="chip" data-evcal>${svgI('cal',16)} Fechas</button>`:''}</div>`;
+}
+function evPick(k){
+  const [a,b]=evPreset(k,TODAY,S.config.semana_pago);
+  if(k==='sem'||k==='sempas'){S.evp=null;setWk(a);return}
+  S.evp={desde:a,hasta:b,data:null,err:'',tk:0};evFetch();
+}
+async function evFetch(){
+  const r=S.evp;if(!r)return;const tk=++r.tk;r.err='';r.data=null;render();
+  try{const d=await srv('eventualesReport',r.desde,r.hasta);if(tk!==r.tk)return;r.data=d}
+  catch(e){if(tk!==r.tk)return;r.err=errMsg(e)}
+  if(S.evp===r&&tab==='ev'&&!stackView){const y=window.scrollY;render();window.scrollTo(0,y)}
+}
+// ===== Usuarios (solo admin) =====
+let uu=null;
+async function usersFetch(){
+  S.usersErr='';if(!S.users)render();
+  try{const r=await srv('listUsers');S.users=r.users||[]}catch(e){S.usersErr=errMsg(e)}
+  if(stackView&&stackView.name==='usuarios'){const y=window.scrollY;render();window.scrollTo(0,y)}
+}
+function userSheet(u){
+  const me=!!u&&u.nombre===S.user;
+  uu={orig:u?u.nombre:'',rol:u?u.rol:'op',activo:u?u.activo:true,pin:!u,me:me};
+  const seg=`<div class="group"><div class="ghead" id="urL">Rol</div><div class="seg" role="group" aria-labelledby="urL">${[['op','Operación'],['admin','Admin']].map(([k,l])=>`<button type="button" data-urol="${k}" aria-pressed="${uu.rol===k}" ${me?'disabled':''}>${l}</button>`).join('')}</div></div>`;
+  sheet(u?esc(u.nombre):'Nuevo usuario',(u?'':`<div class="group"><div class="list"><div class="field"><label for="uNom">Nombre</label><input id="uNom" maxlength="40" autocomplete="off" autocapitalize="words" placeholder="Ej. Daniel"></div><div class="field"><label for="uPin">PIN<div class="s">4 dígitos</div></label><input id="uPin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="••••"></div></div></div>`)+seg+
+    (u?`<div class="group"><div class="list"><div class="field"><span class="lab">Activo</span><button type="button" class="sw" role="switch" aria-checked="${uu.activo}" aria-label="Activo" data-uact ${me?'disabled':''}><i></i></button></div>
+      <div class="field" id="uPinRow"><span class="lab">PIN</span><span class="v mut">••••</span><button type="button" class="link" data-upin>Cambiar PIN</button></div></div>${me?'<div class="gfoot">No puedes desactivarte ni quitarte el rol de admin.</div>':''}</div>`:'')+
+    (u?`<div class="group" id="uPinBox" hidden><div class="list"><div class="field"><label for="uPin">PIN nuevo<div class="s">4 dígitos</div></label><input id="uPin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password" placeholder="••••"></div></div></div>`:'')+`<div id="uErr" class="ferr" role="alert" hidden></div>`,
+    {ok:saveUserSheet,okLabel:u?'Guardar':'Agregar',disabled:!u,input:()=>{const ok=$('sheetOk');if(!ok||ok.dataset.busy||!uu)return;$('uErr').hidden=true;ok.disabled=uu.orig?false:!!userCheck({nombre:$('uNom').value,pin:$('uPin').value},S.users||[],'')}});
+  if($('uNom'))$('uNom').focus();
+}
+async function saveUserSheet(){
+  if(!uu)return;const ok=$('sheetOk'),er=$('uErr');
+  const nom=uu.orig?uu.orig:($('uNom').value||''),pin=$('uPin')?$('uPin').value:'';
+  const bad=userCheck({nombre:nom,pin:pin},S.users||[],uu.orig);
+  if(bad){er.textContent=bad.m;er.hidden=false;const f=$(bad.f==='pin'?'uPin':'uNom');if(f)f.focus();return}
+  const p={nombre:String(nom).replace(/\s+/g,' ').trim(),rol:uu.rol,activo:uu.activo};
+  if(uu.orig)p.original=uu.orig;if(pin)p.pinNuevo=pin;
+  ok.disabled=true;ok.dataset.busy='1';const lbl=ok.textContent;ok.textContent='Guardando…';setBusy(1);
+  try{const r=await srv('saveUser',p);S.users=r.users||S.users;const nw=!uu.orig;uu=null;closeSheet();render();toast(nw?'Usuario agregado':'Cambios guardados')}
+  catch(e){er.textContent=errMsg(e);er.hidden=false;ok.disabled=false;delete ok.dataset.busy;ok.textContent=lbl}
+  finally{setBusy(-1)}
 }
 const srTitle=()=>{const r=S.sr;return r.desde===r.hasta?'Balance de stock al '+fdate(r.desde):'Reporte de stock · '+srLabel(r.desde,r.hasta)};
 async function srShare(){
@@ -1910,7 +2008,7 @@ function showPin(msg){
 }
 function logout(msg){
   PIN='';Q=[];clearTimeout(qTimer);try{localStorage.removeItem('adv_ops_pin')}catch(e){}
-  cacheClear();S.date='';S.wk='';S.role='op';tab='op';stackView=null;closeSheet();$('app').innerHTML='';showPin(msg||'');
+  cacheClear();S.date='';S.wk='';S.evp=null;S.users=null;S.usersErr='';S.role='op';tab='op';stackView=null;closeSheet();$('app').innerHTML='';showPin(msg||'');
 }
 async function pinKey(k){
   if($('pin').hidden||saving)return;
@@ -2040,6 +2138,9 @@ document.addEventListener('click',e=>{
     const sd2=on('[data-scd]');if(sd2&&sc){Object.assign(sc,srPick(sc,sd2.dataset.scd));paintSrCal();return}
     const sn=on('[data-scnav]');if(sn&&sc){sc.m+=+sn.dataset.scnav;if(sc.m<0){sc.m=11;sc.y--}if(sc.m>11){sc.m=0;sc.y++}paintSrCal();return}
     if(on('[data-scok]')){srApply();return}
+    const ur=on('[data-urol]');if(ur&&uu&&!ur.disabled){uu.rol=ur.dataset.urol;document.querySelectorAll('[data-urol]').forEach(b=>b.setAttribute('aria-pressed',b===ur));return}
+    const ua=on('[data-uact]');if(ua&&uu&&!ua.disabled){uu.activo=!uu.activo;ua.setAttribute('aria-checked',uu.activo);return}
+    if(on('[data-upin]')&&uu){$('uPinBox').hidden=false;$('uPinRow').hidden=true;$('uPin').focus();return}
     const cn=on('[data-calnav]');if(cn){cal.m+=+cn.dataset.calnav;if(cal.m<0){cal.m=11;cal.y--}if(cal.m>11){cal.m=0;cal.y++}calMonth();return}
     const cd=on('[data-calday]');if(cd){S.date=cd.dataset.calday;stackView=null;tab='op';closeSheet();render();goTop();return}
     const pcb=on('[data-pc]');if(pcb&&pc){const x=pcb.dataset.pc,i=x.indexOf(':'),g=x.slice(0,i),val=x.slice(i+1);
@@ -2049,6 +2150,12 @@ document.addEventListener('click',e=>{
     return;
   }
   if(on('[data-srcal]')&&S.sr){openSrCal();return}
+  if(on('[data-evcal]')){openSrCal('ev');return}
+  const evb=on('[data-evp]');if(evb){evPick(evb.dataset.evp);return}
+  if(on('[data-evgo]')){evFetch();return}
+  if(on('[data-usersgo]')){usersFetch();return}
+  if(on('[data-useradd]')){userSheet(null);return}
+  const usr=on('[data-user]');if(usr){userSheet((S.users||[]).find(x=>x.nombre===usr.dataset.user)||null);return}
   const sp=on('[data-srp]');if(sp&&S.sr){const [a,b]=srPreset(sp.dataset.srp);S.sr.desde=a;S.sr.hasta=b;srFetch();return}
   if(on('[data-srgo]')){srFetch();return}
   if(on('[data-srshare]')){srShare();return}
@@ -2056,9 +2163,9 @@ document.addEventListener('click',e=>{
   if(on('[data-qopen]')){openQueue();return}
   const mdp=on('[data-mvdep]');if(mdp){const a=mdp.dataset.mvdep.split('|');openDepFrom(a[0],a[1]);return}
   const mja=on('[data-mvaj]');if(mja){openAjDetail(mja.dataset.mvaj);return}
-  const b=on('[data-tab]');if(b){tab=b.dataset.tab;stackView=null;S.depFrom='';render();goTop();return}
+  const b=on('[data-tab]');if(b){tab=b.dataset.tab;stackView=null;S.depFrom='';render();goTop();if(tab==='ev'&&S.evp)evFetch();return}
   const bk=on('[data-back]');if(bk){S.depFrom='';if(bk.dataset.back)tab=bk.dataset.back;stackView=bk.dataset.backview?{name:bk.dataset.backview}:null;render();goTop();return}
-  const vw=on('[data-view]');if(vw){stackView={name:vw.dataset.view};render();goTop();return}
+  const vw=on('[data-view]');if(vw){stackView={name:vw.dataset.view};render();goTop();if(vw.dataset.view==='usuarios')usersFetch();return}
   const mv=on('[data-movs]');if(mv){stackView={name:'movs'};render();goTop();return}
   const ed=on('[data-edit]');if(ed){openProducto(ed.dataset.edit);return}
   const go=on('[data-go]');if(go){tab=go.dataset.go;stackView=null;render();goTop();return}

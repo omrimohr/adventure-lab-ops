@@ -114,8 +114,8 @@ test('UI moneyRows: short-form / unknown values — "—" only for Subtotal and 
   const old = txt(U.moneyRows({ gross: 300, paid: 100, net: 250, est: true })); // older cached getData without the new fields
   assert.deepStrictEqual(old.map(x => x[0]), ['Subtotal', 'IVA', 'Total', 'Pagado', 'Neto']);
 });
-test('UI wiring: booking sheet uses moneyRows in the dlist block; APP_VER = sw CACHE (v13)', () => {
+test('UI wiring: booking sheet uses moneyRows in the dlist block; APP_VER = sw CACHE', () => {
   assert.ok(html.indexOf('moneyRows(b).map') > 0);
-  assert.ok(/const APP_VER='v13'/.test(html));
-  assert.ok(fs.readFileSync(path.join(__dirname, '..', 'docs', 'sw.js'), 'utf8').indexOf("const CACHE = 'al-ops-v13'") >= 0);
+  assert.ok(/const APP_VER='v1[3-9]'/.test(html));
+  assert.ok(fs.readFileSync(path.join(__dirname, '..', 'docs', 'sw.js'), 'utf8').indexOf("const CACHE = 'al-ops-" + /const APP_VER='(v\d+)'/.exec(html)[1] + "'") >= 0);
 });

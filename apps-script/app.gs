@@ -43,7 +43,7 @@ function apiResponse_(p) {
   const map = { login: login, getData: getData, addCompra: addCompra, anularCompra: anularCompra, editCompra: editCompra,
     addAjuste: addAjuste, addConteo: addConteo, addComida: addComida, markPaid: markPaid, markRev: markRev,
     saveProducto: saveProducto, saveTarifa: saveTarifa, savePerm: savePerm, saveTourBarco: saveTourBarco, setMapeo: setMapeo, refreshFin: refreshFin, stockReport: stockReport,
-    addFeedback: addFeedback, setFeedbackEstado: setFeedbackEstado };
+    addFeedback: addFeedback, setFeedbackEstado: setFeedbackEstado, eventualesReport: eventualesReport, listUsers: listUsers, saveUser: saveUser };
   let out;
   try {
     const f = map[String(p.fn)];
@@ -907,6 +907,123 @@ function stockReport(pin, desde, hasta) {
   rep.ok = true;
   return rep;
 }
+/**
+ * Pure (round 17): eventuales earnings and payments over ANY period, day-inclusive at both edges (like stockReport_).
+ * evRows = Eventuales tab rows (EV_HEADERS: Fecha[1], Availability pk[4], Nombre[5], Rol[7], Total[14]); pagoRows = Pagos rows (Nombre[1], Monto[2], Fecha pago[3]).
+ * Earned = sum of Total of the departures whose date is in the period; paid = Pagos whose payment DATE is in the period (not the week they pay for).
+ * → {desde, hasta, rows: [{n, roles, dias, salidas, ganado, pagado, pendiente}], totals: {...}} (a person with only payments is kept: pendiente < 0).
+ */
+function eventualesReport_(evRows, pagoRows, desde, hasta) {
+  if (hasta < desde) { const t = desde; desde = hasta; hasta = t; }
+  const R = n => Math.round(n * 100) / 100, by = {}, order = [];
+  const get = n => { if (!by[n]) { by[n] = { n: n, roles: {}, dates: {}, av: {}, ganado: 0, pagado: 0 }; order.push(n); } return by[n]; };
+  (evRows || []).forEach(r => {
+    const n = String(r[5] === undefined || r[5] === null ? '' : r[5]).trim(), d = ymd_(r[1]);
+    if (!n || !d || d < desde || d > hasta) return;
+    const o = get(n); o.dates[d] = 1; o.av[String(r[4]) || (d + ' ' + String(r[2]))] = 1;
+    if (r[7]) o.roles[String(r[7])] = 1;
+    o.ganado += Number(r[14]) || 0;
+  });
+  (pagoRows || []).forEach(r => {
+    const n = String(r[1] === undefined || r[1] === null ? '' : r[1]).trim(), d = ymd_(r[3]);
+    if (!n || !d || d < desde || d > hasta) return;
+    get(n).pagado += Number(r[2]) || 0;
+  });
+  const rows = order.map(n => { const o = by[n]; return { n: n, roles: Object.keys(o.roles), dias: Object.keys(o.dates).length, salidas: Object.keys(o.av).length,
+    ganado: R(o.ganado), pagado: R(o.pagado), pendiente: R(o.ganado - o.pagado) }; })
+    .sort((a, b) => b.ganado - a.ganado || a.n.localeCompare(b.n));
+  const tot = { personas: rows.length, salidas: 0, ganado: 0, pagado: 0, pendiente: 0 };
+  rows.forEach(r => { tot.salidas += r.salidas; tot.ganado += r.ganado; tot.pagado += r.pagado; tot.pendiente += r.pendiente; });
+  tot.ganado = R(tot.ganado); tot.pagado = R(tot.pagado); tot.pendiente = R(tot.pendiente);
+  return { desde: desde, hasta: hasta, rows: rows, totals: tot };
+}
+/** Admin or anyone with the "pagar" permission. Reads the Eventuales (pay lines per departure) and Pagos tabs: history is not limited to getData's window. */
+function eventualesReport(pin, desde, hasta) {
+  const u = auth_(pin), ss = ss_();
+  if (u.rol !== 'admin' && !permOk_(loadPerms_(ss), u.rol, 'pagar')) throw new Error('Tu rol no puede ver este reporte');
+  const d = validYmd_(desde), h = validYmd_(hasta) || d;
+  if (!d) throw new Error('Elige las fechas del reporte');
+  const rep = eventualesReport_(readTab_(ss, 'Eventuales', EV_HEADERS), readTab_(ss, 'Pagos', PAGO_HEADERS).filter(r => r[1] !== ''), d, h);
+  rep.ok = true;
+  return rep;
+}
+
+// ---------------- Users (round 17): tab Usuarios [Nombre, PIN, Rol, Activo]; admin role only; PINs never leave the server ----------------
+/** Pure: Usuarios rows → [{nombre, rol, activo}] (no PIN). */
+function usersFromRows_(rows) {
+  return (rows || []).filter(r => String(r[0] === undefined || r[0] === null ? '' : r[0]).trim() !== '')
+    .map(r => ({ nombre: String(r[0]).trim(), rol: /^a/i.test(String(r[2])) ? 'admin' : 'op', activo: notNo_(r[3]) }));
+}
+/**
+ * Pure: validates one user edit against the current Usuarios rows (raw, with PIN). input = {nombre, pinNuevo?, rol, activo, original?}; actor = {nombre, rol}.
+ * → {create, dup, idx (index in rows, -1 when new), nombre, rol, activo, pin ('' = keep the stored PIN), pinChanged}; throws a Spanish message.
+ * Rules: name required, unique (case-insensitive), not renamed; PIN exactly 4 digits (required for new users), unique among ACTIVE users; rol admin|op;
+ * nobody can deactivate or demote themselves; at least one active admin must remain. Creating an identical user again (same name + PIN + role) is an idempotent no-op (retry safe).
+ */
+function validateUser_(input, rows, actor) {
+  input = input || {};
+  const low = s => String(s === undefined || s === null ? '' : s).trim().toLowerCase();
+  const nombre = String(input.nombre === undefined || input.nombre === null ? '' : input.nombre).replace(/\s+/g, ' ').trim().slice(0, 40);
+  if (!nombre) throw new Error('Escribe el nombre');
+  const rl = low(input.rol), rol = rl === 'admin' ? 'admin' : (rl === 'op' || rl === 'operacion' || rl === 'operación') ? 'op' : '';
+  if (!rol) throw new Error('Rol inválido (admin u op)');
+  const find = n => rows.findIndex(r => low(r[0]) !== '' && low(r[0]) === low(n));
+  const pinIn = input.pinNuevo === undefined || input.pinNuevo === null ? '' : String(input.pinNuevo).trim();
+  const isNew = !String(input.original === undefined || input.original === null ? '' : input.original).trim();
+  let idx = -1, dup = false;
+  if (isNew) {
+    idx = find(nombre);
+    if (idx >= 0) {
+      const r = rows[idx];
+      if (pinIn && pinStr_(r[1]) === pinIn && /^a/i.test(String(r[2])) === (rol === 'admin') && notNo_(r[3]) === (input.activo === undefined ? true : !!input.activo)) dup = true;
+      else throw new Error('Ya existe un usuario con ese nombre');
+    }
+  } else {
+    idx = find(input.original);
+    if (idx < 0) throw new Error('No encontré al usuario. Actualiza la lista.');
+    if (low(nombre) !== low(rows[idx][0])) throw new Error('No se puede cambiar el nombre');
+  }
+  const activo = input.activo === undefined ? true : (input.activo === true || input.activo === 'sí' || input.activo === 'si' || input.activo === 'true');
+  if (isNew && !pinIn) throw new Error('El PIN debe tener 4 dígitos');
+  if (pinIn && !/^\d{4}$/.test(pinIn)) throw new Error('El PIN debe tener 4 dígitos');
+  const effective = pinIn || (idx >= 0 ? pinStr_(rows[idx][1]) : '');
+  const me = actor && low(actor.nombre) !== '' && idx >= 0 && low(rows[idx][0]) === low(actor.nombre);
+  if (me && !activo) throw new Error('No puedes desactivarte a ti mismo');
+  if (me && rol !== 'admin') throw new Error('No puedes quitarte el rol de admin');
+  if (activo && effective && rows.some((r, i) => i !== idx && low(r[0]) !== '' && notNo_(r[3]) && pinStr_(r[1]) === effective)) throw new Error('Ese PIN ya lo usa otro usuario');
+  const after = rows.map((r, i) => i === idx ? { rol: rol, activo: activo } : { rol: /^a/i.test(String(r[2])) ? 'admin' : 'op', activo: notNo_(r[3]), blank: low(r[0]) === '' });
+  if (idx < 0) after.push({ rol: rol, activo: activo });
+  if (!after.some(x => !x.blank && x.activo && x.rol === 'admin')) throw new Error('Debe quedar al menos un admin activo');
+  return { create: idx < 0, dup: dup, idx: idx, nombre: idx >= 0 && !isNew ? String(rows[idx][0]).trim() : nombre, rol: rol, activo: activo, pin: pinIn, pinChanged: !!pinIn && !dup };
+}
+function adminOnly_(pin) {
+  const u = auth_(pin);
+  if (u.rol !== 'admin') throw new Error('Solo el admin puede administrar usuarios');
+  return u;
+}
+/** Admin role only. → {users: [{nombre, rol, activo}]} (PINs are never returned). */
+function listUsers(pin) {
+  adminOnly_(pin);
+  return { users: usersFromRows_(readTab_(ss_(), 'Usuarios', USR_HEADERS)) };
+}
+/** Admin role only. p = {nombre, pinNuevo?, rol, activo, original?} (original = current name when editing). Idempotent for an identical "add" (a retry never adds twice). → {ok, dup?, users} */
+function saveUser(pin, p) {
+  const actor = adminOnly_(pin);
+  return withLock_(() => {
+    const ss = ss_(), sh = ensureUsuarios_(ss), rows = readTab_(ss, 'Usuarios', USR_HEADERS);
+    const v = validateUser_(p, rows, actor);
+    if (!v.dup) {
+      const row = v.create ? Math.max(sh.getLastRow(), 1) + 1 : v.idx + 2;
+      if (v.create || v.pinChanged) sh.getRange(row, 2).setNumberFormat('@');
+      if (v.create) sh.getRange(row, 1, 1, 4).setValues([[v.nombre, v.pin, v.rol, v.activo ? 'sí' : 'no']]);
+      else {
+        sh.getRange(row, 3, 1, 2).setValues([[v.rol, v.activo ? 'sí' : 'no']]);
+        if (v.pinChanged) sh.getRange(row, 2).setValue(v.pin);
+      }
+    }
+    return { ok: true, dup: v.dup || undefined, users: usersFromRows_(readTab_(ss, 'Usuarios', USR_HEADERS)) };
+  });
+}
 function addComida(pin, p) {
   const u = auth_(pin, 'comida');
   return withLock_(() => {
@@ -1163,5 +1280,5 @@ if (typeof module !== 'undefined') module.exports = {
   pinStr_, findUser_, permsFromRows_, permOk_, guessIcon_, buildItems_, groupCompras_, lastCostFrom_, priceLogFrom_, buildMoves_, stockMap_, countDiffs_,
   cleanLines_, slugId_, rateLabel_, buildRates_, latestRevs_, roleLabel_, bitQty_, extrasText_, ciFrom_, buildDeps_, moneyFrom_, buildPend_, fieldsFromBookings_, saludAlerts_, setMapeo, planTarifasMigration_, pluralEs_, appendNote_,
   login, getData, refreshFin, windowTest_, staleFin_, addCompra, anularCompra, editCompra, addAjuste, addConteo, addComida, markPaid, markRev, saveProducto, saveTarifa, savePerm, saveTourBarco, setConfig, validateConfig_, configFromRows_, migrate20261124, stockReport_, stockReport, loadMoves_, cidRow_, cidOf_, ensureCidCol_,
-  normFeedback_, feedbackFileName_, feedbackFromRows_, validEstado_, addFeedback, setFeedbackEstado, FEEDBACK_HEADERS
+  eventualesReport_, eventualesReport, usersFromRows_, validateUser_, listUsers, saveUser, normFeedback_, feedbackFileName_, feedbackFromRows_, validEstado_, addFeedback, setFeedbackEstado, FEEDBACK_HEADERS
 };

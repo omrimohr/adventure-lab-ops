@@ -186,25 +186,65 @@ function init(){
 }
 init();
 
+// round 17: users (PINs never leave the stub) + pay history for the Eventuales period view
+D.users=[{nombre:'Omri',pin:'0000',rol:'admin',activo:true},{nombre:'Carlos',pin:'1111',rol:'admin',activo:true},{nombre:'Daniel',pin:'2222',rol:'admin',activo:true},{nombre:'Jesús',pin:'3333',rol:'op',activo:true}];
+const who=pin=>D.users.find(u=>u.activo&&String(u.pin)===String(pin))||D.users[0];
+const usersOut=()=>D.users.map(u=>({nombre:u.nombre,rol:u.rol,activo:u.activo}));
+(function history(){
+  // ~9 weeks of earlier departures per person (deterministic) → rows like the Eventuales tab: {d, av, n, r, tot}; Pagos for every completed pay week, paid 7 days after the week starts (some people still owed)
+  D.evHist=[];D.pagos=[];
+  const names=[['Juan Pérez','Capitán',450],['Mauricio Canul','Capitán',450],['Luis Martínez','Marinero',300],['Pedro Chan','Marinero',300],['Ignacio Arceo','Guía',250],['Ana Rosado','Guía',250],['Carlos Pech','Instructor líder',400]];
+  for(let off=-63;off<=-2;off++){const d=addDays(off);
+    names.forEach((x,j)=>{const k=(Math.abs(off)*7+j*5)%11;if(k<4){const n=1+(k%2);for(let t=0;t<n;t++)D.evHist.push({d:d,av:'h'+off+'-'+j+'-'+t,n:x[0],r:x[1],tot:x[2]+(k===3?100:0)})}})}
+  const ws0=wkStartOf(addDays(0)),earn={};
+  D.evHist.forEach(e=>{const w=wkStartOf(e.d);const k=w+'|'+e.n;earn[k]=(earn[k]||0)+e.tot});
+  Object.keys(earn).forEach((k,i)=>{const [w,n]=k.split('|');if(w>=ws0)return;if(i%6===5)return;const pd=addDays(Math.round((new Date(w+'T12:00:00')-new Date(addDays(0)+'T12:00:00'))/864e5)+7);if(pd>addDays(0))return;D.pagos.push({n:n,m:earn[k],d:pd})});
+})();
+function evReport(desde,hasta){
+  if(hasta<desde){const t=desde;desde=hasta;hasta=t}
+  const R=n=>Math.round(n*100)/100,by={},get=n=>by[n]||(by[n]={n:n,roles:{},dates:{},av:{},ganado:0,pagado:0});
+  const rows=D.evHist.slice();
+  D.deps.forEach(dep=>{if(dep.date>addDays(0))return;dep.crew.forEach(c=>{if(c.ext||!c.pay.tot)return;rows.push({d:dep.date,av:dep.id,n:c.n,r:c.r,tot:c.pay.tot})})});
+  rows.forEach(e=>{if(e.d<desde||e.d>hasta)return;const o=get(e.n);o.dates[e.d]=1;o.av[e.av]=1;if(e.r)o.roles[e.r]=1;o.ganado+=e.tot});
+  D.pagos.forEach(p=>{if(p.d<desde||p.d>hasta)return;get(p.n).pagado+=p.m});
+  const out=Object.keys(by).map(n=>{const o=by[n];return {n:n,roles:Object.keys(o.roles),dias:Object.keys(o.dates).length,salidas:Object.keys(o.av).length,ganado:R(o.ganado),pagado:R(o.pagado),pendiente:R(o.ganado-o.pagado)}}).sort((a,b)=>b.ganado-a.ganado||a.n.localeCompare(b.n));
+  const t={personas:out.length,salidas:0,ganado:0,pagado:0,pendiente:0};out.forEach(r=>{t.salidas+=r.salidas;t.ganado+=r.ganado;t.pagado+=r.pagado;t.pendiente+=r.pendiente});
+  ['ganado','pagado','pendiente'].forEach(k=>{t[k]=R(t[k])});
+  return {ok:true,desde:desde,hasta:hasta,rows:out,totals:t};
+}
 // ---------- API ----------
 const API={
- login:()=>({ok:true,nombre:'Omri',rol:'admin',perms:D.perms}),
- getData:(pin,from,to)=>{
+ login:(pin)=>{const u=D.users.find(x=>x.activo&&String(x.pin)===String(pin));return u?{ok:true,nombre:u.nombre,rol:u.rol,perms:D.perms}:{ok:false}},
+ getData:(pin,from,to)=>{const me=who(pin);
    const today=addDays(0);D.calls++;
    const stale=D.staleOnce;D.staleOnce=false;
-   return JSON.parse(JSON.stringify({ok:true,user:{nombre:'Omri',rol:'admin'},perms:D.perms,today:today,now:hm(),desde:from||addDays(-21),hasta:to||addDays(7),
+   return JSON.parse(JSON.stringify({ok:true,user:{nombre:me.nombre,rol:me.rol},perms:D.perms,today:today,now:hm(),desde:from||addDays(-21),hasta:to||addDays(7),
      items:D.items,purchases:D.purchases,moves:D.moves,priceLog:D.priceLog,deps:D.deps,rates:D.rates,paid:D.paid,weekly:D.weekly,externos:D.externos,control:D.control,
      tours:D.tours,comidas:D.comidas,fh:D.fh,pend:D.pend,salud:D.salud,feedback:D.feedback,fhOk:true,config:D.config,stale:stale,rebuildPending:false}));
  },
  refreshFin:()=>({ran:true}),
+ eventualesReport:(pin,a,b)=>evReport(a,b),
+ listUsers:(pin)=>({users:usersOut()}),
+ saveUser:(pin,p)=>{
+   const me=who(pin);if(me.rol!=='admin')throw new Error('Solo el admin puede administrar usuarios');
+   const low=x=>String(x||'').trim().toLowerCase(),nom=String(p.nombre||'').replace(/\s+/g,' ').trim(),pinIn=String(p.pinNuevo||'').trim();
+   if(!nom)throw new Error('Escribe el nombre');if(pinIn&&!/^\d{4}$/.test(pinIn))throw new Error('El PIN debe tener 4 dígitos');
+   const act=p.activo===undefined?true:!!p.activo;let u=p.original?D.users.find(x=>low(x.nombre)===low(p.original)):null,dup=false;
+   if(p.original&&!u)throw new Error('No encontré al usuario. Actualiza la lista.');
+   if(!p.original){const ex=D.users.find(x=>low(x.nombre)===low(nom));if(ex){if(pinIn&&String(ex.pin)===pinIn&&ex.rol===p.rol)dup=true;else throw new Error('Ya existe un usuario con ese nombre')}if(!pinIn)throw new Error('El PIN debe tener 4 dígitos')}
+   const eff=pinIn||(u?u.pin:'');
+   if(act&&eff&&D.users.some(x=>x!==u&&x.activo&&String(x.pin)===eff&&!(dup&&low(x.nombre)===low(nom))))throw new Error('Ese PIN ya lo usa otro usuario');
+   if(u&&low(u.nombre)===low(me.nombre)&&(!act||p.rol!=='admin'))throw new Error(!act?'No puedes desactivarte a ti mismo':'No puedes quitarte el rol de admin');
+   if(!dup){if(u){u.rol=p.rol;u.activo=act;if(pinIn)u.pin=pinIn}else D.users.push({nombre:nom,pin:pinIn,rol:p.rol,activo:act})}
+   return {ok:true,dup:dup||undefined,users:usersOut()}},
  addCompra:(pin,p)=>{const dup=D.purchases.find(x=>p.cid&&x.cid===p.cid);if(dup)return {ok:true,id:dup.id,dup:true};
    const id='c'+(D.purchases.length+1)+Date.now()%1000;
-   D.purchases.push({cid:p.cid||'',id:id,d:p.d,sup:p.sup,lines:p.lines,ticket:p.ticket||'',note:p.note||'',annulled:false,hasta:p.hasta||'',history:[{d:addDays(0),a:'Registrada · Omri',r:''}]});
+   D.purchases.push({cid:p.cid||'',id:id,d:p.d,sup:p.sup,lines:p.lines,ticket:p.ticket||'',note:p.note||'',annulled:false,hasta:p.hasta||'',history:[{d:addDays(0),a:'Registrada · '+who(pin).nombre,r:''}]});
    p.lines.forEach(l=>{const it=D.items.find(x=>x.id===l.i);if(it)it.price=l.p;D.moves.push({d:p.d,i:l.i,q:l.q,c:l.p,t:'Compra',ref:p.sup,cid:id,noStock:!it.controlStock})});return {ok:true,id:id}},
  anularCompra:(pin,id,reason)=>{const c=D.purchases.find(x=>x.id===id);if(c){c.annulled=true;c.history.push({d:addDays(0),a:'Anulada',r:reason||''});
    c.lines.forEach(l=>D.moves.push({d:addDays(0),i:l.i,q:-l.q,c:l.p,t:'Compra anulada',ref:reason||'',cid:id}))}return {ok:true}},
  editCompra:(pin,id,p,reason)=>{const c=D.purchases.find(x=>x.id===id);if(c){Object.assign(c,{d:p.d,sup:p.sup,note:p.note,hasta:p.hasta,lines:p.lines});c.history.push({d:addDays(0),a:'Editada',r:reason||''})}return {ok:true}},
- addAjuste:(pin,p)=>{if(p.cid&&D.moves.some(m=>m.k===p.cid))return {ok:true,dup:true};D.moves.push({d:p.d,i:p.i,q:p.q,c:0,t:'Ajuste · '+p.motivo,ref:p.nota||p.motivo,aj:true,mot:p.motivo,nota:p.nota||'',por:'Omri',k:p.cid||''});return {ok:true}},
+ addAjuste:(pin,p)=>{if(p.cid&&D.moves.some(m=>m.k===p.cid))return {ok:true,dup:true};D.moves.push({d:p.d,i:p.i,q:p.q,c:0,t:'Ajuste · '+p.motivo,ref:p.nota||p.motivo,aj:true,mot:p.motivo,nota:p.nota||'',por:who(pin).nombre,k:p.cid||''});return {ok:true}},
  stockReport:(pin,desde,hasta)=>{
    if(hasta<desde){const t=desde;desde=hasta;hasta=t}
    const rows=D.items.filter(i=>i.controlStock).map(i=>{const o={i:i.id,name:i.name,icon:i.icon,group:i.group,unit:i.unit,units:i.units,price:i.price,ini:0,com:0,con:0,aj:0,comV:0,conV:0};
@@ -213,9 +253,9 @@ const API={
    const sum=k=>Math.round(rows.reduce((a,r)=>a+r[k],0)*100)/100;
    return {ok:true,desde:desde,hasta:hasta,rows:rows,totals:{consumo:sum('conV'),compras:sum('comV'),valor:sum('val')}}},
  addConteo:(pin,p)=>{Object.keys(p.counts||{}).forEach(i=>{const cur=D.moves.filter(m=>m.i===i&&!m.noStock).reduce((a,m)=>a+m.q,0),df=Number(p.counts[i])-cur;if(df)D.moves.push({d:p.d,i:i,q:df,c:0,t:'Inventario completo',ref:p.nota||''})});return {ok:true}},
- addComida:(pin,p)=>{D.comidas.unshift({d:p.d,n:p.nombre,tipo:p.tipo,q:p.cantidad,nota:p.nota||'',por:'Omri'});return {ok:true}},
- markPaid:(pin,ws,name)=>{D.paid[ws+'|'+name]=addDays(0);return {ok:true}},
- markRev:(pin,id,cid)=>{const d=D.deps.find(x=>x.id===id);if(d)d.rev={by:'Omri',at:hm(),day:addDays(0),hm:hm()};return {ok:true}},
+ addComida:(pin,p)=>{D.comidas.unshift({d:p.d,n:p.nombre,tipo:p.tipo,q:p.cantidad,nota:p.nota||'',por:who(pin).nombre});return {ok:true}},
+ markPaid:(pin,ws,name,monto)=>{D.paid[ws+'|'+name]=addDays(0);D.pagos.push({n:name,m:Number(monto)||0,d:addDays(0)});return {ok:true}},
+ markRev:(pin,id,cid)=>{const d=D.deps.find(x=>x.id===id);if(d)d.rev={by:who(pin).nombre,at:hm(),day:addDays(0),hm:hm()};return {ok:true}},
  saveProducto:(pin,p)=>{const i=D.items.findIndex(x=>x.id===p.id);const it=Object.assign({units:p.unit+'s',unitIcon:''},p);
    if(i>=0)D.items[i]=Object.assign(D.items[i],it);else{it.id=(p.name||'prd').toLowerCase().slice(0,3)+D.items.length;D.items.push(it)}return {ok:true}},
  saveTarifa:(pin,row,v)=>{const r=D.rates.find(x=>x.id===row);if(r){r.amt=v.amt;r.pending=false}return {ok:true}},
@@ -223,11 +263,11 @@ const API={
  saveTourBarco:(pin,pk,b)=>{const t=D.tours.find(x=>x.pk===String(pk));if(t)t.barco=b;return {ok:true}},
  setConfig:(pin,k,v)=>{const okv=k==='semana_inicio'?(v==='jueves'||v==='lunes'):k==='semana_pago'?['lunes','martes','miercoles','jueves','viernes','sabado','domingo'].includes(v):false;if(!okv)throw new Error('Ajuste inválido');D.config[k]=v;return {ok:true,config:D.config}},
  addFeedback:(pin,p)=>{if(!p.texto||!String(p.texto).trim())throw new Error('Escribe qué pasó');const dup=D.feedback.find(x=>p.cid&&x.cid===p.cid);if(dup)return {ok:true,id:dup.id,dup:true};
-   const id='F'+(D.feedback.length+1)+Date.now()%1000;D.feedback.unshift({id:id,cid:p.cid||'',fecha:addDays(0)+' '+hm(),usuario:'Omri',tipo:p.tipo,texto:p.texto,pantalla:p.pantalla,fechaApp:p.fecha,version:p.version,url:p.img?'https://drive.google.com/demo-captura':'',estado:'Nuevo',notas:''});return {ok:true,id:id}},
+   const id='F'+(D.feedback.length+1)+Date.now()%1000;D.feedback.unshift({id:id,cid:p.cid||'',fecha:addDays(0)+' '+hm(),usuario:who(pin).nombre,tipo:p.tipo,texto:p.texto,pantalla:p.pantalla,fechaApp:p.fecha,version:p.version,url:p.img?'https://drive.google.com/demo-captura':'',estado:'Nuevo',notas:''});return {ok:true,id:id}},
  setFeedbackEstado:(pin,id,est,nota)=>{const r=D.feedback.find(x=>x.id===id);if(!r)throw new Error('No encontré el reporte');r.estado=est;if(typeof nota==='string')r.notas=nota;return {ok:true,estado:est}},
  setMapeo:(pin,kind,clave)=>{D.pend=D.pend.filter(x=>!(x.kind===kind&&x.clave===clave));return {ok:true,rebuildPending:false}}
 };
-const WRITES={addFeedback:1,setFeedbackEstado:1,addCompra:1,addAjuste:1,addConteo:1,markRev:1,markPaid:1,setMapeo:1};
+const WRITES={saveUser:1,addFeedback:1,setFeedbackEstado:1,addCompra:1,addAjuste:1,addConteo:1,markRev:1,markPaid:1,setMapeo:1};
 window.fetch=function(url,opts){
   let delay=350,fail='';try{delay=Number(localStorage.getItem('demo_delay'))||350;fail=localStorage.getItem('demo_fail')||''}catch(e){}   // demo_delay (ms) / demo_fail ('net' | 'final') para ver "guardando…" y el error
   return new Promise((res,rej)=>setTimeout(()=>{
