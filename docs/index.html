@@ -457,6 +457,16 @@ a.fhl:focus-visible{outline:2px solid var(--acc);outline-offset:-2px;border-radi
 .addp{background:none;border:0;font:inherit;font-weight:500;color:var(--acc);min-height:44px;padding:0;text-align:left;cursor:pointer;border-top:1px dashed var(--neutral);width:100%}
 .addp:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 /* Stock report */
+.evnav{display:flex;align-items:center;justify-content:center;gap:4px;margin:4px 0 0}
+.evnav .nx{width:44px;height:44px;background:none;border:0;font:inherit;font-size:22px;line-height:1;color:var(--acc);cursor:pointer;flex:none}
+.evnav .nx:disabled{color:var(--ink3);opacity:.5;cursor:default}
+.evpill{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 14px;border-radius:22px;border:0;background:var(--fill);color:var(--ink);font:inherit;font-weight:500;cursor:pointer}
+.evpill svg{color:var(--acc);flex:none}
+.evpay{margin:0 0 12px;min-height:20px}.evgap{height:12px}
+.evsum{background:var(--paper);margin:0 calc(-1*var(--px)) 28px;padding:12px var(--px);border-top:1px solid var(--hair);border-bottom:1px solid var(--hair);font-variant-numeric:tabular-nums;display:flex;align-items:baseline;gap:6px}
+.evsum .big{font-size:22px;font-weight:500;color:var(--ink)}
+.evsum .rest{font-size:12px;color:var(--ink3);flex:1 1 0;min-width:0}.evsum .evs{white-space:nowrap}.evsum .evw{color:var(--orange)}.evsum .evm{color:var(--ink3)}
+.evi{background:none;border:0;padding:0;margin:-12px -10px -12px -4px;width:32px;height:44px;align-self:center;flex:none;color:var(--ink3);cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
 .srdate{display:flex;align-items:center;gap:8px;min-height:44px;width:100%;background:none;border:0;padding:0;font:inherit;font-size:14px;font-weight:500;color:var(--ink);cursor:pointer;text-align:left}
 .srdate svg{color:var(--acc);flex:none}
 .srnote{font-size:12px;color:var(--ink3);margin:0 0 12px}
@@ -524,7 +534,7 @@ const S={role:'op',realRole:'op',user:'',date:'',wk:'',
   perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},pend:[],salud:[],feedback:[],fbf:'nuevo',fbEdit:null,evp:null,users:null,usersErr:'',rebuildPending:false,fhOk:true,offline:false,dataAt:0,
   win:{from:'',to:''},fetchedAt:'',q:'',filter:'todas',fopen:false,config:{semana_inicio:'jueves',semana_pago:'jueves'}};
 let PIN='';
-const APP_VER='v14';   // = sufijo de CACHE en docs/sw.js ('al-ops-v14'); se manda con cada reporte
+const APP_VER='v15';   // = sufijo de CACHE en docs/sw.js ('al-ops-v15'); se manda con cada reporte
 
 // ===== Servidor =====
 // Servidor: Apps Script web app (misma URL que el webhook de FareHarbor). POST text/plain = sin preflight CORS.
@@ -714,6 +724,8 @@ const IC={
  boat:'<path d="M12 3v12"/><path d="M12 4.5l6 9.5h-6"/><path d="M12 8L7 14h5"/><path d="M4 17.5h16l-2.2 3.2H6.2z"/>',
  report:'<path d="M4 5.5A1.5 1.5 0 015.5 4h13A1.5 1.5 0 0120 5.5v9a1.5 1.5 0 01-1.5 1.5H10l-4.5 4v-4h0A1.5 1.5 0 014 14.5z"/><path d="M12 7.5v4M12 13.6v.1"/>',
  users:'<circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.5-3.4 2.7-5 5.5-5s5 1.6 5.5 5"/><path d="M16.5 5.2a3 3 0 010 5.6M18 14.3c1.6.6 2.6 2 3 4.7"/>',
+ down:'<path d="M6 9.5l6 6 6-6"/>',
+ info:'<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.1"/>',
  bell:'<path d="M6 16v-5a6 6 0 1112 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 004 0"/>'};
 const svgI=(k,sz)=>`<svg class="gi" viewBox="0 0 24 24" width="${sz||16}" height="${sz||16}" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg>`;
 const WI=svgI('alert',14).replace('class="gi"','class="wi"');   // aviso inline (sin emoji)
@@ -986,6 +998,33 @@ function evChip(evp,ws,today,dia){
   const f=EVP.slice(2).find(([k])=>{const r=evPreset(k,today,dia);return r[0]===evp.desde&&r[1]===evp.hasta});return f?f[0]:'';
 }
 const evLabel=(a,b)=>(!b||a===b)?fdate(a):srLabel(a,b);
+// Ronda 18: encabezado compacto de Eventuales — etiqueta del periodo, opciones de la hoja «Periodo», resumen de una línea
+const dmon=d=>{const x=pd(d);return x.getDate()+' '+MON[x.getMonth()]};
+const isMonthRange=(a,b)=>{const x=pd(a),y=pd(b);return x.getDate()===1&&x.getFullYear()===y.getFullYear()&&x.getMonth()===y.getMonth()&&y.getDate()===new Date(y.getFullYear(),y.getMonth()+1,0).getDate()};
+function evPill(evp,ws){
+  if(!evp)return 'Semana '+dmon(ws)+' – '+dmon(addD(ws,6));
+  const a=evp.desde,b=evp.hasta,x=pd(a),y=pd(b);
+  if(isMonthRange(a,b)){const mn=MONTHS[x.getMonth()];return mn.charAt(0).toUpperCase()+mn.slice(1)+' '+x.getFullYear()};
+  if(a===b)return dmon(a);
+  if(x.getFullYear()!==y.getFullYear())return dmon(a)+' '+x.getFullYear()+' – '+dmon(b)+' '+y.getFullYear();
+  return (x.getMonth()===y.getMonth()?String(x.getDate()):dmon(a))+' – '+dmon(b);
+}
+const evMode=evp=>!evp?'week':isMonthRange(evp.desde,evp.hasta)?'month':'custom';
+function evMonthShift(evp,n){const x=pd(evp.desde),f=new Date(x.getFullYear(),x.getMonth()+n,1),ymd=(yy,mm,dd)=>yy+'-'+p2(mm+1)+'-'+p2(dd);return [ymd(f.getFullYear(),f.getMonth(),1),ymd(f.getFullYear(),f.getMonth(),new Date(f.getFullYear(),f.getMonth()+1,0).getDate())]}
+const evPayLine=ws=>{const d=addD(ws,7);return 'Pago '+WD3[pd(d).getDay()].replace('.','')+' '+dmon(d)};
+// Opciones de la hoja «Periodo»: [{k,l,on}]. Sin permiso (all=false) solo las semanas.
+function evOptions(evp,ws,today,dia,all){
+  const on=evChip(evp,ws,today,dia),o=EVP.filter((x,i)=>all||i<2).map(([k,l])=>({k,l,on:on===k}));
+  if(all)o.push({k:'fechas',l:'Elegir fechas…',on:!!evp&&!on});
+  return o;
+}
+const pl=(n,a,b)=>n+' '+(n===1?a:b);
+// Resumen de una línea: {big, rest:[{t,c}]}  (c: ''|'warn'|'mut')
+function evSummary(mode,x){
+  if(mode==='week')return {big:x.tot,rest:[{t:'a pagar'},{t:pl(x.n,'persona','personas')},{t:pl(x.paid,'pagado','pagados')}]};
+  return {big:x.ganado,rest:[{t:'ganado'},{t:'pagado '+x.fmt(x.pagado)},x.pendiente>0?{t:'pendiente '+x.fmt(x.pendiente),c:'evw'}:x.pendiente<0?{t:'pagado de más '+x.fmt(-x.pendiente),c:'evm'}:{t:'pendiente '+x.fmt(0)}]};
+}
+const EV_INFO='Lo pagado cuenta por la fecha en que se pagó. Si pagaste una semana que empezó antes del periodo, puede salir «pagado de más».';
 // ¿Cuántos días/salidas? (texto): "3 días · 5 salidas"
 const evCount=(d,s)=>d+' '+(d===1?'día':'días')+' · '+s+' '+(s===1?'salida':'salidas');
 // --- Usuarios (ronda 17): validación en la app antes de mandar (el servidor vuelve a validar y revisa PIN repetido y admins) ---
@@ -1214,25 +1253,20 @@ ev(){
   if(S.evp)return V.evrange();
   const ws=S.wk,we=addD(ws,6),ps=weekPeople(ws),tot=ps.reduce((a,p)=>a+p.tot,0),paid=ps.filter(p=>S.paid[ws+'|'+p.n]).length;
   const ext=S.externos.filter(x=>x.d>=ws&&x.d<=we).sort((a,b)=>a.d<b.d?-1:1);
-  let h=topBar('Eventuales',{lede:`Semana de ${payDayName(S.config.semana_pago)} a ${payDayName(PAYD[(PAYD.findIndex(x=>x[0]===S.config.semana_pago)+6)%7][0])}.`})+evChips(true)+`<div class="daterow"><button class="nx" data-wk="-1" aria-label="Semana anterior">‹</button><span class="wk">${wkLabel(ws)}</span><button class="nx" data-wk="1" aria-label="Semana siguiente">›</button></div>
-  <div class="live" style="margin-top:2px">Pago: ${short(addD(ws,7))}</div>`;
+  let h=evHead();
   if(!ps.length&&!ext.length)return h+`<div class="group"><div class="list"><div class="empty">Sin salidas en esta semana.</div></div></div>`;
-  if(ps.length)h+=`<section class="today"><div class="kpis" style="grid-template-columns:1.4fr 1fr 1fr"><div class="kpi"><div class="k">Total a pagar</div><div class="n">${fmt(tot)}</div></div><div class="kpi"><div class="k">Personas</div><div class="n">${ps.length}</div></div><div class="kpi"><div class="k">Pagados</div><div class="n">${paid}</div></div></div></section>
-  <div class="group"><div class="list">${ps.map(p=>{const pg=S.paid[ws+'|'+p.n];return `<button class="cell" data-person="${esc(p.n)}"><span class="main"><span class="t">${esc(p.n)}</span><div class="s">${[...p.roles].join(', ')||'Sin rol'} · ${p.lines.length} ${p.lines.length===1?'salida':'salidas'}${p.hx?` · ${p.hx} h extra`:''}</div>${p.miss?`<div class="s" style="color:var(--orange)">${WI}Falta rol en una salida</div>`:''}${p.rate?`<div class="s" style="color:var(--orange)">${WI}Tarifa pendiente o sin tarifa</div>`:''}</span><span class="v" style="text-align:right">${fmt(p.tot)}${pg?'<div class="s" style="color:var(--green)">Pagado</div>':''}</span>${chev}</button>`}).join('')}</div></div>`;
+  if(ps.length)h+=evSumLine(evSummary('week',{tot,n:ps.length,paid}))+`<div class="group"><div class="list">${ps.map(p=>{const pg=S.paid[ws+'|'+p.n];return `<button class="cell" data-person="${esc(p.n)}"><span class="main"><span class="t">${esc(p.n)}</span><div class="s">${[...p.roles].join(', ')||'Sin rol'} · ${p.lines.length} ${p.lines.length===1?'salida':'salidas'}${p.hx?` · ${p.hx} h extra`:''}</div>${p.miss?`<div class="s" style="color:var(--orange)">${WI}Falta rol en una salida</div>`:''}${p.rate?`<div class="s" style="color:var(--orange)">${WI}Tarifa pendiente o sin tarifa</div>`:''}</span><span class="v" style="text-align:right">${fmt(p.tot)}${pg?'<div class="s" style="color:var(--green)">Pagado</div>':''}</span>${chev}</button>`}).join('')}</div></div>`;
   if(ext.length)h+=`<div class="group">${gh('crew','Externos (se pagan aparte)')}<div class="list">${ext.map(x=>`<div class="cell"><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${sd(x.d)} · ${esc(x.time)} · ${esc(x.item)}</div>${x.note?`<div class="s">Se debe a: ${esc(x.note)}</div>`:`<div class="s" style="color:var(--orange)">${WI}Falta nota: ¿a quién se debe?</div>`}${extAlerts(x).map(a=>`<div class="s" style="color:var(--orange)">${WI}${esc(a)}</div>`).join('')}</span>${x.monto?`<span class="v">${fmt(x.monto)}</span>`:''}</div>`).join('')}</div></div>`;
   return h;
 },
 evrange(){
   const r=S.evp,d=r.data,dia=S.config.semana_pago;
-  let h=topBar('Eventuales',{lede:'Lo ganado y lo pagado en el periodo. Para pagar, elige una semana.'})+evChips(false)+`
-  <button type="button" class="srdate" data-evcal aria-label="Cambiar fechas del periodo">${svgI('cal',18)}<span>${evLabel(r.desde,r.hasta)}</span></button>
-  <p class="srnote">Incluye los días completos. Lo pagado cuenta por la fecha en que se pagó; si pagaste una semana que empezó antes, puede salir «pagado de más».</p>`;
+  let h=evHead();
   if(r.err)return h+`<div class="warn">${esc(r.err)} <button class="link" data-evgo>Reintentar</button></div>`;
   if(!d)return h+'<div class="empty">Calculando…</div>';
   if(!d.rows.length)return h+'<div class="group"><div class="list"><div class="empty">Sin salidas ni pagos en este periodo.</div></div></div>';
   const t=d.totals,pend=n=>n>0?`<span style="color:var(--orange)">Pendiente ${fmt(n)}</span>`:n<0?`<span style="color:var(--orange)">Pagado de más ${fmt(-n)}</span>`:'<span style="color:var(--green)">Al corriente</span>';
-  return h+`<section class="today"><div class="kpis" style="grid-template-columns:1.4fr 1fr 1fr"><div class="kpi"><div class="k">Ganado</div><div class="n">${fmt(t.ganado)}</div></div><div class="kpi"><div class="k">Pagado</div><div class="n">${fmt(t.pagado)}</div></div><div class="kpi"><div class="k">Pendiente</div><div class="n">${fmt(t.pendiente)}</div></div></div></section>
-  <div class="group"><div class="list evl">${d.rows.map(x=>`<div class="cell"><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${esc(x.roles.join(', ')||'Sin rol')} · ${evCount(x.dias,x.salidas)}</div><div class="s">Pagado ${fmt(x.pagado)} · ${pend(x.pendiente)}</div></span><span class="big">${fmt(x.ganado)}</span></div>`).join('')}
+  return h+evSumLine(evSummary('range',{ganado:t.ganado,pagado:t.pagado,pendiente:t.pendiente,fmt}),true)+`<div class="group"><div class="list evl">${d.rows.map(x=>`<div class="cell"><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${esc(x.roles.join(', ')||'Sin rol')} · ${evCount(x.dias,x.salidas)}</div><div class="s">Pagado ${fmt(x.pagado)} · ${pend(x.pendiente)}</div></span><span class="big">${fmt(x.ganado)}</span></div>`).join('')}
     <div class="cell"><span class="main"><span class="t"><b>Total</b></span><div class="s">${t.personas} ${t.personas===1?'persona':'personas'} · ${t.salidas} ${t.salidas===1?'salida':'salidas'}</div><div class="s">Pagado ${fmt(t.pagado)} · ${pend(t.pendiente)}</div></span><span class="big">${fmt(t.ganado)}</span></div></div></div>`;
 },
 person(name){
@@ -1939,11 +1973,21 @@ function srApply(){
 }
 // ===== Eventuales por periodo =====
 const evOk=()=>S.realRole==='admin'||can('pagar');
-function evChips(week){
-  if(!evOk())return '';
-  const on=evChip(S.evp,S.wk,TODAY,S.config.semana_pago);
-  return `<div class="chips sm" role="group" aria-label="Periodos rápidos">${EVP.map(([k,l])=>`<button type="button" class="chip" data-evp="${k}" aria-pressed="${on===k}">${l}</button>`).join('')}${week?`<button type="button" class="chip" data-evcal>${svgI('cal',16)} Fechas</button>`:''}</div>`;
+function evHead(){
+  const mode=evMode(S.evp),nb=(attr,l,ch,dis)=>`<button type="button" class="nx" ${attr} aria-label="${l}" ${dis?'disabled':''}>${ch}</button>`;
+  let a='',z='';
+  if(mode==='week'){a=nb('data-wk="-1"','Semana anterior','‹');z=nb('data-wk="1"','Semana siguiente','›')}
+  else if(mode==='month'){a=nb('data-evm="-1"','Mes anterior','‹');z=nb('data-evm="1"','Mes siguiente','›',evMonthShift(S.evp,1)[0]>TODAY)}
+  return topBar('Eventuales')+`<div class="evnav">${a}<button type="button" class="evpill" data-evpill aria-haspopup="dialog" aria-label="Cambiar periodo">${svgI('cal',18)}<span>${esc(evPill(S.evp,S.wk))}</span>${svgI('down',16)}</button>${z}</div>`+(mode==='week'?`<div class="live evpay">${evPayLine(S.wk)}</div>`:'<div class="evgap"></div>');
 }
+function evSumLine(s,info){
+  return `<section class="evsum"><span class="big">${fmt(s.big)}</span><span class="rest">${s.rest.map(r=>`<span class="evs${r.c?' '+r.c:''}">${esc(r.t)}</span>`).join(' · ')}</span>${info?`<button type="button" class="evi" data-evinfo aria-label="Cómo se calcula lo pagado">${svgI('info',16)}</button>`:''}</section>`;
+}
+function openEvPeriod(){
+  const o=evOptions(S.evp,S.wk,TODAY,S.config.semana_pago,evOk());
+  sheet('Periodo',`<div class="group"><div class="list">${o.map(x=>`<button type="button" class="cell" data-evpick="${x.k}" aria-pressed="${x.on}"><span class="main t">${x.l}</span>${x.on?svgI('check',18):''}</button>`).join('')}</div></div>`,{closeLabel:'Cerrar'});
+}
+function evMonth(n){const [a,b]=evMonthShift(S.evp,n);if(a>TODAY)return;S.evp={desde:a,hasta:b,data:null,err:'',tk:0};evFetch()}
 function evPick(k){
   const [a,b]=evPreset(k,TODAY,S.config.semana_pago);
   if(k==='sem'||k==='sempas'){S.evp=null;setWk(a);return}
@@ -2138,6 +2182,7 @@ document.addEventListener('click',e=>{
     const sd2=on('[data-scd]');if(sd2&&sc){Object.assign(sc,srPick(sc,sd2.dataset.scd));paintSrCal();return}
     const sn=on('[data-scnav]');if(sn&&sc){sc.m+=+sn.dataset.scnav;if(sc.m<0){sc.m=11;sc.y--}if(sc.m>11){sc.m=0;sc.y++}paintSrCal();return}
     if(on('[data-scok]')){srApply();return}
+    const ep=on('[data-evpick]');if(ep){closeSheet();if(ep.dataset.evpick==='fechas')openSrCal('ev');else evPick(ep.dataset.evpick);return}
     const ur=on('[data-urol]');if(ur&&uu&&!ur.disabled){uu.rol=ur.dataset.urol;document.querySelectorAll('[data-urol]').forEach(b=>b.setAttribute('aria-pressed',b===ur));return}
     const ua=on('[data-uact]');if(ua&&uu&&!ua.disabled){uu.activo=!uu.activo;ua.setAttribute('aria-checked',uu.activo);return}
     if(on('[data-upin]')&&uu){$('uPinBox').hidden=false;$('uPinRow').hidden=true;$('uPin').focus();return}
@@ -2150,7 +2195,9 @@ document.addEventListener('click',e=>{
     return;
   }
   if(on('[data-srcal]')&&S.sr){openSrCal();return}
-  if(on('[data-evcal]')){openSrCal('ev');return}
+  if(on('[data-evpill]')){openEvPeriod();return}
+  const em=on('[data-evm]');if(em){evMonth(+em.dataset.evm);return}
+  if(on('[data-evinfo]')){toast(EV_INFO,'',8000);return}
   const evb=on('[data-evp]');if(evb){evPick(evb.dataset.evp);return}
   if(on('[data-evgo]')){evFetch();return}
   if(on('[data-usersgo]')){usersFetch();return}

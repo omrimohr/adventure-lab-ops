@@ -71,7 +71,7 @@ test('round 17: client pay-period helpers — week chips follow semana_pago, mon
 test('round 17: UI wiring — week view stays the default; Pagar only in week mode; calendar sheet shared; server call', () => {
   const evFn = /\nev\(\)\{[\s\S]*?\n\},\nevrange/.exec(html)[0];
   assert.ok(/if\(S\.evp\)return V\.evrange\(\)/.test(evFn), 'range mode only when a period is picked');
-  assert.ok(evFn.indexOf('data-wk="-1"') > 0 && evFn.indexOf('Pago: ') > 0, 'week view untouched');
+  assert.ok(evFn.indexOf('evHead()') > 0 && evFn.indexOf('data-person') > 0 && /data-wk="-1"/.test(html), 'week view still lists people (header moved to evHead in round 18)');
   const rng = /\nevrange\(\)\{[\s\S]*?\n\},\nperson/.exec(html)[0];
   assert.ok(rng.indexOf('data-pay') < 0 && rng.indexOf('data-person') < 0, 'no pay buttons in a period view');
   assert.ok(/openSrCal\('ev'\)/.test(html) && /srv\('eventualesReport'/.test(html) && /srPick\(sc/.test(html));
@@ -180,7 +180,7 @@ test('round 17: no write path hardcodes a user name; only the first-run seed row
   const c = fs.readFileSync(path.join(__dirname, '..', 'docs', 'index.html'), 'utf8');
   assert.ok(!/por:'Omri'|by:'Omri'|usuario:'Omri'/.test(c.replace(/\/\/[^\n]*/g, '')), 'client optimistic rows use S.user');
 });
-test('round 17: APP_VER matches the service-worker CACHE (v14)', () => {
-  assert.ok(/const APP_VER='v14'/.test(html));
-  assert.ok(fs.readFileSync(path.join(__dirname, '..', 'docs', 'sw.js'), 'utf8').indexOf("const CACHE = 'al-ops-v14'") >= 0);
+test('round 17: APP_VER matches the service-worker CACHE', () => {
+  const v = /const APP_VER='(v\d+)'/.exec(html)[1];
+  assert.ok(fs.readFileSync(path.join(__dirname, '..', 'docs', 'sw.js'), 'utf8').indexOf("const CACHE = 'al-ops-" + v + "'") >= 0);
 });
