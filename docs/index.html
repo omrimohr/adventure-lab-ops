@@ -117,7 +117,7 @@ button.cell:active,.cell.tap:active,.drow:active{background:var(--fill)}
 .cell .t,.t{font-size:16px}
 .cell .s{font-size:12px;color:var(--ink2);margin-top:2px;overflow-wrap:anywhere}
 .cell .v{font-size:14px;font-variant-numeric:tabular-nums;color:var(--ink2);text-align:right;white-space:nowrap}
-.cell .v.neg,.neg{color:var(--red)}.cell .v.pos,.pos{color:var(--green)}
+.cell .v.neg,.neg{color:var(--red)}.cell .v.warn{color:var(--orange)}.cell .v.pos,.pos{color:var(--green)}
 .cell .big{font-size:16px;font-weight:500;color:var(--ink);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
 .cell .big small{display:block;font-size:12px;font-weight:400;color:var(--ink2)}
 .big.sm{font-size:16px}
@@ -524,7 +524,7 @@ const S={role:'op',realRole:'op',user:'',date:'',wk:'',
   perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},pend:[],salud:[],feedback:[],fbf:'nuevo',fbEdit:null,rebuildPending:false,fhOk:true,offline:false,dataAt:0,
   win:{from:'',to:''},fetchedAt:'',q:'',filter:'todas',fopen:false,config:{semana_inicio:'jueves',semana_pago:'jueves'}};
 let PIN='';
-const APP_VER='v12';   // = sufijo de CACHE en docs/sw.js ('al-ops-v12'); se manda con cada reporte
+const APP_VER='v13';   // = sufijo de CACHE en docs/sw.js ('al-ops-v13'); se manda con cada reporte
 
 // ===== Servidor =====
 // Servidor: Apps Script web app (misma URL que el webhook de FareHarbor). POST text/plain = sin preflight CORS.
@@ -784,6 +784,23 @@ function money2(gross,net,est,big){
   const g=(gross===null||gross===undefined||gross==='')?'—':fmt(gross);
   const n=net===undefined?'':net===null?'<span class="mn pend">neto pendiente</span>':`<span class="mn"><small>neto</small> ${fmt(net)}${est?' <em>est.</em>':''}</span>`;
   return `<span class="m2${big?' big':''}"><span class="mg">${g}</span>${n}</span>`;
+}
+// Detalle de dinero de una reserva (como en FareHarbor; solo muestra, no cambia el neto). Valores desconocidos (null/undefined) se ocultan; '—' solo en Subtotal/IVA.
+const PAYT={card:'tarjeta',affiliate:'afiliado','in-store':'mostrador',cash:'efectivo',transfer:'transferencia',check:'cheque',other:'otro'};
+function moneyRows(b){
+  const k=v=>v!==null&&v!==undefined&&v!==''&&isFinite(Number(v)),R=[];
+  R.push({l:'Subtotal',v:k(b.sub)?fmt(b.sub):'—'});
+  (b.disc||[]).forEach(x=>R.push({l:'Descuento · '+x.n+(x.code?' ('+x.code+')':''),v:fmt(x.v>0?-x.v:x.v)}));
+  (b.extra||[]).forEach(x=>R.push({l:'Cargo · '+x.n+(x.code?' ('+x.code+')':''),v:fmt(x.v)}));
+  R.push({l:'IVA',v:k(b.iva)?fmt(b.iva):'—'});
+  R.push({l:'Total',v:fmt(k(b.tot)?b.tot:(b.gross||0)),tot:true});
+  if(k(b.inv))R.push({l:'Invoice amount',v:fmt(b.inv)});
+  if(k(b.paid)){const ts=[];(b.pays||[]).forEach(x=>{const t=PAYT[x.t]||x.t;if(ts.indexOf(t)<0)ts.push(t)});R.push({l:'Pagado'+(ts.length?' · '+ts.join(' / '):''),v:fmt(b.paid)})}
+  if(k(b.refund)&&Number(b.refund)>0)R.push({l:'Reembolsado',v:fmt(b.refund)});
+  if(k(b.saldo)&&Math.abs(Number(b.saldo))>=0.005)R.push({l:'Saldo',v:fmt(b.saldo),cls:'warn'});
+  if(k(b.fee))R.push({l:'Comisión procesamiento',v:fmt(b.fee)});
+  if(k(b.net))R.push({l:'Neto',v:fmt(b.net)+' <span class="est">'+(b.est?'est.':'reporte')+'</span>',cls:'pos'});
+  return R;
 }
 // Caché local de getData (stale-while-revalidate): una clave por usuario (hash del PIN) y rango
 const strHash=s=>{let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return (h>>>0).toString(36)};
@@ -1719,8 +1736,7 @@ function openBooking(depId,pk){
   const tys=String(b.types||'').split(/,\s*(?=\d+×\s)/).map(x=>x.trim()).filter(Boolean);
   if(tys.length)h+=`<div class="group">${gh('bookings','Tipos')}<div class="list">${tys.map(x=>{const m=/^(\d+)×\s*(.*)$/.exec(x);return m?row(esc(m[2]),m[1]):row(esc(x),'')}).join('')}</div></div>`;
   h+=`<div class="group">${gh('tag','Canal')}<div class="list">${row(b.aff?'Afiliado':'Origen',esc(b.aff||b.src||'—'))}${b.by?row('Creada por',esc(b.by)):''}${b.created?row('Creada',esc(fdate(b.created.slice(0,10))+' '+b.created.slice(11)),''):''}</div></div>`;
-  const debe=r2((b.gross||0)-(b.paid||0));
-  h+=`<div class="group">${gh('costos','Pago')}<div class="list">${row('Total',fmt(b.gross||0))}${row('Pagado',fmt(b.paid||0))}${b.aff?(b.paid<b.gross?row('Se factura al afiliado','',''):''):debe>0.5?row('<b>Debe</b>',`<b>${fmt(debe)}</b>`,'neg'):''}</div></div>`;
+  h+=`<div class="group">${gh('costos','Pago')}<div class="list dlist">${moneyRows(b).map(x=>`<div class="cell c${x.tot?' tot':''}"><span class="main t">${x.tot?'<b>'+esc(x.l)+'</b>':esc(x.l)}</span><span class="v${x.cls?' '+x.cls:''}">${x.tot?'<b>'+x.v+'</b>':x.v}</span></div>`).join('')}</div></div>`;
   const dg=String(b.tel||'').replace(/\D/g,'');
   h+=`<div class="group">${gh('phone','Contacto')}<div class="list">${dg?`${row('Teléfono',esc(b.tel))}<div class="cbtns"><a class="gbtn wa" href="https://wa.me/${dg}" target="_blank" rel="noopener">WhatsApp</a><a class="gbtn" href="tel:+${dg}">Llamar</a></div>`:'<div class="empty">Sin teléfono.</div>'}</div></div>`;
   const cf=String(b.campos||'').split(' | ').filter(String);

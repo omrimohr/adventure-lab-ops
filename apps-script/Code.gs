@@ -32,13 +32,15 @@ const RES_HEADERS = ['Booking pk', 'Display ID', 'Estado', 'Cuenta', 'Reemplazad
   'Customer types', 'Contacto', 'Afiliado', 'Origen', 'Creada por', 'Nota', 'Total (MXN)', 'Pagado (MXN)',
   'Invoice (MXN)', 'Creada', 'Último evento', 'Booking uuid', 'Alerta pax', 'Fila Raw', 'Ingreso neto (MXN)', 'Fuente ingreso', 'Link FareHarbor',
   // round 6 (appended at the END): check-in "2 de 3", no-show count, "Adult:in|Adult:pending|Child:noshow", custom-field answers, phone
-  'Check-in', 'No show', 'Check-in detalle', 'Campos', 'Teléfono'];
+  'Check-in', 'No show', 'Check-in detalle', 'Campos', 'Teléfono',
+  // round 16 (appended at the END): money detail as FareHarbor shows it (display only; Ingreso neto is NOT derived from these)
+  'Subtotal (MXN)', 'IVA (MXN)', 'Descuentos', 'Cargos extra', 'Pagos', 'Reembolsado (MXN)', 'Comisión procesamiento (MXN)'];
 const SAL_HEADERS = ['Availability pk', 'Item pk', 'Item', 'Tipo tour', 'Fecha', 'Hora', 'Inicio', 'Fin',
   'Reservas activas', 'Pax', 'Unidades', 'Bitácora', 'Reserva salida', 'Reserva regreso', 'Tripulación',
   'Alertas', 'Actualizado', 'Ingreso neto (MXN)', 'Fuente ingreso', 'Recursos', 'Recursos pk',
   'Check-in', 'No show', // round 6: "in de total" over active customer bookings, no-show count
   'Recursos conocidos']; // round 14: 'sí' when at least one customer booking carries resource_uses (early short-form imports don't)
-const ING_HEADERS = ['Booking pk', 'Ingreso neto (MXN)', 'Fecha tour', 'Archivo', 'Subido', 'Fila reporte'];
+const ING_HEADERS = ['Booking pk', 'Ingreso neto (MXN)', 'Fecha tour', 'Archivo', 'Subido', 'Fila reporte', 'Comisión procesamiento']; // round 16: last column = report's Processing Fees ('' when the report has none)
 const CARGA_HEADERS = ['Subido', 'Archivo', 'Hash', 'Duplicado', 'Filas', 'Reservas encontradas', 'No encontradas',
   'Fechas', 'Notas'];
 const CTRL_HEADERS = ['Fecha', 'Día', 'Salidas', 'Reservas activas', 'Ingreso exacto', 'Ingreso estimado', 'Estado'];
@@ -563,8 +565,62 @@ function reservaRow_(b, eventTime, rawRow, tours, ing, M) {
     b.created_at || '', eventTime, b.uuid || '', p.alerta, rawRow || '',
     ...incomeCells_(b, status, ops, ing),
     b.dashboard_url || '', // 'Link FareHarbor' (older sheets get it on the next full rebuild)
-    ...(ops ? ['', '', '', '', phoneOf_(b)] : (k => [checkinText_(k.in, k.n), k.n ? k.ns : '', k.det, camposText_(b, M), phoneOf_(b)])(checkinSummary_(b, M)))
+    ...(ops ? ['', '', '', '', phoneOf_(b)] : (k => [checkinText_(k.in, k.n), k.n ? k.ns : '', k.det, camposText_(b, M), phoneOf_(b)])(checkinSummary_(b, M))),
+    ...moneyCells_(b, ops, ing)
   ];
+}
+
+// ---- round 16: money detail (display only) ----
+/** Pure: cents → MXN, '' when absent */
+function cents_(v) { return (v === undefined || v === null || v === '' || isNaN(Number(v))) ? '' : Number(v) / 100; }
+function amt_(n) { return String(Math.round(n * 100) / 100); }
+/** Pure: custom fields with a price → [{n, code, v (MXN, signed)}], booking and customer level */
+function pricedFields_(b) {
+  const out = [];
+  const add = v => {
+    const tc = v && v.total_cost;
+    const t = (tc && typeof tc === 'object') ? tc.total : tc;
+    if (t === undefined || t === null || t === '' || isNaN(Number(t)) || Number(t) === 0) return;
+    const dv = (v.display_value !== undefined && v.display_value !== null && v.display_value !== '') ? v.display_value : v.value;
+    out.push({ n: String(cfName_(v) || '').trim(), code: String(dv === undefined || dv === null ? '' : dv).replace(/\s+/g, ' ').trim(), v: Number(t) / 100 });
+  };
+  (b.custom_field_values || []).forEach(add);
+  (b.customers || []).forEach(c => (c.custom_field_values || []).forEach(add));
+  return out;
+}
+function pricedText_(list) {
+  return list.map(x => [x.n, x.code && x.code !== x.n ? x.code : '', amt_(x.v)].filter(y => y !== '').join(' · ')).join(' | ');
+}
+/** Pure: text 'Promo Last minute · TheYak10 · -85 | …' for discounts (total < 0) */
+function descuentosText_(b) { return pricedText_(pricedFields_(b).filter(x => x.v < 0)); }
+/** Pure: same for surcharges (total > 0), e.g. 'Card processing fee (4%) · 12.5' */
+function cargosText_(b) { return pricedText_(pricedFields_(b).filter(x => x.v > 0)); }
+/** Pure: 'card 583 | affiliate 765 | reembolso -100' ('' when the payload has no payments key) */
+function pagosText_(b) {
+  if (!Array.isArray(b.payments)) return '';
+  const out = [];
+  b.payments.forEach(p => {
+    let t = String(p.type || '').trim();
+    const isp = p.in_store_payment_type;
+    const ist = isp && typeof isp === 'object' ? (isp.name || isp.type || isp.short_name || '') : (isp || '');
+    if (t === 'in-store' && ist) t = String(ist).trim();
+    out.push((t || 'pago') + ' ' + amt_(Number(p.amount_paid || 0) / 100));
+    (p.refunds || []).forEach(r => out.push('reembolso -' + amt_(Math.abs(Number(r.amount || 0)) / 100)));
+  });
+  return out.join(' | ');
+}
+/** Pure: total refunded (MXN, positive); '' when the payload has no payments key */
+function reembolsadoTotal_(b) {
+  if (!Array.isArray(b.payments)) return '';
+  let t = 0;
+  b.payments.forEach(p => (p.refunds || []).forEach(r => { t += Math.abs(Number(r.amount || 0)); }));
+  return t / 100;
+}
+/** Pure: the 7 appended Reservas cells; fee comes from the Comercial report (ing['fee:' + pk]) */
+function moneyCells_(b, ops, ing) {
+  const fee = ing && ing['fee:' + b.pk];
+  return [cents_(b.receipt_subtotal), cents_(b.receipt_taxes), descuentosText_(b), cargosText_(b), pagosText_(b), reembolsadoTotal_(b),
+    (ops || fee === undefined) ? '' : fee];
 }
 
 // [Ingreso neto, Fuente]: exact from report (no label) or estimate
@@ -720,8 +776,12 @@ function loadIngresos_(ss) {
   const sh = ss.getSheetByName('Ingresos');
   const map = {};
   if (!sh || sh.getLastRow() < 2) return map;
-  sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues().forEach(r => {
-    if (r[0] !== '' && r[1] !== '') map[String(r[0])] = Number(r[1]);
+  const n = Math.max(2, Math.min(sh.getLastColumn(), ING_HEADERS.length));
+  sh.getRange(2, 1, sh.getLastRow() - 1, n).getValues().forEach(r => {
+    if (r[0] !== '' && r[1] !== '') {
+      map[String(r[0])] = Number(r[1]);
+      if (r[6] !== undefined && r[6] !== '' && !isNaN(Number(r[6]))) map['fee:' + String(r[0])] = Number(r[6]); // round 16: latest import with a fee wins
+    }
   });
   return map;
 }
@@ -761,9 +821,9 @@ function parseCsv_(text) {
   return rows.filter(r => r.some(c => String(c).trim() !== ''));
 }
 
-/** rows (2D) → {lines:[{id, net, line}], error} */
+/** rows (2D) → {lines:[{id, net, fee (null without a 'Processing Fees' column / empty cell), line}], hasFee, error} */
 function parseReport_(rows) {
-  let h = -1, netCol = -1, idCol = -1;
+  let h = -1, netCol = -1, idCol = -1, feeCol = -1;
   for (let i = 0; i < Math.min(rows.length, 15) && h < 0; i++) {
     const r = rows[i].map(c => String(c).trim());
     const n = r.findIndex(c => /net revenue collected/i.test(c));
@@ -774,14 +834,15 @@ function parseReport_(rows) {
   const idTests = [/^#$/, /^booking\s*(#|id|number|pk)$/i, /^(id|pk)$/i, /^booking$/i, /booking.*(#|id)/i];
   for (const t of idTests) { idCol = hdr.findIndex(c => t.test(c)); if (idCol >= 0) break; }
   if (idCol < 0) return { lines: [], error: 'No encontré la columna del número de reserva (#, Booking ID…)' };
+  feeCol = hdr.findIndex(c => /processing\s*fee/i.test(c));
   const lines = [];
   for (let i = h + 1; i < rows.length; i++) {
     const id = String(rows[i][idCol] || '').replace(/\D/g, '');
     const net = parseMoney_(rows[i][netCol]);
     if (!id || net === null) continue; // totals / blank lines
-    lines.push({ id: id, net: net, line: i + 1 });
+    lines.push({ id: id, net: net, fee: feeCol >= 0 ? parseMoney_(rows[i][feeCol]) : null, line: i + 1 });
   }
-  return { lines: lines, error: '' };
+  return { lines: lines, hasFee: feeCol >= 0, error: '' };
 }
 
 function importReport_(ss, input, archivo) {
@@ -808,18 +869,22 @@ function importReport_(ss, input, archivo) {
   rv.forEach((r, i) => { idx[String(r[0])] = i; const d = String(r[1]).replace(/\D/g, ''); if (d && idx[d] === undefined) idx[d] = i; });
 
   // Sum lines per booking (a report can list one line per customer)
-  const sums = {}, count = {}, firstLine = {};
+  const sums = {}, count = {}, firstLine = {}, fees = {};
   const missing = [];
   p.lines.forEach(l => {
     const i = idx[l.id];
     if (i === undefined) { missing.push(l.id); return; }
     const pk = String(rv[i][0]);
     sums[pk] = (sums[pk] || 0) + l.net; count[pk] = (count[pk] || 0) + 1;
+    if (l.fee !== null && l.fee !== undefined) fees[pk] = (fees[pk] || 0) + l.fee; // round 16: Processing Fees summed per booking like net
     if (!firstLine[pk]) firstLine[pk] = l.line;
   });
   const pks = Object.keys(sums);
-  const ingRows = pks.map(pk => [Number(pk), Math.round(sums[pk] * 100) / 100, rv[idx[pk]][9], archivo, now, firstLine[pk]]);
+  const ingRows = pks.map(pk => [Number(pk), Math.round(sums[pk] * 100) / 100, rv[idx[pk]][9], archivo, now, firstLine[pk], fees[pk] === undefined ? '' : Math.round(fees[pk] * 100) / 100]);
   const ingSh = sheet_(ss, 'Ingresos', ING_HEADERS);
+  if (ingSh.getRange(1, ING_HEADERS.length).getValue() !== ING_HEADERS[ING_HEADERS.length - 1]) { // older sheet: add the fee column header
+    ingSh.getRange(1, ING_HEADERS.length).setValue(ING_HEADERS[ING_HEADERS.length - 1]).setFontWeight('bold');
+  }
   if (ingRows.length) ingSh.getRange(ingSh.getLastRow() + 1, 1, ingRows.length, ING_HEADERS.length).setValues(ingRows);
 
   // Update Reservas income cells + recompute touched departures
@@ -830,6 +895,7 @@ function importReport_(ss, input, archivo) {
     const i = idx[pk], r = rv[i];
     const cells = (r[3] === 'sí' && !r[13]) ? [ing[pk], ''] : [0, ''];
     res.getRange(i + 2, 31, 1, 2).setValues([cells]);
+    if (ing['fee:' + pk] !== undefined && r[3] === 'sí' && !r[13]) res.getRange(i + 2, RES_HEADERS.length).setValue(ing['fee:' + pk]);
     if (r[6]) avs[String(r[6])] = true;
     if (r[9]) fechas[fmtCell_(r[9])] = true;
   });
@@ -1825,4 +1891,4 @@ function sheet_(ss, name, headers) {
 if (typeof module !== 'undefined') module.exports = { ctKey_, cfKey_, roleKey_, guessCtype_, guessFieldUso_, guessRolTarifa_, camposMap_, typeUso_, fieldUso_, bitUso_, crewTarifa_,
   reportFileName_, archiveReport_, mapeosFromRows_, observe_, collectUnknowns_, seedMapeos_, validateMapeo_, toursFromRows_, tourEstado_, TOURS_SEED_ROWS: TOURS_SEED, USOS_CT, USOS_CF,
   CT_HEADERS, CF_HEADERS, ROL_HEADERS, CREW_HEADERS, BIT_HEADERS, ESTADO_NUEVO, ESTADO_OK, rawRowFor_, doPost, rebuildFinanzas, rebuildAll, ensureMapeos_, loadMapeos_,
-  registerUnknowns_, prepararMapeos, parseCostos_, costoAdicionalText_, EXT_HEADERS, COSTO_HEADERS, bitacoraNoAplica_, bitacoraRuleStale_, markBitacoraSi_, BITACORA_RULE_V, checkinOf_, checkinSummary_, checkinText_, parseCheckin_, camposText_, phoneOf_, reservaRow_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payDow_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };
+  registerUnknowns_, prepararMapeos, parseCostos_, costoAdicionalText_, EXT_HEADERS, COSTO_HEADERS, bitacoraNoAplica_, bitacoraRuleStale_, markBitacoraSi_, BITACORA_RULE_V, checkinOf_, checkinSummary_, checkinText_, parseCheckin_, camposText_, phoneOf_, reservaRow_, importReport_, loadIngresos_, moneyCells_, pricedFields_, descuentosText_, cargosText_, pagosText_, reembolsadoTotal_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payDow_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };

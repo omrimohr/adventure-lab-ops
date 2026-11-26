@@ -315,6 +315,24 @@ function ciFrom_(text, ns, det) {
   const k = parseCheckin_(text); if (!k) return null;
   return { in: k.in, n: k.n, ns: Number(ns) || 0, det: String(det || '').split('|').filter(String).map(x => { const i = x.lastIndexOf(':'); return { t: x.slice(0, i), s: x.slice(i + 1) }; }) };
 }
+/** Pure: money detail of a Reservas row (round 16, display only). Unknown values are null; arrays are compact. */
+function moneyFrom_(r) {
+  const num = v => (v === '' || v === null || v === undefined || isNaN(Number(v))) ? null : r2_(Number(v));
+  const tot = num(r[22]), paid = num(r[23]);
+  const parse = t => String(t || '').split(' | ').filter(String).map(x => {
+    const p = x.split(' · '), v = Number(p[p.length - 1]);
+    return p.length < 2 || isNaN(v) ? null : { n: p[0], code: p.length > 2 ? p.slice(1, -1).join(' · ') : '', v: v };
+  }).filter(Boolean);
+  const pays = String(r[42] || '').split(' | ').filter(String).map(x => {
+    const i = x.lastIndexOf(' '), v = Number(x.slice(i + 1));
+    return i < 0 || isNaN(v) ? null : { t: x.slice(0, i), v: v };
+  }).filter(x => x && x.t !== 'reembolso');
+  return {
+    sub: num(r[38]), iva: num(r[39]), tot: tot, inv: num(r[24]), paid: paid,
+    saldo: tot !== null && paid !== null ? r2_(tot - paid) : null,
+    disc: parse(r[40]), extra: parse(r[41]), pays: pays, refund: num(r[43]), fee: num(r[44])
+  };
+}
 function buildDeps_(inp) {
   const group = (rows, col) => { const m = {}; rows.forEach(r => { const k = String(r[col]); (m[k] = m[k] || []).push(r); }); return m; };
   const inWin = windowTest_(inp.desde, inp.hasta);
@@ -341,14 +359,14 @@ function buildDeps_(inp) {
       if (x) return { n: n, r: roleLabel_(c[4]), nt: nt, ext: true, note: String(x[6] || ''), monto: x[8] === '' || x[8] === undefined ? null : r2_(x[8]), pay: { base: 0, hx: 0, tot: 0 }, alert: String(x[7] || '') };
       return { n: n, r: roleLabel_(c[4]), nt: nt, pay: { base: 0, hx: 0, tot: 0 }, alert: '' };
     });
-    const bookings = (resBy[pk] || []).filter(r => r[3] === 'sí' && !r[13]).sort((a, b) => Number(a[0]) - Number(b[0])).map(r => ({
+    const bookings = (resBy[pk] || []).filter(r => r[3] === 'sí' && !r[13]).sort((a, b) => Number(a[0]) - Number(b[0])).map(r => Object.assign({
       id: String(r[1] || r[0]), name: String(r[17] || ''), pax: numOr_(r[14], 0), types: String(r[16] || ''),
       gross: r2_(numOr_(r[22], 0)), // FareHarbor receipt total (Reservas 'Total (MXN)'); cancelled and OPS bookings are filtered out above
       net: r[30] === '' || r[30] === null ? null : Number(r[30]), est: r[31] === 'estimado', alert: String(r[28] || ''),
       url: String(r[32] || ''), // FareHarbor dashboard link of the booking ('' until the Reservas rebuild fills it)
       pk: String(r[0]), note: String(r[21] || ''), paid: r2_(numOr_(r[23], 0)), aff: String(r[18] || ''), src: String(r[19] || ''), by: String(r[20] || ''),
       created: r[25] ? fmtDate_(r[25], 'yyyy-MM-dd HH:mm') : '', ci: ciFrom_(r[33], r[34], r[35]), campos: String(r[36] || ''), tel: String(r[37] || '')
-    }));
+    }, moneyFrom_(r)));
     const firstUrl = list => { for (let i = 0; i < list.length; i++) if (urls[list[i]]) return urls[list[i]]; return ''; };
     const k = costBy[pk];
     const barco = inp.barcos[String(s[1])] || '';
@@ -1143,7 +1161,7 @@ function setFeedbackEstado(pin, id, estado, nota) {
 
 if (typeof module !== 'undefined') module.exports = {
   pinStr_, findUser_, permsFromRows_, permOk_, guessIcon_, buildItems_, groupCompras_, lastCostFrom_, priceLogFrom_, buildMoves_, stockMap_, countDiffs_,
-  cleanLines_, slugId_, rateLabel_, buildRates_, latestRevs_, roleLabel_, bitQty_, extrasText_, ciFrom_, buildDeps_, buildPend_, fieldsFromBookings_, saludAlerts_, setMapeo, planTarifasMigration_, pluralEs_, appendNote_,
+  cleanLines_, slugId_, rateLabel_, buildRates_, latestRevs_, roleLabel_, bitQty_, extrasText_, ciFrom_, buildDeps_, moneyFrom_, buildPend_, fieldsFromBookings_, saludAlerts_, setMapeo, planTarifasMigration_, pluralEs_, appendNote_,
   login, getData, refreshFin, windowTest_, staleFin_, addCompra, anularCompra, editCompra, addAjuste, addConteo, addComida, markPaid, markRev, saveProducto, saveTarifa, savePerm, saveTourBarco, setConfig, validateConfig_, configFromRows_, migrate20261124, stockReport_, stockReport, loadMoves_, cidRow_, cidOf_, ensureCidCol_,
   normFeedback_, feedbackFileName_, feedbackFromRows_, validEstado_, addFeedback, setFeedbackEstado, FEEDBACK_HEADERS
 };

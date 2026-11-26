@@ -50,19 +50,19 @@ test('camposText_: non-bitácora answers only; excludes OPS customers and Uso pr
 
 test('reservaRow_ appends Check-in / No show / Check-in detalle / Campos / Teléfono at the END (OPS rows: blank except phone)', () => {
   const H = E.RES_HEADERS, n = H.length;
-  assert.deepStrictEqual(J(H.slice(-5)), ['Check-in', 'No show', 'Check-in detalle', 'Campos', 'Teléfono']);
+  assert.deepStrictEqual(J(H.slice(-12, -7)), ['Check-in', 'No show', 'Check-in detalle', 'Campos', 'Teléfono']);
   assert.strictEqual(H.indexOf('Link FareHarbor'), 32, 'earlier columns did not move');
   const p = bk(7010, 9400, [cu(100, 'Adult', { type: 'checked-in' }), cu(100, 'Adult', null), cu(100, 'Adult', { name: 'No show' })]); p.booking.contact.normalized_phone = '+529831112233'; p.booking.contact.phone = '983 111 2233';
   p.booking.custom_field_values = [F.cfv(555, 'Hotel', 'Magic')];
   const row = J(E.reservaRow_(p.booking, 'now', 5, { 258806: { tipo: 'compartido', fields: [] } }, {}, null));
   assert.strictEqual(row.length, n);
-  assert.deepStrictEqual(row.slice(-5), ['1 de 3', 1, 'Adult:in|Adult:pending|Adult:noshow', 'Hotel: Magic', '+529831112233']);
+  assert.deepStrictEqual(row.slice(-12, -7), ['1 de 3', 1, 'Adult:in|Adult:pending|Adult:noshow', 'Hotel: Magic', '+529831112233']);
   const p2 = bk(7011, 9400, [cu(100, 'Adult', null)]); p2.booking.contact.phone = '983 999 0000';
-  assert.strictEqual(J(E.reservaRow_(p2.booking, 'now', 5, { 258806: { tipo: 'compartido', fields: [] } }, {}, null)).pop(), '983 999 0000', 'phone falls back to contact.phone');
+  assert.strictEqual(J(E.reservaRow_(p2.booking, 'now', 5, { 258806: { tipo: 'compartido', fields: [] } }, {}, null)).slice(-8)[0], '983 999 0000', 'phone falls back to contact.phone');
   const o = bk(7012, 9400, [cu(1331886, 'OPS · Salida', { type: 'checked-in' })]);
-  assert.deepStrictEqual(J(E.reservaRow_(o.booking, 'now', 5, {}, {}, null)).slice(-5), ['', '', '', '', '']);
+  assert.deepStrictEqual(J(E.reservaRow_(o.booking, 'now', 5, {}, {}, null)).slice(-12, -7), ['', '', '', '', '']);
   const none = bk(7013, 9400, [cu(100, 'Adult', null)]);
-  assert.deepStrictEqual(J(E.reservaRow_(none.booking, 'now', 5, { 258806: { tipo: 'compartido', fields: [] } }, {}, null)).slice(-5), ['0 de 1', 0, 'Adult:pending', '', '']);
+  assert.deepStrictEqual(J(E.reservaRow_(none.booking, 'now', 5, { 258806: { tipo: 'compartido', fields: [] } }, {}, null)).slice(-12, -7), ['0 de 1', 0, 'Adult:pending', '', '']);
 });
 
 test('headers + rule version: Salidas ends with Check-in / No show; BITACORA_RULE_V is 5', () => {
@@ -108,10 +108,10 @@ test('end to end: webhook → Reservas/Salidas check-in columns, alert "No show:
 test('old sheets without the new columns: header repaired and rebuild pending on the next webhook (never lost)', () => {
   const e = env();
   e.post(bk(7201, 9401, [cu(100, 'Adult', null)])); e.G.ex.ensureMapeos_(e.ss); e.G.ex.rebuildAll();
-  const H = N.ex.RES_HEADERS, rs = e.ss.getSheetByName('Reservas'); rs._d.rows[0] = H.slice(0, H.length - 5); delete e.fe.props.REBUILD_PENDING;
+  const H = N.ex.RES_HEADERS, rs = e.ss.getSheetByName('Reservas'); rs._d.rows[0] = H.slice(0, H.length - 12); delete e.fe.props.REBUILD_PENDING;
   e.post(bk(7202, 9401, [cu(100, 'Adult', { type: 'checked-in' })]));
   assert.strictEqual(e.fe.props.REBUILD_PENDING, '1');
-  assert.strictEqual(e.ss.getSheetByName('Reservas')._d.rows[0][H.length - 1], 'Teléfono');
+  assert.strictEqual(e.ss.getSheetByName('Reservas')._d.rows[0][H.length - 1], H[H.length - 1]);
   assert.strictEqual(e.rows('Raw').length, 2, 'Raw untouched / append-only');
 });
 
@@ -159,7 +159,7 @@ test('app: booking sheet section order is exactly Check-in · Tipos · Canal · 
   assert.ok(order.every(i => i > 0) && order.every((x, i) => !i || x > order[i - 1]), 'order ' + order);
   assert.ok(fn.indexOf('class="bkh"') < order[0], 'header first');
   assert.ok(/https:\/\/wa\.me\/\$\{dg\}/.test(fn) && /href="tel:\+\$\{dg\}"/.test(fn) && /fhA\(fhBookUrl/.test(fn));
-  assert.ok(/Debe/.test(fn));
+  assert.ok(/moneyRows\(b\)/.test(fn)); // round 16: the Pago group is the money block (Saldo replaces Debe)
   assert.ok(/b\.note\?`<span class="ni"/.test(html), 'note icon only when the booking has a note');
   assert.ok(/data-bk=/.test(html) && /const bkr=on\('\[data-bk\]'\)/.test(html));
   assert.ok(/'al-ops-v(?:[4-9]|\d\d+)'/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'sw.js'), 'utf8')), 'CACHE bumped');

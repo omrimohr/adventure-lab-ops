@@ -120,6 +120,11 @@ function decorate(deps){
       b.created=addDays(-3-(i%4))+' 1'+(k+1)+':2'+(i%6);
       b.tel=(i%7===3)?'':'+52 983 '+(100+i*13)+' '+(2000+i*37+k);
       b.campos=(k===0&&i%2===0)?'Hotel: Magic Bacalar | Alergias: nueces | Talla chaleco: M ×2':'';
+      // round 16: money detail (as FareHarbor shows it). Defaults: IVA 16% included; i%7===1 (k===0) gets a discount + card fee, i%7===4 a surcharge + partial payment.
+      b.tot=b.gross;b.inv=b.gross;b.sub=Math.round(b.gross/1.16*100)/100;b.iva=Math.round((b.gross-b.sub)*100)/100;b.disc=[];b.extra=[];b.refund=0;b.fee=null;
+      b.pays=[{t:b.aff?'affiliate':'card',v:b.paid}];b.saldo=Math.round((b.tot-b.paid)*100)/100;
+      if(i%7===1&&k===0){b.disc=[{n:'Promo Last minute',code:'TheYak10',v:-85}];b.fee=Math.round(b.paid*.04*100)/100;b.refund=100;b.pays.push({t:'cash',v:150})}
+      if(i%7===4&&k===0){b.extra=[{n:'Card processing fee (4%)',code:'',v:Math.round(b.gross*.04*100)/100}];b.fee=Math.round(b.gross*.04*100)/100}
     });
     d.ci=dt?{in:dn,n:dt,ns:dns}:null;if(dns)d.alerts='No show: '+dns;
   });
