@@ -56,7 +56,7 @@ test('weekStartOf: report weeks start Thursday (default) or Monday; the pay week
 });
 test('app: srPreset uses the config, setConfig wiring + Ajustes screen, sw CACHE bumped', () => {
   assert.ok(/weekStartOf\(TODAY,S\.config&&S\.config\.semana_inicio\)/.test(html), 'presets read the setting');
-  assert.ok(/srv\('setConfig'/.test(html) && /ajustes\(\)\{/.test(html) && /data-view="\$\{view\}"|data-view="ajustes"|row\('ajustes'/.test(html));
+  assert.ok(/srv\('setConfigAvanzada'/.test(html) && /ajustes\(\)\{/.test(html) && /data-view="\$\{view\}"|data-view="ajustes"|row\('ajustes'/.test(html));
   assert.ok(/'al-ops-v([6-9]|\d{2,})'/.test(fs.readFileSync(path.join(__dirname, '..', 'docs', 'sw.js'), 'utf8')));
 });
 test('design tokens: Arena · salvia light + dark, Lora loaded, no turquoise, no 34pt title, weights 400/500 only', () => {

@@ -109,10 +109,9 @@ test('app wkStart(d, dia): follows semana_pago (default jueves); weekStartOf (st
 });
 test('Ajustes screen: Apariencia (Automático | Claro | Oscuro), pay-week chips with confirm sheet, "Semana del reporte de stock"', () => {
   assert.ok(/data-theme-set="\$\{k\}"/.test(html) && /\['auto','Automático'\],\['light','Claro'\],\['dark','Oscuro'\]/.test(html));
-  assert.ok(/Semana de pago de eventuales: empieza el/.test(html) && /data-payw=/.test(html));
-  assert.ok(/Semana del reporte de stock/.test(html));
-  assert.ok(/Cambia cómo se agrupan las semanas de pago\. Los pagos ya hechos se quedan con su fecha\./.test(html), 'confirm text');
-  assert.ok(/askPayWeek/.test(html) && /okLabel:'Cambiar'/.test(html));
+  // round 27: the week settings moved to Más › Configuración avanzada › Reglas generales (locked with the code)
+  assert.ok(!/data-payw=/.test(html) && !/askPayWeek/.test(html) && /Semana de pago de eventuales/.test(html) && /data-cfgedit=/.test(html) && /Semana del reporte de stock/.test(html));
+  assert.ok(/Cambia cómo se agrupan Eventuales, Resumen semanal y Pagos/.test(html), 'rule text');
   assert.ok(/wkStart\(S\.wk\|\|TODAY,S\.config\.semana_pago\)/.test(html));
   assert.ok(!/SIEMPRE jueves|Se paga los jueves/.test(html));
 });

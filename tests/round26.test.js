@@ -5,8 +5,9 @@ const ROOT = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(ROOT, 'docs/index.html'), 'utf8'), sw = fs.readFileSync(path.join(ROOT, 'docs/sw.js'), 'utf8');
 const N = loadNew(), E = N.ex;
 
-test('APP_VER = CACHE = v23', () => {
-  assert.ok(/const APP_VER='v23'/.test(html) && sw.indexOf("const CACHE = 'al-ops-v23'") >= 0);
+test('APP_VER = CACHE (>= v23)', () => {
+  const v = /const APP_VER='(v\d+)'/.exec(html)[1];
+  assert.ok(sw.indexOf("const CACHE = 'al-ops-" + v + "'") >= 0 && Number(v.slice(1)) >= 23);
 });
 
 // ---- backTarget (pure) ----

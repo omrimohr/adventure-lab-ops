@@ -198,7 +198,7 @@ button.live{width:100%;background:none;border:0;font:inherit;font-size:12px;colo
 .tab svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .tab[aria-current="page"]{color:var(--acc)}
 .tab .bdg{position:absolute;top:4px;left:calc(50% + 8px);min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--badge);color:#fff;font-size:11px;font-weight:500;line-height:16px;text-align:center;font-variant-numeric:tabular-nums}
-.chipsel[hidden],.chips[hidden],.group[hidden]{display:none}
+.chipsel[hidden],.chips[hidden],.group[hidden],.cell[hidden]{display:none}
 /* Sheet */
 .scrim{position:fixed;inset:0;background:var(--scrim);z-index:20;display:flex;align-items:flex-end;justify-content:center}
 #pickRoot .scrim{z-index:25}
@@ -548,10 +548,10 @@ const TYPES=[['ponton','Pontón'],['catamaran','Catamarán'],['monocasco','Monoc
 const RB={'Capitán':'Cap.','Marinero':'Mar.','Instructor':'Inst.','Auxiliar':'Aux.','Guía':'Guía'};
 const rb=r=>RB[r]||(r.length>5?r.slice(0,4)+'.':r);
 const S={role:'op',realRole:'op',user:'',date:'',wk:'',
-  perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},pend:[],salud:[],feedback:[],conceptos:[],staff:[],fbf:'nuevo',fbEdit:null,evp:null,users:null,usersErr:'',rebuildPending:false,fhOk:true,offline:false,dataAt:0,
+  perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},pend:[],salud:[],feedback:[],conceptos:[],staff:[],cfgAv:false,cfg:{tok:'',exp:0,est:null,d:null,next:null},fbf:'nuevo',fbEdit:null,evp:null,users:null,usersErr:'',rebuildPending:false,fhOk:true,offline:false,dataAt:0,
   win:{from:'',to:''},fetchedAt:'',q:'',filter:'todas',fopen:false,canc:'dinero',czero:'',config:{semana_inicio:'jueves',semana_pago:'jueves'}};
 let PIN='';
-const APP_VER='v23';   // = sufijo de CACHE en docs/sw.js ('al-ops-v23'); se manda con cada reporte
+const APP_VER='v24';   // = sufijo de CACHE en docs/sw.js ('al-ops-v24'); se manda con cada reporte
 
 // ===== Servidor =====
 // Servidor: Apps Script web app (misma URL que el webhook de FareHarbor). POST text/plain = sin preflight CORS.
@@ -584,7 +584,7 @@ let lastLoad=Date.now(),finBusy=false,finLast=0;
 function applyData(d,at){lastLoad=Date.now();S.dataAt=at||Date.now();S.fhOk=d.fhOk!==false;
   ['items','purchases','moves','priceLog','deps','rates','paid','weekly','externos','control','tours','comidas','fh','pend','salud','rebuildPending'].forEach(k=>{S[k]=d[k]});
   S.pend=d.pend||[];S.salud=d.salud||[];S.feedback=d.feedback||[];S.conceptos=d.conceptos||[];S.staff=d.staff||[];S.config=Object.assign({semana_inicio:'jueves',semana_pago:'jueves'},d.config||{});S.rebuildPending=!!d.rebuildPending;
-  S.perms=d.perms;S.realRole=d.user.rol;S.user=d.user.nombre;
+  S.perms=d.perms;S.realRole=d.user.rol;S.user=d.user.nombre;S.cfgAv=!!d.user.cfgAv;
   if(S.realRole!=='admin'||!S.date)S.role=S.realRole;
   TODAY=d.today;NOW=d.now;S.clk={today:d.today,now:d.now,at:Date.now()};S.fetchedAt=d.now;S.win={from:d.desde,to:d.hasta};
   if(!S.date)S.date=TODAY;S.wk=wkStart(S.wk||TODAY,S.config.semana_pago);
@@ -1170,12 +1170,28 @@ function extCompact(note){
   const parts=String(note||'').split(/\r?\n|\s*[–—]\s*|\s+-\s+|\s*-\s*(?=\$)/).map(x=>x.replace(/\(\s*extern[oa]\s*\)/ig,'').replace(/\s+/g,' ').trim()).filter(Boolean);
   return parts.filter(x=>!(/\$|pesos|mxn/i.test(x)||/^[\d.,\s]+$/.test(x))).join(' · ');
 }
-const SCREENS={conceptos:'Conceptos',usuarios:'Usuarios',dep:'Detalle de salida',pend:'Por configurar',fh:'Conexión FareHarbor',feedback:'Feedback',fbd:'Reporte',productos:'Productos',tarifas:'Tarifas eventuales',tours:'Items',permisos:'Permisos',ajustes:'Ajustes',item:'Producto',purchase:'Compra',movs:'Movimientos',person:'Eventual',role:'Permisos'};
+const SCREENS={cfgav:'Configuración avanzada',cfgsec:'Configuración avanzada',conceptos:'Conceptos',usuarios:'Usuarios',dep:'Detalle de salida',pend:'Por configurar',fh:'Conexión FareHarbor',feedback:'Feedback',fbd:'Reporte',productos:'Productos',tarifas:'Tarifas eventuales',tours:'Items',permisos:'Permisos',ajustes:'Ajustes',item:'Producto',purchase:'Compra',movs:'Movimientos',person:'Eventual',role:'Permisos'};
 const screenName=(tab,view,tabs)=>view?(SCREENS[view]||view):((tabs||{})[tab]||tab);
 const fbContext=(screen,date,user,ver)=>'Se envía con: pantalla '+screen+' · '+date+' · '+user+' · versión '+ver;
 function fbPayload(f,ctx){return {cid:ctx.cid,tipo:f.tipo==='Sugerencia'?'Sugerencia':'Error',texto:String(f.texto||'').trim(),pantalla:ctx.screen,fecha:ctx.date,version:ctx.ver,img:f.img||''}}
 // Round 26: destino del botón ‹ (data-back / data-backview / data-backarg); la vista con id (p. ej. Eventuales › persona) recupera su id
 const backTarget=ds=>({tab:ds.back||'',sv:ds.backview?(ds.backarg!==undefined&&ds.backarg!==''?{name:ds.backview,arg:ds.backarg}:{name:ds.backview}):null});
+// --- Configuración avanzada (ronda 27) ---
+const CFG_FIELD={tipos:'uso',roles:'tarifa',config:'valor'};
+const cfgCode6=c=>/^\d{6}$/.test(String(c==null?'':c));
+const cfgOk=(c,now)=>!!(c&&c.tok&&c.exp>now);
+// qué cambió entre la fila original (o) y lo elegido (v) → [[campo,valor]] (una llamada al servidor por campo)
+function cfgChanges(sec,o,v){
+  const t=x=>String(x==null?'':x);
+  if(sec==='items')return ['tipo','barco','fields','estado'].filter(k=>t(o[k])!==t(v[k])).map(k=>[k,t(v[k])]);
+  const r=[];
+  if(sec==='campos'){const f=x=>x.uso==='producto'?'producto:'+t(x.prod):t(x.uso);if(f(o)!==f(v))r.push(['uso',f(v)]);if(o.estado!==v.estado)r.push(['estado',v.estado]);return r}
+  const k=CFG_FIELD[sec];if(!k)return r;
+  if(t(o[k])!==t(v[k]))r.push([k,t(v[k])]);
+  if(sec!=='config'&&o.estado!==v.estado)r.push(['estado',v.estado]);
+  return r;
+}
+const cfgSecOf=kind=>({tipo:'tipos',campo:'campos',rol:'roles',item:'items'}[kind]||'');
 // ==PURE-END==
 try{S.filter=depFilter(localStorage.getItem('adv_ops_depfilter')||'todas').key}catch(e){} // último filtro usado
 try{S.canc=cancMode(localStorage.getItem('adv_ops_canc'))}catch(e){} // Ajustes › Canceladas (por dispositivo)
@@ -1494,7 +1510,7 @@ mas(){
     ${row('tours','boat','Items','Tipo de barco de cada item')}
     ${row('permisos','shield','Permisos',`${ROLES.length} roles`)}
     ${adm?row('usuarios','users','Usuarios',S.users?`${S.users.filter(u=>u.activo).length} activos`:'Agregar y editar quién entra'):''}
-    ${adm?row('conceptos','tag','Conceptos',`Ajustes de pago y costos de salida · ${(S.conceptos||[]).filter(c=>c.a).length} activos`):''}
+    ${adm&&S.cfgAv?row('cfgav','lock','Configuración avanzada','Con código · items, campos, roles, conceptos y reglas'):''}
     ${adm?row('ajustes','sliders','Ajustes',`Apariencia · semana de pago: ${payDayName(S.config.semana_pago)}`):''}
   </div></div>
   <div class="group"><div class="list">
@@ -1507,10 +1523,52 @@ mas(){
   <div class="group"><div class="list"><button class="cell" data-logout><span class="ic acc">${svgI('logout',20)}</span><span class="main"><span class="t">Cerrar sesión</span><div class="s">${esc(S.user)} · ${S.realRole==='admin'?'Admin':'Operación'}</div></span></button></div></div>`;
 },
 conceptos(){
-  if(S.role!=='admin')return topBar('Conceptos',{back:'Más',backTo:'mas'})+'<div class="empty">Solo el admin edita los conceptos.</div>';
+  if(S.role!=='admin'||!S.cfgAv)return topBar('Conceptos',{back:'Más',backTo:'mas'})+'<div class="empty">Los conceptos se editan en Configuración avanzada (solo Omri).</div>';
+  if(!cfgOk(S.cfg,Date.now()))return cfgLock('Conceptos');   // el punto de entrada viejo ahora pide el código
   const list=S.conceptos||[];
   const grp=(t,l)=>{const x=list.filter(c=>c.t===t);return `<div class="group"><div class="ghead">${l}</div><div class="list">${x.map(c=>`<button type="button" class="cell" data-conc="${t}|${esc(c.n)}"><span class="main"><span class="t${c.a?'':' mut'}">${esc(c.n)}</span><div class="s">${c.m!==null&&c.m!==undefined?'Sugerido '+(t==='pago'?ajMoney(c.m):fmt(c.m)):'Sin monto sugerido'}${c.a?'':' · Inactivo'}${c.pend?` · <span class="sv${c.pf?' bad':''}">${c.pend}</span>`:''}</div></span>${chev}</button>`).join('')||'<div class="empty">Sin conceptos.</div>'}</div></div>`};
-  return topBar('Conceptos',{back:'Más',backTo:'mas',acts:[{k:'addconc',l:'Agregar concepto',s:'+'}],lede:'Opciones al agregar un ajuste de pago o un costo a una salida'})+grp('pago','Pago')+grp('costo','Costo');
+  return topBar('Conceptos',{back:'Configuración',backTo:'mas',backView:'cfgav',acts:[{k:'addconc',l:'Agregar concepto',s:'+'}],lede:'Opciones al agregar un ajuste de pago o un costo a una salida'})+grp('pago','Pago')+grp('costo','Costo');
+},
+cfgav(){
+  const bar=topBar('Configuración avanzada',{back:'Más',backTo:'mas'});
+  if(S.role!=='admin'||!S.cfgAv)return bar+'<div class="empty">No disponible para tu usuario.</div>';
+  if(!cfgOk(S.cfg,Date.now()))return cfgLock('Configuración avanzada');
+  const d=S.cfg.d,sub={items:d&&d.items.length+' items',campos:d&&d.campos.length+' campos',tipos:d&&d.tipos.length+' tipos',roles:d&&d.roles.length+' roles',conceptos:(S.conceptos||[]).filter(c=>c.a).length+' activos',config:d&&d.config.length+' reglas',hist:d&&d.historial.length+' cambios'};
+  const row=([k,t,ic])=>`<button class="cell" data-cfgsec="${k}"><span class="ic acc">${svgI(ic,20)}</span><span class="main"><span class="t">${t}</span>${d?`<div class="s">${esc(sub[k])}</div>`:''}</span>${chev}</button>`;
+  return topBar('Configuración avanzada',{back:'Más',backTo:'mas',lede:'Lo que FareHarbor manda y cómo lo entiende la app. Cada cambio recalcula el historial y queda anotado.'})
+   +(S.rebuildPending?'<div class="live">Recalculando… (puede tardar hasta 15 min)</div>':'')
+   +(d?`<div class="group"><div class="list">${CFG_SECS.map(row).join('')}</div></div>
+   <div class="group"><div class="list">
+    <button class="cell" data-cfgcode><span class="ic acc">${svgI('lock',20)}</span><span class="main"><span class="t">Cambiar código</span></span>${chev}</button>
+    <button class="cell" data-cfglockn><span class="ic acc">${svgI('logout',20)}</span><span class="main"><span class="t">Bloquear ahora</span><div class="s">Se bloquea sola a los 15 minutos</div></span></button></div>
+   <div class="gfoot">Tarifas y Productos siguen en Más, cada uno en su pantalla.</div></div>`:(S.cfg.err?`<div class="warn">${esc(S.cfg.err)} <button class="link" data-cfgretry>Reintentar</button></div>`:'<div class="empty">Cargando…</div>'));
+},
+cfgsec(sec){
+  const lab=(CFG_SECS.find(x=>x[0]===sec)||[0,'Configuración'])[1];
+  if(!S.cfgAv||S.role!=='admin')return topBar(lab,{back:'Más',backTo:'mas'})+'<div class="empty">No disponible para tu usuario.</div>';
+  if(!cfgOk(S.cfg,Date.now()))return cfgLock(lab);
+  if(sec==='conceptos')return V.conceptos();
+  const d=S.cfg.d,bar=topBar(lab,{back:'Configuración',backTo:'mas',backView:'cfgav'});
+  if(!d)return bar+'<div class="empty">Cargando…</div>';
+  const live=S.rebuildPending?'<div class="live">Recalculando… (puede tardar hasta 15 min)</div>':'';
+  const find=`<label class="search"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><input type="search" data-cfgq placeholder="Buscar" aria-label="Buscar"></label>`;
+  const badge=e=>e===ESTADO_NUEVO_C?'<span class="badge red">Nuevo</span>':'';
+  const rowE=(clave,t,sub,val,est)=>`<button class="cell" data-cfgedit="${sec}|${esc(clave)}" data-q="${esc((t+' '+clave+' '+sub+' '+val).toLowerCase())}"><span class="main"><span class="t">${esc(t||'(sin nombre)')}</span><div class="s">${esc(sub)}</div></span><span class="v" style="white-space:normal;max-width:42%;text-align:right">${esc(val)}</span>${badge(est)}${chev}</button>`;
+  let body='';
+  if(sec==='items')body=d.items.map(x=>rowE(x.pk,x.nombre,'pk '+x.pk+(x.fields.length?' · personas '+x.fields.join(', '):''),[cap(x.tipo||'sin tipo'),cfgLbl(TYPES,x.barco)].filter(Boolean).join(' · '),x.estado)).join('');
+  else if(sec==='campos')body=d.campos.map(x=>rowE(x.clave,x.nombre,(x.clave.indexOf('n:')===0?'':'pk '+x.clave)+(x.ejemplo?' · '+x.ejemplo:''),x.uso==='producto'?(item(x.prod).name||x.prod):cfgLbl(USO_C,x.uso),x.estado)).join('');
+  else if(sec==='tipos')body=d.tipos.map(x=>rowE(x.clave,x.nombre,x.clave.indexOf('n:')===0?'':'pk '+x.clave,cfgLbl(USO_T,x.uso),x.estado)).join('');
+  else if(sec==='roles')body=d.roles.map(x=>rowE(x.clave,x.nombre||x.clave,(x.nombreRol&&x.nombreRol!==x.nombre?x.nombreRol+' · ':'')+(x.clave.indexOf('n:')===0?'':'pk '+x.clave),x.tarifa?cfgLbl(ROL_O,x.tarifa):'Sin rol',x.estado)).join('');
+  else if(sec==='config'){
+    body=d.config.map(c=>rowE(c.key,c.label,c.key,payDayLbl(c.valor),'')).join('')
+      +d.configExtra.map(c=>`<div class="cell"><span class="main"><span class="t">${esc(c.key)}</span><div class="s">Sin validador: solo se puede cambiar en la hoja Config</div></span><span class="v">${esc(c.valor)}</span></div>`).join('');
+    return bar+live+`<div class="group"><div class="list">${body}</div><div class="gfoot">Semana de pago de eventuales: día en que empieza la semana en Eventuales y Pagos. Los pagos ya hechos se quedan con su fecha. Semana del reporte de stock: solo para «Esta semana» y «Semana pasada» en el reporte.</div></div>`;
+  }
+  else if(sec==='hist'){
+    return bar+live+(d.historial.length?`<div class="group"><div class="list">${d.historial.map(h=>`<div class="cell"><span class="main"><span class="t">${esc(h.nombre||h.clave)} · ${esc(cfgCampoLbl(h.campo))}</span><div class="s">${esc(cfgVal(h,h.antes)||'—')} → ${esc(cfgVal(h,h.despues)||'—')}</div><div class="s">${esc(fixDates(h.fecha))} · ${esc(h.por)} · ${esc((CFG_SECS.find(x=>x[0]===h.sec)||[0,h.sec])[1])}</div></span>${h.rev?`<button type="button" class="link" data-cfgrev="${h.id}">Revertir</button>`:''}</div>`).join('')}</div>
+      <div class="gfoot">Revertir escribe otra vez el valor de «antes» y queda anotado como un cambio nuevo.</div></div>`:'<div class="group"><div class="list"><div class="empty">Todavía no hay cambios.</div></div></div>');
+  }
+  return bar+live+find+`<div class="group"><div class="list" id="cfgList">${body||'<div class="empty">Sin elementos.</div>'}</div><div class="gfoot">Toca una fila para cambiarla. Lo nuevo de FareHarbor entra por Más › Por configurar.</div></div>`;
 },
 ajustes(){
   const w=S.config.semana_inicio==='lunes'?'lunes':'jueves',adm=S.role==='admin',tm=window.getTheme?window.getTheme():'auto',pw=S.config.semana_pago||'jueves';
@@ -1521,12 +1579,7 @@ ajustes(){
   <div class="group"><div class="ghead" id="ccL">Canceladas</div><div class="list"><div class="setrow">
     <div class="seg" role="group" aria-labelledby="ccL">${CANC_MODES.map(([k,l])=>`<button type="button" data-canc-set="${k}" aria-pressed="${cancMode(S.canc)===k}">${l}</button>`).join('')}</div></div></div>
   <div class="gfoot">Solo en este teléfono. Qué salidas canceladas aparecen en Operación: solo las que cobraron sin reembolso o tienen costo, todas, o ninguna. El filtro «Canceladas» siempre las muestra. El dinero cobrado cuenta en el resumen del día de todos modos.</div></div>
-  <div class="group"><div class="ghead" id="pwL">Semana de pago de eventuales: empieza el</div><div class="list"><div class="setrow">
-    <div class="chips" role="group" aria-labelledby="pwL" style="margin:0">${PAYD.map(([k,l])=>`<button type="button" class="chip" data-payw="${k}" aria-pressed="${pw===k}" ${adm?'':'disabled'}>${l}</button>`).join('')}</div></div></div>
-  <div class="gfoot">${adm?'':'Solo el admin puede cambiar los ajustes. '}Define cómo se agrupan las semanas de pago en Eventuales. Los pagos ya hechos se quedan con su fecha.</div></div>
-  <div class="group"><div class="ghead" id="cfgL">Semana del reporte de stock</div><div class="list"><div class="setrow">
-    <div class="seg" role="group" aria-labelledby="cfgL">${[['jueves','Jueves'],['lunes','Lunes']].map(([k,l])=>`<button type="button" data-cfg="semana_inicio:${k}" aria-pressed="${w===k}" ${adm?'':'disabled'}>${l}</button>`).join('')}</div></div></div>
-  <div class="gfoot">Define qué día empieza «Esta semana» y «Semana pasada» en el reporte de stock. No afecta el pago de eventuales.</div></div>`;
+  <div class="group"><div class="gfoot">La semana de pago de eventuales, la semana del reporte de stock y las demás reglas generales están en Más › Configuración avanzada (con código).</div></div>`;
 },
 tarifas(){
   const val=r=>r.pending?'<span style="color:var(--orange)">Pendiente</span>':r.u==='factor'?'× '+num(r.amt):`${fmt(r.amt)} por ${r.u}`;
@@ -2128,7 +2181,7 @@ async function shareSlip(name){
 // --- Conceptos (Más › Conceptos, admin): opciones de la hoja Ajuste / Costo ---
 let cc=null;
 function openConc(t,n){
-  if(S.role!=='admin')return;
+  if(S.role!=='admin'||!S.cfgAv||!cfgOk(S.cfg,Date.now()))return;
   const c=t?(S.conceptos||[]).find(x=>x.t===t&&x.n===n):null;
   cc={orig:c?{concepto:c.n,tipo:c.t}:null,tipo:c?c.t:'pago',sign:c&&c.m<0?-1:1,activo:c?c.a:true};
   sheet(c?esc(c.n):'Nuevo concepto',`<div class="group"><div class="list">
@@ -2145,8 +2198,153 @@ function saveConc(){
   const bad=concCheck({nombre:nm,tipo:cc.tipo,monto:mv},S.conceptos,cc.orig);
   if(bad){er.textContent=bad;er.hidden=false;return}
   const monto=mv===''?'':r2c((cc.tipo==='pago'&&cc.sign<0?-1:1)*Math.abs(Number(mv)));
-  const p={concepto:nm,tipo:cc.tipo,monto:monto,activo:cc.activo,original:cc.orig,cid:uuid()};
+  const p={concepto:nm,tipo:cc.tipo,monto:monto,activo:cc.activo,original:cc.orig,cid:uuid(),token:S.cfg.tok};
   cc=null;closeSheet();enqueue('saveConcepto',[p]);toast('Concepto guardado');
+}
+// ===== Configuración avanzada (código de 6 dígitos, solo Omri) =====
+const ESTADO_NUEVO_C='Nuevo – revisar';
+const CFG_SECS=[['items','Items','item'],['campos','Custom fields','sliders'],['tipos','Customer types','tag'],['roles','Roles → Rol tarifa','crew'],['conceptos','Conceptos de ajuste','tag'],['config','Reglas generales','sliders'],['hist','Historial de cambios','clock']];
+const CFG_CAMPO={uso:'Uso',tipo:'Tipo',barco:'Barco',fields:'Campo de personas',estado:'Estado',tarifa:'Rol tarifa',valor:'Valor',nuevo:'Nuevo',monto:'Monto sugerido',activo:'Activo',nombre:'Nombre',bitacora:'Bitácora'};
+const cfgCampoLbl=k=>CFG_CAMPO[k]||k;
+const cfgLbl=(list,k)=>k?(list.find(x=>x[0]===k)||['',k])[1]:'';
+const payDayLbl=v=>cfgLbl(PAYD,v)||v;
+// texto legible de un valor del historial
+function cfgVal(h,v){
+  if(v===''||v==null)return '';
+  if(h.campo==='barco')return cfgLbl(TYPES,v);
+  if(h.campo==='tipo')return cfgLbl(TIPOS_T,v);
+  if(h.campo==='uso'&&h.sec==='tipos')return cfgLbl(USO_T,v);
+  if(h.campo==='uso'&&h.sec==='campos'){if(v.indexOf('producto:')===0){const it=item(v.slice(9));return it&&it.name?it.name:v}return cfgLbl(USO_C,v)}
+  if(h.campo==='tarifa')return cfgLbl(ROL_O,v);
+  if(h.campo==='valor')return payDayLbl(v);
+  if(h.campo==='estado')return v===ESTADO_NUEVO_C?'Por revisar':'Confirmado';
+  return v;
+}
+function cfgLock(title){
+  const e=S.cfg.est,setd=e&&e.set,bar=topBar(title,{back:'Más',backTo:'mas'});
+  if(!e)return bar+(S.cfg.err?`<div class="warn">${esc(S.cfg.err)} <button class="link" data-cfgretry>Reintentar</button></div>`:'<div class="empty">Cargando…</div>');
+  return topBar(title,{back:'Más',backTo:'mas',lede:setd?'Escribe el código de configuración.':'Crea el código de configuración. Son 6 dígitos y solo tú lo sabes.'})+`
+  <div class="group"><div class="list">
+    <div class="field"><label for="cfgC1">${setd?'Código':'Código nuevo'}<div class="s">6 dígitos</div></label><input id="cfgC1" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="••••••" aria-label="Código de configuración"></div>
+    ${setd?'':`<div class="field"><label for="cfgC2">Confirma el código</label><input id="cfgC2" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="••••••"></div>`}
+  </div><div id="cfgErr" class="ferr" role="alert" hidden></div>
+  <div class="gfoot">${e.bloqueado?'Demasiados intentos. Espera 10 minutos.':setd?'5 intentos; después se bloquea 10 minutos.':'Se guarda cifrado en el servidor; la app nunca lo recibe de vuelta.'}</div></div>
+  <button class="btn" data-cfgunlock>${setd?'Entrar':'Crear código'}</button>`;
+}
+// al abrir cualquier pantalla de Configuración avanzada: pide el estado del código, o los datos si ya está abierta
+async function cfgEnter(){
+  if(!S.cfgAv)return;
+  S.cfg.err='';
+  try{
+    if(cfgOk(S.cfg,Date.now())){if(!S.cfg.d)await cfgFetch();return}
+    S.cfg.tok='';S.cfg.est=null;render();
+    S.cfg.est=await srv('cfgAvEstado');
+  }catch(e){S.cfg.err=errMsg(e)}
+  render();
+}
+function cfgSession(r){S.cfg.tok=r.token;S.cfg.exp=Date.now()+(r.segundos||900)*1000-5000;S.cfg.est={set:true,bloqueado:false}}
+// una respuesta "vencida" cierra la sesión de configuración y vuelve a pedir el código
+function cfgFail(e){
+  const m=errMsg(e);
+  if(/vencida/.test(m)){S.cfg.tok='';S.cfg.d=null;S.cfg.est={set:true};closeSheet();render();toast(m,'err');return}
+  toast(m,'err');
+}
+async function cfgFetch(){
+  setBusy(1);
+  try{
+    const d=await srv('cfgAvGet',S.cfg.tok);S.cfg.d=d;S.cfg.err='';S.rebuildPending=!!d.rebuildPending||S.rebuildPending;
+    const was=S.config.semana_pago;(d.config||[]).forEach(c=>{S.config[c.key]=c.valor});
+    if(S.config.semana_pago!==was){remapPaid(S.config.semana_pago);S.wk=wkStart(TODAY,S.config.semana_pago);S.sr=null;}
+  }catch(e){if(/vencida/.test(errMsg(e)))cfgFail(e);else S.cfg.err=errMsg(e)}
+  finally{setBusy(-1)}
+  render();cfgNext();
+}
+function cfgNext(){const n=S.cfg.next;if(!n||!S.cfg.d)return;S.cfg.next=null;cfgEdit(n.sec,n.clave)}
+async function cfgUnlock(){
+  const c1=($('cfgC1')||{}).value||'',c2=$('cfgC2')?$('cfgC2').value:'',er=$('cfgErr'),creating=!(S.cfg.est&&S.cfg.est.set);
+  const bad=!cfgCode6(c1)?'El código debe tener exactamente 6 dígitos':(creating&&c1!==c2?'Los dos códigos no coinciden':'');
+  if(bad){er.textContent=bad;er.hidden=false;return}
+  setBusy(1);
+  try{const r=await srv('cfgAvUnlock',c1,creating?c2:'');cfgSession(r);setBusy(-1);await cfgFetch();if(r.creado)toast('Código creado');return}
+  catch(e){setBusy(-1);er.textContent=errMsg(e);er.hidden=false;if(/Demasiados/.test(errMsg(e)))S.cfg.est={set:true,bloqueado:true}}
+}
+let ce=null;
+function ceChips(g,opts,cur,cls){return `<div class="${cls}" role="group">${opts.map(([k,l])=>`<button type="button" class="${cls==='chips'?'chip':''}" data-ce="${g}:${esc(k)}" aria-pressed="${cur===k}">${esc(l)}</button>`).join('')}</div>`}
+const CE_ESTADOS=[['OK','Confirmado'],[ESTADO_NUEVO_C,'Por revisar']];
+const ceFldChips=()=>{const cs=ce.camp||[];return cs.length?`<div class="chips" role="group">${cs.map(c=>`<button type="button" class="chip" data-ce="fld:${esc(c.pk)}" aria-pressed="${ce.v.fld.indexOf(String(c.pk))>=0}">${esc((c.name?c.name+' · ':'')+c.pk)}${c.ejemplo?' ('+esc(c.ejemplo)+')':''}</button>`).join('')}</div>`:'<div class="list"><div class="empty">No vi campos en las reservas de este item.</div></div>'};
+function cfgEdit(sec,clave){
+  const d=S.cfg.d;if(!d||!cfgOk(S.cfg,Date.now()))return;
+  const list={items:d.items,campos:d.campos,tipos:d.tipos,roles:d.roles}[sec],cl=k=>String(k);
+  let r,title,info='',body='';
+  if(sec==='config'){const c=d.config.find(x=>x.key===clave);if(!c)return;r=c;title=c.label;ce={sec,clave,o:{valor:c.valor},v:{valor:c.valor},fld:[]};
+    const opts=clave==='semana_pago'?PAYD:[['jueves','Jueves'],['lunes','Lunes']];
+    body=`<div class="group"><div class="ghead">${clave==='semana_pago'?'La semana empieza el':'La semana del reporte empieza el'}</div>${ceChips('valor',opts,c.valor,clave==='semana_pago'?'chips':'chips')}</div>
+      <div class="gfoot">${clave==='semana_pago'?'Cambia cómo se agrupan Eventuales, Resumen semanal y Pagos. Recalcula el historial.':'Solo cambia «Esta semana» y «Semana pasada» del reporte de stock.'}</div>`;
+  }else{
+    r=(list||[]).find(x=>(x.pk||x.clave)===clave);if(!r)return;title={items:'Item',campos:'Custom field',tipos:'Customer type',roles:'Crew role'}[sec];
+    const nm=r.nombre||clave;
+    info=`<div class="group"><div class="list"><div class="cell"><span class="main"><span class="t">${esc(nm)}</span><div class="s">${clave.indexOf('n:')===0?'sin pk':'pk '+esc(clave)}${r.en?' · '+esc(r.en):''}${r.ejemplo?' · Ejemplo: '+esc(r.ejemplo):''}</div></span></div></div></div>`;
+    const est=ceChips('estado',CE_ESTADOS,r.estado,'chips');
+    if(sec==='items'){
+      ce={sec,clave,o:{tipo:r.tipo,barco:r.barco,fields:r.fields.join(','),estado:r.estado},v:{tipo:r.tipo,barco:r.barco,fld:r.fields.map(String),estado:r.estado},camp:r.fields.map(f=>({pk:String(f),name:'',ejemplo:''}))};
+      body=`<div class="group"><div class="ghead">Tipo de tour</div>${ceChips('tipo',TIPOS_T,r.tipo,'chips')}</div>
+        <div class="group"><div class="ghead">Barco</div>${ceChips('barco',TYPES,r.barco,'chips')}</div>
+        <div class="group"><div class="ghead">Campo de personas</div><div id="ceFld">${ceFldChips()}</div><div class="gfoot">Para privados y rentas: el campo que dice cuántas personas son. Se pueden elegir varios.</div></div>
+        <div class="group"><div class="ghead">Estado</div>${est}</div>`;
+      srv('cfgAvItemCampos',S.cfg.tok,clave).then(x=>{if(!ce||ce.clave!==clave||ce.sec!=='items')return;const have={};(x.campos||[]).forEach(c=>{have[String(c.pk)]=1});ce.camp=(x.campos||[]).concat(ce.camp.filter(c=>!have[c.pk]));const b=$('ceFld');if(b)b.innerHTML=ceFldChips()}).catch(()=>{});
+    }else if(sec==='campos'){
+      const prods=S.items.filter(x=>x.active||x.id===r.prod).map(x=>['p:'+x.id,x.icon+' '+x.name]);
+      const main=r.uso==='producto'?'p:'+r.prod:r.uso;
+      ce={sec,clave,o:{uso:r.uso,prod:r.prod,estado:r.estado},v:{main:main,estado:r.estado}};
+      body=`<div class="group"><div class="ghead">Uso</div>${ceChips('main',prods.concat(USO_C),main,'chipsel')}</div><div class="group"><div class="ghead">Estado</div>${est}</div>`;
+    }else if(sec==='tipos'){
+      ce={sec,clave,o:{uso:r.uso,estado:r.estado},v:{uso:r.uso,estado:r.estado}};
+      body=`<div class="group"><div class="ghead">Uso</div>${ceChips('uso',USO_T,r.uso,'chipsel')}</div><div class="group"><div class="ghead">Estado</div>${est}</div>`;
+    }else{
+      const opts=ROL_O.concat((d.opciones.tarifas||[]).filter(t=>!ROL_O.some(x=>x[0]===t)).map(t=>[t,cap(t)]));
+      ce={sec,clave,o:{tarifa:r.tarifa,estado:r.estado},v:{tarifa:r.tarifa,estado:r.estado}};
+      body=`<div class="group"><div class="ghead">Rol de tarifa</div>${ceChips('tarifa',opts,r.tarifa,'chipsel')}<div class="gfoot">El nombre que usa la hoja Tarifas en la columna Rol.</div></div><div class="group"><div class="ghead">Estado</div>${est}</div>`;
+    }
+  }
+  sheet(title,info+body+'<div id="ceErr" class="ferr" role="alert" hidden></div>',{ok:cfgSave,okLabel:'Guardar',disabled:true});
+  ceDirty();
+}
+const ceNow=()=>{const v=ce.v;
+  if(ce.sec==='items')return {tipo:v.tipo,barco:v.barco,fields:v.fld.join(','),estado:v.estado};
+  if(ce.sec==='campos')return v.main.indexOf('p:')===0?{uso:'producto',prod:v.main.slice(2),estado:v.estado}:{uso:v.main,prod:'',estado:v.estado};
+  return v};
+function ceDirty(){if(!ce||!$('sheetOk'))return;
+  document.querySelectorAll('#sheetRoot [data-ce]').forEach(b=>{const x=b.dataset.ce,i=x.indexOf(':'),g=x.slice(0,i),k=x.slice(i+1);b.setAttribute('aria-pressed',g==='fld'?ce.v.fld.indexOf(k)>=0:ce.v[g]===k)});
+  $('sheetOk').disabled=!cfgChanges(ce.sec,ce.o,ceNow()).length}
+async function cfgSave(){
+  if(!ce)return;const ch=cfgChanges(ce.sec,ce.o,ceNow()),ok=$('sheetOk'),er=$('ceErr');if(!ch.length)return;
+  ok.disabled=true;const lbl=ok.textContent;ok.textContent='Guardando…';setBusy(1);er.hidden=true;
+  try{
+    for(const [campo,valor] of ch)await srv('setConfigAvanzada',S.cfg.tok,ce.sec,ce.clave,campo,valor);
+    const sec=ce.sec;ce=null;S.rebuildPending=true;setBusy(-1);closeSheet();await cfgFetch();toast('Guardado. Recalculando historial…');return;
+  }catch(e){setBusy(-1);if(/vencida/.test(errMsg(e))){cfgFail(e);return}er.textContent=errMsg(e);er.hidden=false;ok.disabled=false;ok.textContent=lbl;await cfgFetch().catch(()=>{})}
+}
+function cfgCodeSheet(){
+  sheet('Cambiar código',`<div class="group"><div class="list">
+    <div class="field"><label for="ccA">Código actual</label><input id="ccA" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="••••••"></div>
+    <div class="field"><label for="ccN">Código nuevo<div class="s">6 dígitos</div></label><input id="ccN" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="••••••"></div>
+    <div class="field"><label for="ccN2">Confirma el nuevo</label><input id="ccN2" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="••••••"></div></div>
+    <div id="ccErr" class="ferr" role="alert" hidden></div></div>`,{ok:cfgCodeSave,okLabel:'Cambiar',disabled:true,input:()=>{$('sheetOk').disabled=!($('ccA').value&&cfgCode6($('ccN').value)&&$('ccN2').value)}});
+}
+async function cfgCodeSave(){
+  const a=$('ccA').value,n=$('ccN').value,n2=$('ccN2').value,er=$('ccErr'),ok=$('sheetOk');
+  const bad=!cfgCode6(n)?'El código nuevo debe tener exactamente 6 dígitos':n!==n2?'Los dos códigos no coinciden':'';
+  if(bad){er.textContent=bad;er.hidden=false;return}
+  ok.disabled=true;setBusy(1);
+  try{const r=await srv('cfgAvChangeCode',S.cfg.tok,a,n,n2);cfgSession(r);setBusy(-1);closeSheet();toast('Código cambiado')}
+  catch(e){setBusy(-1);if(/vencida/.test(errMsg(e))){cfgFail(e);return}er.textContent=errMsg(e);er.hidden=false;ok.disabled=false}
+}
+function cfgRevSheet(id){
+  const h=((S.cfg.d||{}).historial||[]).find(x=>String(x.id)===String(id));if(!h)return;
+  sheet('Revertir cambio',`<div class="group"><div class="list"><div class="cell"><span class="main"><span class="t">${esc(h.nombre||h.clave)} · ${esc(cfgCampoLbl(h.campo))}</span><div class="s">Ahora «${esc(cfgVal(h,h.despues)||'—')}» → volverá a «${esc(cfgVal(h,h.antes)||'—')}»</div></span></div></div><div class="gfoot">Se recalcula el historial y queda anotado como un cambio nuevo.</div></div><div id="crErr" class="ferr" role="alert" hidden></div>`,
+    {ok:async()=>{const ok=$('sheetOk');ok.disabled=true;setBusy(1);
+      try{await srv('cfgAvRevertir',S.cfg.tok,h.id);S.rebuildPending=true;setBusy(-1);closeSheet();await cfgFetch();toast('Revertido. Recalculando historial…')}
+      catch(e){setBusy(-1);if(/vencida/.test(errMsg(e))){cfgFail(e);return}$('crErr').textContent=errMsg(e);$('crErr').hidden=false;ok.disabled=false}},okLabel:'Revertir'});
 }
 // --- Por configurar: una pregunta por cosa nueva, con opciones de un toque ---
 let pc=null;
@@ -2179,7 +2377,8 @@ function openPend(i){
       <div class="group"><div class="ghead">¿Lleva bitácora?</div>${pcChips('bit',[['sí','Sí'],['no','No']],v.bit,'chips')}</div>
       <div class="group" id="pcFld" ${v.tipo==='privado'||v.tipo==='renta'?'':'hidden'}><div class="ghead">Campo de personas</div>${cs.length?`<div class="chips" role="group">${cs.map(c=>`<button type="button" class="chip" data-pc="fld:${esc(c.pk)}" aria-pressed="${v.fld.indexOf(String(c.pk))>=0}">${esc(c.name)} · ${esc(c.pk)}${c.ejemplo?' ('+esc(c.ejemplo)+')':''}</button>`).join('')}</div>`:'<div class="list"><div class="empty">No vi campos en las reservas de este tour.</div></div>'}
         <div class="gfoot">Para tours privados o rentas: el campo que dice cuántas personas son.</div></div>`}
-  sheet(PEND_TITLE[p.kind],info+body,{ok:savePend,okLabel:'Guardar',disabled:!pcValid(),input:()=>{const o=$('pcOtro');if(o&&pc)pc.v.otro=o.value;$('sheetOk').disabled=!pcValid()}});
+  const adv=S.cfgAv?`<div class="group"><div class="list"><button type="button" class="cell" data-pcadv><span class="ic acc">${svgI('lock',20)}</span><span class="main"><span class="t">Abrir en Configuración avanzada</span><div class="s">Cambiar también estado u otros campos (pide el código)</div></span>${chev}</button></div></div>`:'';
+  sheet(PEND_TITLE[p.kind],info+body+adv,{ok:savePend,okLabel:'Guardar',disabled:!pcValid(),input:()=>{const o=$('pcOtro');if(o&&pc)pc.v.otro=o.value;$('sheetOk').disabled=!pcValid()}});
 }
 function paintPc(){
   if(!pc)return;const v=pc.v;
@@ -2198,23 +2397,9 @@ async function savePend(){
   else val={tipo:v.tipo,barco:v.barco,fields:(v.tipo==='privado'||v.tipo==='renta')?v.fld.join(','):'',bitacora:v.bit};
   closeSheet();pc=null;enqueue('setMapeo',[p.kind,p.clave,val]);toast('Guardado. Recalculando historial…')
 }
-// ===== Ajustes (guardados en el servidor, hoja Config; solo admin) =====
-// Cambiar la semana de pago: las semanas se recalculan al instante en la app (las salidas ya están aquí); los pagos hechos se re-ubican en la semana que contiene su fecha
+// ===== Semana de pago: remapear pagos al cambiar (la usa Configuración avanzada › Reglas generales) =====
+// Las semanas se recalculan al instante en la app (las salidas ya están aquí); los pagos hechos se re-ubican en la semana que contiene su fecha
 function remapPaid(dia){const o={};Object.keys(S.paid).forEach(k=>{const i=k.indexOf('|');o[wkStart(k.slice(0,i),dia)+'|'+k.slice(i+1)]=S.paid[k]});S.paid=o}
-function askPayWeek(dia){
-  if(S.role!=='admin'||S.config.semana_pago===dia)return;
-  const nm=(PAYD.find(x=>x[0]===dia)||PAYD[3])[1];
-  sheet('Semana de pago',`<div class="group"><div class="list"><div class="cell"><span class="main"><span class="t">La semana de pago empezará el ${nm.toLowerCase()}</span><div class="s">Cambia cómo se agrupan las semanas de pago. Los pagos ya hechos se quedan con su fecha.</div></span></div></div></div>`,{ok:()=>{closeSheet();setCfg('semana_pago',dia)},okLabel:'Cambiar'});
-}
-async function setCfg(k,v){
-  if(S.role!=='admin'||S.config[k]===v)return;
-  const old=S.config[k],oldPaid=S.paid,oldWk=S.wk;
-  S.config[k]=v;S.sr=null;
-  if(k==='semana_pago'){remapPaid(v);S.wk=wkStart(TODAY,v);S.rebuildPending=true}
-  render();           // se ve al instante; si el servidor lo rechaza, se regresa
-  try{const r=await srv('setConfig',k,v);if(r&&r.config)S.config=Object.assign({},S.config,r.config);render()}
-  catch(e){S.config[k]=old;if(k==='semana_pago'){S.paid=oldPaid;S.wk=oldWk;S.rebuildPending=false}render();toast(errMsg(e),'err')}
-}
 // ===== Reporte de stock =====
 function srPreset(k){
   const ws=weekStartOf(TODAY,S.config&&S.config.semana_inicio),y=pd(TODAY).getFullYear(),m=pd(TODAY).getMonth(),ymd=(yy,mm,dd)=>yy+'-'+p2(mm+1)+'-'+p2(dd);
@@ -2338,7 +2523,7 @@ function showPin(msg){
 }
 function logout(msg){
   PIN='';Q=[];clearTimeout(qTimer);try{localStorage.removeItem('adv_ops_pin')}catch(e){}
-  cacheClear();S.date='';S.wk='';S.evp=null;S.users=null;S.usersErr='';S.role='op';tab='op';stackView=null;closeSheet();histReset();$('app').innerHTML='';showPin(msg||'');
+  cacheClear();S.date='';S.wk='';S.evp=null;S.users=null;S.usersErr='';S.cfgAv=false;S.cfg={tok:'',exp:0,est:null,d:null,next:null};S.role='op';tab='op';stackView=null;closeSheet();histReset();$('app').innerHTML='';showPin(msg||'');
 }
 async function pinKey(k){
   if($('pin').hidden||saving)return;
@@ -2352,7 +2537,7 @@ async function tryLogin(pin,remembered){
   try{
     const r=await API('login',pin);
     if(!r||!r.ok){setBusy(-1);if(remembered){try{localStorage.removeItem('adv_ops_pin')}catch(e){}}showPin(r&&r.error?r.error:'PIN incorrecto');return false}
-    PIN=pin;qLoad();S.perms=r.perms;S.realRole=r.rol;S.role=r.rol;S.user=r.nombre;
+    PIN=pin;qLoad();S.perms=r.perms;S.realRole=r.rol;S.role=r.rol;S.user=r.nombre;S.cfgAv=!!r.cfgAv;S.cfg={tok:'',exp:0,est:null,d:null,next:null};
     try{localStorage.setItem('adv_ops_pin',pin)}catch(e){}
     $('pMsg').textContent='Cargando…';
     try{await load('','')}catch(e){setBusy(-1);bootError(errMsg(e));return false}
@@ -2474,7 +2659,9 @@ async function calMonth(){
   openCal();if(a<S.win.from||b>S.win.to)ensureRange(a,b).then(()=>{if($('sheetRoot').querySelector('.cal'))openCal();else softRender()});
 }
 document.addEventListener('focusout',()=>setTimeout(flushRender,0));
-document.addEventListener('input',e=>{if(inFn)inFn(e)});
+document.addEventListener('input',e=>{
+  if(e.target.matches&&e.target.matches('[data-cfgq]')){const q=e.target.value.trim().toLowerCase();document.querySelectorAll('#cfgList [data-q]').forEach(b=>{b.hidden=!!q&&b.dataset.q.indexOf(q)<0});return}
+  if(inFn)inFn(e)});
 document.addEventListener('change',e=>{if(inFn)inFn(e)});
 document.addEventListener('keydown',e=>{
   const bk=e.target&&e.target.closest&&e.target.closest('[data-bk]');
@@ -2533,6 +2720,10 @@ document.addEventListener('click',e=>{
     if(on('[data-upin]')&&uu){$('uPinBox').hidden=false;$('uPinRow').hidden=true;$('uPin').focus();return}
     const cn=on('[data-calnav]');if(cn){cal.m+=+cn.dataset.calnav;if(cal.m<0){cal.m=11;cal.y--}if(cal.m>11){cal.m=0;cal.y++}calMonth();return}
     const cd=on('[data-calday]');if(cd){S.date=cd.dataset.calday;stackView=null;tab='op';closeSheet();render();goTop();return}
+    const ceb=on('[data-ce]');if(ceb&&ce){const x=ceb.dataset.ce,i=x.indexOf(':'),g=x.slice(0,i),val=x.slice(i+1);
+      if(g==='fld'){const k=ce.v.fld.indexOf(val);if(k>=0)ce.v.fld.splice(k,1);else ce.v.fld.push(val)}else ce.v[g]=val;
+      ceDirty();return}
+    if(on('[data-pcadv]')&&pc){const x=pc.p;pc=null;S.cfg.next={sec:cfgSecOf(x.kind),clave:String(x.clave)};closeSheet();tab='mas';stackView={name:'cfgsec',arg:S.cfg.next.sec};render();goTop();cfgEnter().then(()=>cfgNext());return}
     const pcb=on('[data-pc]');if(pcb&&pc){const x=pcb.dataset.pc,i=x.indexOf(':'),g=x.slice(0,i),val=x.slice(i+1);
       if(g==='fld'){const k=pc.v.fld.indexOf(val);if(k>=0)pc.v.fld.splice(k,1);else pc.v.fld.push(val)}else pc.v[g]=val;
       paintPc();return}
@@ -2557,7 +2748,7 @@ document.addEventListener('click',e=>{
   const mja=on('[data-mvaj]');if(mja){openAjDetail(mja.dataset.mvaj);return}
   const b=on('[data-tab]');if(b){tab=b.dataset.tab;stackView=null;S.depFrom='';render();goTop();if(tab==='ev'&&S.evp)evFetch();return}
   const bk=on('[data-back]');if(bk){if(hd>0)history.back();else goBack(bk);return}
-  const vw=on('[data-view]');if(vw){stackView={name:vw.dataset.view};render();goTop();if(vw.dataset.view==='usuarios')usersFetch();return}
+  const vw=on('[data-view]');if(vw){stackView={name:vw.dataset.view};render();goTop();if(vw.dataset.view==='usuarios')usersFetch();if(/^(cfgav|conceptos)$/.test(vw.dataset.view))cfgEnter();return}
   const mv=on('[data-movs]');if(mv){stackView={name:'movs'};render();goTop();return}
   const ed=on('[data-edit]');if(ed){openProducto(ed.dataset.edit);return}
   const go=on('[data-go]');if(go){tab=go.dataset.go;stackView=null;render();goTop();return}
@@ -2575,8 +2766,6 @@ document.addEventListener('click',e=>{
   const czb=on('[data-czero]');if(czb){S.czero=S.czero===czb.dataset.czero?'':czb.dataset.czero;render();return}
   const cmb=on('[data-canc-set]');if(cmb){S.canc=cancMode(cmb.dataset.cancSet);try{localStorage.setItem('adv_ops_canc',S.canc)}catch(e){}render();return}
   const thb=on('[data-theme-set]');if(thb){const m=thb.dataset.themeSet;window.setTheme(m);render();return}
-  const pwb=on('[data-payw]');if(pwb){askPayWeek(pwb.dataset.payw);return}
-  const cfb=on('[data-cfg]');if(cfb){const i=cfb.dataset.cfg.indexOf(':');setCfg(cfb.dataset.cfg.slice(0,i),cfb.dataset.cfg.slice(i+1));return}
   if(on('[data-logout]')){logout();return}
   if(on('[data-refresh]')){refresh();return}
   if(on('[data-report]')){openFeedback();return}
@@ -2600,6 +2789,13 @@ document.addEventListener('click',e=>{
   const py=on('[data-pay]');if(py){doPaid(py.dataset.pay);return}
   const rt=on('[data-rate]');if(rt){openRate(rt.dataset.rate);return}
   const tr2=on('[data-tour]');if(tr2){openTour(tr2.dataset.tour);return}
+  if(on('[data-cfgunlock]')){cfgUnlock();return}
+  if(on('[data-cfgretry]')){cfgEnter();return}
+  if(on('[data-cfglockn]')){S.cfg.tok='';S.cfg.d=null;S.cfg.est={set:true};render();toast('Bloqueado');return}
+  if(on('[data-cfgcode]')){cfgCodeSheet();return}
+  const csc=on('[data-cfgsec]');if(csc){stackView={name:'cfgsec',arg:csc.dataset.cfgsec};render();goTop();return}
+  const ced=on('[data-cfgedit]');if(ced){const x=ced.dataset.cfgedit,i=x.indexOf('|');cfgEdit(x.slice(0,i),x.slice(i+1));return}
+  const crv=on('[data-cfgrev]');if(crv){cfgRevSheet(crv.dataset.cfgrev);return}
   const pd2=on('[data-pend]');if(pd2){openPend(+pd2.dataset.pend);return}
   const a=on('[data-act]');if(!a)return;const act2=a.dataset.act,pre=a.dataset.pre;
   if(act2==='compra'&&can('compras'))openCompra(pre);

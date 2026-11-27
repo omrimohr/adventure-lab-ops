@@ -45,7 +45,8 @@ function apiResponse_(p) {
     addAjuste: addAjuste, addConteo: addConteo, addComida: addComida, markPaid: markPaid, markRev: markRev,
     saveProducto: saveProducto, saveTarifa: saveTarifa, savePerm: savePerm, saveTourBarco: saveTourBarco, setMapeo: setMapeo, refreshFin: refreshFin, stockReport: stockReport,
     addFeedback: addFeedback, setFeedbackEstado: setFeedbackEstado, eventualesReport: eventualesReport, listUsers: listUsers, saveUser: saveUser,
-    addAjusteSalida: addAjusteSalida, anularAjusteSalida: anularAjusteSalida, saveConcepto: saveConcepto };
+    addAjusteSalida: addAjusteSalida, anularAjusteSalida: anularAjusteSalida, saveConcepto: saveConcepto,
+    cfgAvEstado: cfgAvEstado, cfgAvUnlock: cfgAvUnlock, cfgAvChangeCode: cfgAvChangeCode, cfgAvGet: cfgAvGet, cfgAvItemCampos: cfgAvItemCampos, setConfigAvanzada: setConfigAvanzada, cfgAvRevertir: cfgAvRevertir };
   let out;
   try {
     const f = map[String(p.fn)];
@@ -606,7 +607,7 @@ function login(pin) {
     ensureUsuarios_(ss);
     const u = findUser_(readTab_(ss, 'Usuarios', USR_HEADERS), pin);
     if (!u) { bad_(); return { ok: false }; }
-    return { ok: true, nombre: u.nombre, rol: u.rol, perms: loadPerms_(ss) };
+    return { ok: true, nombre: u.nombre, rol: u.rol, perms: loadPerms_(ss), cfgAv: isCfgOwner_(u) };
   } catch (e) { return { ok: false, error: String(e.message || e) }; }
 }
 
@@ -634,17 +635,15 @@ function configFromRows_(rows) {
 function readConfig_(ss) {
   return ss.getSheetByName('Config') ? configFromRows_(readTab_(ss, 'Config', CONFIG_HEADERS)) : Object.assign({}, CONFIG_DEFAULTS_);
 }
-/** Admin only (not just the "config" permission): sets one app setting. Returns the whole config. */
-function setConfig(pin, key, value) {
+/** Admin only (not just the "config" permission): sets one app setting. Round 27: once a configuration code exists it also needs a live token (4th arg); the change is logged in "Cambios config". Returns the whole config. */
+function setConfig(pin, key, value, token) {
   const u = auth_(pin, 'config');
   if (u.rol !== 'admin') throw new Error('Solo el admin puede cambiar los ajustes');
+  cfgGate_(pin, token);
   const x = validateConfig_(key, value);
   return withLock_(() => {
-    const ss = ss_(), sh = sheet_(ss, 'Config', CONFIG_HEADERS), n = sh.getLastRow() - 1;
-    const k = n >= 1 ? sh.getRange(2, 1, n, 1).getValues().findIndex(r => String(r[0]) === x.key) : -1;
-    const row = [x.key, x.value, new Date(), u.nombre];
-    const before = k >= 0 ? String(sh.getRange(k + 2, 2).getValue()) : CONFIG_DEFAULTS_[x.key];
-    if (k >= 0) sh.getRange(k + 2, 1, 1, 4).setValues([row]); else sh.appendRow(row);
+    const ss = ss_(), before = cfgWrite_(ss, u, x);
+    if (before !== x.value) cfgLog_(ss, u, 'config', x.key, CFG_LABELS_[x.key] || x.key, 'valor', before, x.value);
     if (x.key === 'semana_pago' && before !== x.value) setRebuildPending_(); // Eventuales / Resumen semanal are recomputed by the next rebuildFinanzas
     return { ok: true, config: readConfig_(ss) };
   });
@@ -717,7 +716,7 @@ function getData(pin, desde, hasta) {
     .map(r => ({ d: ymd_(r[0]), n: String(r[1]), tipo: String(r[2]), q: Number(r[3]) || 0, nota: String(r[4] || ''), por: String(r[5] || '') }));
 
   return {
-    ok: true, user: { nombre: u.nombre, rol: u.rol }, perms: perms, today: today, now: now, desde: desde, hasta: hasta,
+    ok: true, user: { nombre: u.nombre, rol: u.rol, cfgAv: isCfgOwner_(u) }, perms: perms, today: today, now: now, desde: desde, hasta: hasta,
     items: items, purchases: compras, moves: moves, priceLog: priceLogFrom_(compras), deps: deps,
     rates: buildRates_(readTab_(ss, 'Tarifas', TAR_HEADERS)), paid: paid, weekly: weekly, externos: externos, control: control,
     tours: tours, conceptos: conceptosFromRows_(readTab_(seedTab_(ss, CONC_TAB, CONC_HEADERS, CONC_SEED).getParent(), CONC_TAB, CONC_HEADERS), u.rol === 'admin'), staff: staffFromCrew_(crewRows, today, 90),
@@ -1197,6 +1196,7 @@ function saveTourBarco(pin, itemPk, barco) {
  * Admin sets what a FareHarbor thing means. kind: tipo | campo | rol | item; clave = its pk (or 'n:name').
  * valores: tipo {uso} · campo {uso, prod} · rol {tarifa} · item {tipo, barco, fields, bitacora}.
  * Writes Estado OK + who/when, then sets REBUILD_PENDING: the next 15-min trigger rebuilds everything from Raw.
+ * Round 27: shares its read / write / diff helpers with setConfigAvanzada and records every change in tab "Cambios config".
  */
 function setMapeo(pin, kind, clave, valores) {
   const u = auth_(pin, 'config');
@@ -1204,33 +1204,289 @@ function setMapeo(pin, kind, clave, valores) {
     const ss = ss_(), key = String(clave === null || clave === undefined ? '' : clave).trim();
     if (!key) throw new Error('Falta la clave');
     const val = validateMapeo_(kind, valores, { prodIds: prodIds_(ss), barcos: Object.keys(BARCO_LABEL) });
-    const now = new Date();
-    const find = (sh) => { const n = sh.getLastRow() - 1; return n >= 1 ? sh.getRange(2, 1, n, 1).getValues().findIndex(r => String(r[0]) === key) + 2 : 0; };
-    const miss = () => { throw new Error('No encontré esto en la lista (¿ya cambió?). Actualiza la app.'); };
-    if (kind === 'item') {
-      ensureBarco_(ss); ensureTourCols_(ss);
-      const sh = ss.getSheetByName('Tours'); if (!sh) miss();
-      const r = find(sh); if (r < 2) miss();
-      const row = sh.getRange(r, 1, 1, TOURS_COLS).getValues()[0];
-      row[2] = val.tipo; row[3] = val.fields; row[4] = val.bitacora; row[6] = val.barco; row[7] = ESTADO_OK;
-      row[5] = appendNote_(String(row[5] || ''), 'Configurado por ' + u.nombre + ' ' + today_());
-      sh.getRange(r, 1, 1, TOURS_COLS).setValues([row]);
-    } else {
-      const d = { tipo: { tab: CT_TAB, h: CT_HEADERS, cols: [[3, 'uso']], estado: 4, por: 8 },
-        campo: { tab: CF_TAB, h: CF_HEADERS, cols: [[3, 'uso'], [4, 'prod']], estado: 5, por: 10 },
-        rol: { tab: ROL_TAB, h: ROL_HEADERS, cols: [[4, 'tarifa']], estado: 5, por: 9 } }[kind];
-      const sh = ss.getSheetByName(d.tab); if (!sh) miss();
-      const r = find(sh); if (r < 2) miss();
-      const row = sh.getRange(r, 1, 1, d.h.length).getValues()[0];
-      d.cols.forEach(c => { row[c[0] - 1] = val[c[1]]; });
-      row[d.estado - 1] = ESTADO_OK; row[d.por - 1] = u.nombre; row[d.por] = now;
-      sh.getRange(r, 1, 1, d.h.length).setValues([row]);
-    }
+    const rd = mapeoRead_(ss, kind, key);
+    mapeoWrite_(ss, u, kind, rd, val, ESTADO_OK);
+    mapeoDiff_(kind, rd.cur, val).concat(rd.estado !== ESTADO_OK ? [['estado', rd.estado, ESTADO_OK]] : [])
+      .forEach(d => cfgLog_(ss, u, rd.sec, key, rd.nombre, d[0], d[1], d[2]));
     setRebuildPending_();
     return { ok: true, rebuildPending: true };
   });
 }
+function mapeoDef_(kind) {
+  return { tipo: { tab: CT_TAB, h: CT_HEADERS, cols: [[3, 'uso']], estado: 4, por: 8, sec: 'tipos' },
+    campo: { tab: CF_TAB, h: CF_HEADERS, cols: [[3, 'uso'], [4, 'prod']], estado: 5, por: 10, sec: 'campos' },
+    rol: { tab: ROL_TAB, h: ROL_HEADERS, cols: [[4, 'tarifa']], estado: 5, por: 9, sec: 'roles' } }[kind];
+}
+/** Current state of one mapping row → {sh, r, row, cur (same shape validateMapeo_ takes), nombre, estado, sec, d}. Throws when the row is gone. */
+function mapeoRead_(ss, kind, key) {
+  const lc = x => String(x === null || x === undefined ? '' : x).toLowerCase().trim();
+  const miss = () => { throw new Error('No encontré esto en la lista (¿ya cambió?). Actualiza la app.'); };
+  const find = (sh) => { const n = sh.getLastRow() - 1; const i = n >= 1 ? sh.getRange(2, 1, n, 1).getValues().findIndex(r => String(r[0]) === key) : -1; return i < 0 ? 0 : i + 2; };
+  if (kind === 'item') {
+    ensureBarco_(ss); ensureTourCols_(ss);
+    const sh = ss.getSheetByName('Tours'); if (!sh) miss();
+    const r = find(sh); if (!r) miss();
+    const row = sh.getRange(r, 1, 1, TOURS_COLS).getValues()[0];
+    return { sh: sh, r: r, row: row, sec: 'items', nombre: String(row[1] || ''), estado: tourEstado_(row[7], row[5]),
+      cur: { tipo: lc(row[2]), barco: norm_(row[6]), fields: String(row[3] || '').split(',').map(x => x.trim()).filter(String).join(','), bitacora: yes_(row[4]) ? 'sí' : 'no' } };
+  }
+  const d = mapeoDef_(kind); if (!d) throw new Error('Tipo de configuración desconocido');
+  const sh = ss.getSheetByName(d.tab); if (!sh) miss();
+  const r = find(sh); if (!r) miss();
+  const row = sh.getRange(r, 1, 1, d.h.length).getValues()[0], cur = {};
+  d.cols.forEach(c => { cur[c[1]] = c[1] === 'prod' ? String(row[c[0] - 1] || '').trim() : lc(row[c[0] - 1]); });
+  return { sh: sh, r: r, row: row, sec: d.sec, d: d, nombre: String(row[1] || ''), estado: /nuevo/i.test(String(row[d.estado - 1] || '')) ? ESTADO_NUEVO : ESTADO_OK, cur: cur };
+}
+/** Writes validated values + Estado + who/when (rd from mapeoRead_). */
+function mapeoWrite_(ss, u, kind, rd, val, estado) {
+  const row = rd.row, now = new Date();
+  if (kind === 'item') {
+    row[2] = val.tipo; row[3] = val.fields; row[4] = val.bitacora; row[6] = val.barco; row[7] = estado;
+    row[5] = appendNote_(String(row[5] || ''), 'Configurado por ' + u.nombre + ' ' + today_());
+    rd.sh.getRange(rd.r, 1, 1, TOURS_COLS).setValues([row]);
+  } else {
+    const d = rd.d;
+    d.cols.forEach(c => { row[c[0] - 1] = val[c[1]]; });
+    row[d.estado - 1] = estado; row[d.por - 1] = u.nombre; row[d.por] = now;
+    rd.sh.getRange(rd.r, 1, 1, d.h.length).setValues([row]);
+  }
+}
+/** Pure: field-by-field difference of two value objects of a kind → [[campo, antes, después]] as text (campos: uso shows "producto:<id>"). */
+function mapeoDiff_(kind, a, b) {
+  const t = x => String(x === null || x === undefined ? '' : x);
+  const out = [];
+  if (kind === 'item') { ['tipo', 'barco', 'fields', 'bitacora'].forEach(k => { if (t(a[k]) !== t(b[k])) out.push([k, t(a[k]), t(b[k])]); }); return out; }
+  if (kind === 'campo') {
+    const f = x => x.uso === 'producto' ? 'producto:' + t(x.prod) : t(x.uso);
+    if (f(a) !== f(b)) out.push(['uso', f(a), f(b)]);
+    return out;
+  }
+  const k = kind === 'rol' ? 'tarifa' : 'uso';
+  if (t(a[k]) !== t(b[k])) out.push([k, t(a[k]), t(b[k])]);
+  return out;
+}
 
+// ---------------- Configuración avanzada (round 27): locked with a 6-digit code, only the user "Omri" (admin) ----------------
+const CAMBIOS_TAB = 'Cambios config';
+const CAMBIOS_HEADERS = ['Fecha', 'Usuario', 'Sección', 'Clave', 'Nombre', 'Campo', 'Antes', 'Después'];
+const CFG_SECCIONES = ['items', 'campos', 'tipos', 'roles', 'conceptos', 'config'];
+const CFG_TOKEN_SECS = 900, CFG_LOCK_SECS = 600, CFG_MAX_TRIES = 5;
+const CFG_REVERTIBLE = ['items', 'campos', 'tipos', 'roles', 'config'];
+/** Only the user named Omri with the admin role may see or use this screen. */
+function isCfgOwner_(u) { return !!u && u.rol === 'admin' && String(u.nombre || '').trim().toLowerCase() === 'omri'; }
+function cfgOwner_(pin) {
+  const u = auth_(pin);
+  if (!isCfgOwner_(u)) throw new Error('No disponible para tu usuario');
+  return u;
+}
+function cfgHash_(salt, code) {
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(salt) + ':' + String(code), Utilities.Charset.UTF_8)
+    .map(b => ('0' + (b & 0xff).toString(16)).slice(-2)).join('');
+}
+function cfgProps_() { return PropertiesService.getScriptProperties(); }
+function cfgCodeSet_() { return !!cfgProps_().getProperty('CFG_CODE_HASH'); }
+function cfgFormat_(c) {
+  if (!/^\d{6}$/.test(String(c === undefined || c === null ? '' : c))) throw new Error('El código debe tener exactamente 6 dígitos');
+  return String(c);
+}
+function cfgStoreCode_(code) {
+  const salt = Utilities.getUuid(), p = cfgProps_();
+  p.setProperty('CFG_CODE_SALT', salt); p.setProperty('CFG_CODE_HASH', cfgHash_(salt, code));
+}
+/** Checks the code against the stored hash: 5 wrong tries → 10-minute lockout (CacheService). Throws a Spanish error; returns true when right. */
+function cfgCheckCode_(code) {
+  const c = CacheService.getScriptCache();
+  if (c.get('cfglock')) throw new Error('Demasiados intentos. Espera 10 minutos.');
+  const p = cfgProps_(), hash = p.getProperty('CFG_CODE_HASH');
+  if (hash && cfgHash_(p.getProperty('CFG_CODE_SALT'), String(code === undefined || code === null ? '' : code).trim()) === hash) { c.remove('cfgbad'); return true; }
+  const n = Number(c.get('cfgbad') || 0) + 1;
+  if (n >= CFG_MAX_TRIES) { c.put('cfglock', '1', CFG_LOCK_SECS); c.remove('cfgbad'); throw new Error('Demasiados intentos. Espera 10 minutos.'); }
+  c.put('cfgbad', String(n), CFG_LOCK_SECS);
+  throw new Error('Código incorrecto. Te quedan ' + (CFG_MAX_TRIES - n) + (CFG_MAX_TRIES - n === 1 ? ' intento.' : ' intentos.'));
+}
+function cfgIssueToken_(u) {
+  const tok = String(Utilities.getUuid()).replace(/-/g, '');
+  CacheService.getScriptCache().put('cfgtok:' + tok, u.nombre, CFG_TOKEN_SECS);
+  return { token: tok, segundos: CFG_TOKEN_SECS };
+}
+/** Valid PIN of the owner + a live token. Throws 'Sesión de configuración vencida…' otherwise. */
+function cfgTokenOk_(pin, token) {
+  const u = cfgOwner_(pin);
+  if (!token || CacheService.getScriptCache().get('cfgtok:' + String(token)) !== u.nombre) throw new Error('Sesión de configuración vencida. Ingresa el código otra vez.');
+  return u;
+}
+/** Used by the older config writers (setConfig, saveConcepto): once a code exists they need a live token too; before that they behave as always. */
+function cfgGate_(pin, token) {
+  if (!cfgCodeSet_()) return;
+  cfgTokenOk_(pin, token);
+}
+/** → {ok, set (a code exists), bloqueado}. Owner only. */
+function cfgAvEstado(pin) {
+  cfgOwner_(pin);
+  return { ok: true, set: cfgCodeSet_(), bloqueado: !!CacheService.getScriptCache().get('cfglock') };
+}
+/** First time (no code yet): creates it (code + confirm). Afterwards: checks it. Either way → {ok, token, segundos, creado?}. */
+function cfgAvUnlock(pin, code, code2) {
+  const u = cfgOwner_(pin);
+  return withLock_(() => {
+    if (!cfgCodeSet_()) {
+      const c = cfgFormat_(code);
+      if (String(code2 === undefined || code2 === null ? '' : code2) !== c) throw new Error('Los dos códigos no coinciden');
+      cfgStoreCode_(c);
+      return Object.assign({ ok: true, creado: true }, cfgIssueToken_(u));
+    }
+    cfgCheckCode_(code);
+    return Object.assign({ ok: true }, cfgIssueToken_(u));
+  });
+}
+/** Needs a live token AND the current code. → {ok, token, segundos} (a fresh token). */
+function cfgAvChangeCode(pin, token, actual, nuevo, nuevo2) {
+  const u = cfgTokenOk_(pin, token);
+  return withLock_(() => {
+    cfgCheckCode_(actual);
+    const c = cfgFormat_(nuevo);
+    if (String(nuevo2 === undefined || nuevo2 === null ? '' : nuevo2) !== c) throw new Error('Los dos códigos no coinciden');
+    cfgStoreCode_(c);
+    return Object.assign({ ok: true }, cfgIssueToken_(u));
+  });
+}
+/** Appends one row to "Cambios config" (text cells, so "1,2" or "0012" are never reinterpreted). */
+function cfgLog_(ss, u, sec, clave, nombre, campo, antes, despues) {
+  const sh = sheet_(ss, CAMBIOS_TAB, CAMBIOS_HEADERS), r = Math.max(sh.getLastRow(), 1) + 1;
+  sh.getRange(r, 3, 1, 6).setNumberFormat('@');
+  sh.getRange(r, 1, 1, 8).setValues([[new Date(), u.nombre, sec, String(clave), String(nombre || ''), campo, String(antes === undefined || antes === null ? '' : antes), String(despues === undefined || despues === null ? '' : despues)]]);
+}
+/** Pure: "Cambios config" rows → [{id (sheet row), fecha, por, sec, clave, nombre, campo, antes, despues, rev}] newest first, max n. */
+function cambiosFromRows_(rows, n) {
+  const out = [];
+  (rows || []).forEach((r, i) => {
+    if (r[0] === '' && r[2] === '') return;
+    const f = r[0] instanceof Date ? fmtDate_(r[0], 'yyyy-MM-dd HH:mm') : String(r[0] || '');
+    const sec = String(r[2] || '');
+    out.push({ id: i + 2, fecha: f, por: String(r[1] || ''), sec: sec, clave: String(r[3] === undefined ? '' : r[3]), nombre: String(r[4] || ''), campo: String(r[5] || ''),
+      antes: String(r[6] === undefined || r[6] === null ? '' : r[6]), despues: String(r[7] === undefined || r[7] === null ? '' : r[7]), rev: CFG_REVERTIBLE.indexOf(sec) >= 0 && !!r[5] });
+  });
+  return out.reverse().slice(0, n || 200);
+}
+/** Writes one Config key (validated {key,value}) → the previous value. */
+function cfgWrite_(ss, u, x) {
+  const sh = sheet_(ss, 'Config', CONFIG_HEADERS), n = sh.getLastRow() - 1;
+  const k = n >= 1 ? sh.getRange(2, 1, n, 1).getValues().findIndex(r => String(r[0]) === x.key) : -1;
+  const row = [x.key, x.value, new Date(), u.nombre];
+  const before = k >= 0 ? String(sh.getRange(k + 2, 2).getValue()) : CONFIG_DEFAULTS_[x.key];
+  if (k >= 0) sh.getRange(k + 2, 1, 1, 4).setValues([row]); else sh.appendRow(row);
+  return before;
+}
+const CFG_LABELS_ = { semana_pago: 'Semana de pago de eventuales', semana_inicio: 'Semana del reporte de stock' };
+/**
+ * Applies one change of the advanced screen (also used by the revert). → {changed, antes, despues}.
+ * items: tipo | barco | fields | estado · campos: uso ("producto:<id>" or plain; valor may be {uso, prod}) · tipos: uso · roles: tarifa · config: valor (clave = key) · every mapping row also: estado.
+ */
+function cfgApply_(ss, u, section, clave, campo, valor) {
+  const key = String(clave === undefined || clave === null ? '' : clave).trim();
+  if (!key) throw new Error('Falta la clave');
+  if (section === 'config') {
+    if (campo !== 'valor') throw new Error('Campo inválido');
+    const x = validateConfig_(key, valor), cfg = readConfig_(ss), before = String(cfg[x.key]);
+    if (before === x.value) return { changed: false, antes: before, despues: before };
+    cfgWrite_(ss, u, x);
+    cfgLog_(ss, u, 'config', x.key, CFG_LABELS_[x.key] || x.key, 'valor', before, x.value);
+    return { changed: true, antes: before, despues: x.value };
+  }
+  const kind = { items: 'item', campos: 'campo', tipos: 'tipo', roles: 'rol' }[section];
+  if (!kind) throw new Error('Sección inválida');
+  const rd = mapeoRead_(ss, kind, key);
+  if (campo === 'estado') {
+    const e = /nuevo/i.test(String(valor)) ? ESTADO_NUEVO : (/^ok$/i.test(String(valor).trim()) ? ESTADO_OK : '');
+    if (!e) throw new Error('Estado inválido');
+    if (e === rd.estado) return { changed: false, antes: rd.estado, despues: e };
+    if (kind === 'item') { rd.row[7] = e; rd.sh.getRange(rd.r, 1, 1, TOURS_COLS).setValues([rd.row]); }
+    else { rd.row[rd.d.estado - 1] = e; rd.row[rd.d.por - 1] = u.nombre; rd.row[rd.d.por] = new Date(); rd.sh.getRange(rd.r, 1, 1, rd.d.h.length).setValues([rd.row]); }
+    cfgLog_(ss, u, section, key, rd.nombre, 'estado', rd.estado, e);
+    return { changed: true, antes: rd.estado, despues: e };
+  }
+  const next = Object.assign({}, rd.cur);
+  if (kind === 'item') {
+    if (['tipo', 'barco', 'fields'].indexOf(campo) < 0) throw new Error('Campo inválido');
+    if (campo !== 'tipo' && !next.tipo) throw new Error('Primero elige el tipo de este item');
+    if (campo !== 'barco' && !next.barco) throw new Error('Primero elige el barco de este item');
+    next[campo] = valor;
+  } else if (kind === 'campo') {
+    if (campo !== 'uso') throw new Error('Campo inválido');
+    let uso = valor, prod = '';
+    if (valor && typeof valor === 'object') { uso = valor.uso; prod = valor.prod; }
+    else if (/^producto:/i.test(String(valor))) { uso = 'producto'; prod = String(valor).slice(9); }
+    next.uso = uso; next.prod = prod;
+  } else if (kind === 'tipo') {
+    if (campo !== 'uso') throw new Error('Campo inválido');
+    next.uso = valor;
+  } else {
+    if (campo !== 'tarifa') throw new Error('Campo inválido');
+    next.tarifa = valor;
+  }
+  const val = validateMapeo_(kind, next, { prodIds: prodIds_(ss), barcos: Object.keys(BARCO_LABEL) });
+  const diff = mapeoDiff_(kind, rd.cur, val);
+  if (!diff.length) return { changed: false, antes: '', despues: '' };
+  mapeoWrite_(ss, u, kind, rd, val, rd.estado === ESTADO_NUEVO ? ESTADO_NUEVO : ESTADO_OK);
+  diff.forEach(d => cfgLog_(ss, u, section, key, rd.nombre, d[0], d[1], d[2]));
+  return { changed: true, antes: diff[0][1], despues: diff[0][2] };
+}
+/** Owner + live token. Generic writer of the advanced screen. Every real change sets REBUILD_PENDING and is appended to "Cambios config". */
+function setConfigAvanzada(pin, token, section, clave, campo, valor) {
+  const u = cfgTokenOk_(pin, token);
+  if (CFG_SECCIONES.indexOf(section) < 0 || section === 'conceptos') throw new Error('Sección inválida');
+  return withLock_(() => {
+    const r = cfgApply_(ss_(), u, section, clave, String(campo || ''), valor);
+    if (r.changed) setRebuildPending_();
+    return { ok: true, changed: r.changed, rebuildPending: isRebuildPending_() };
+  });
+}
+/** Writes the "Antes" of a log row back (logged as a new row). Conceptos rows can't be reverted. */
+function cfgAvRevertir(pin, token, id) {
+  const u = cfgTokenOk_(pin, token);
+  return withLock_(() => {
+    const ss = ss_(), sh = sheet_(ss, CAMBIOS_TAB, CAMBIOS_HEADERS), n = Number(id);
+    if (!(n >= 2) || n > sh.getLastRow()) throw new Error('No encontré ese cambio');
+    const r = sh.getRange(n, 1, 1, 8).getValues()[0], sec = String(r[2] || '');
+    if (CFG_REVERTIBLE.indexOf(sec) < 0 || !r[5]) throw new Error('Este cambio no se puede revertir');
+    const x = cfgApply_(ss, u, sec, String(r[3]), String(r[5]), String(r[6] === undefined || r[6] === null ? '' : r[6]));
+    if (x.changed) setRebuildPending_();
+    return { ok: true, changed: x.changed, rebuildPending: isRebuildPending_() };
+  });
+}
+/** Fields seen on the last bookings of one item (for the people-field picker) + the fields it already uses. */
+function cfgAvItemCampos(pin, token, itemPk) {
+  cfgTokenOk_(pin, token);
+  const ss = ss_(), pk = String(itemPk || '').trim();
+  const seen = seenFieldsFor_(ss, [pk], readTab_(ss, 'Reservas', RES_HEADERS))[pk] || [];
+  const names = {}; const M = loadMapeos_(ss);
+  if (M) Object.keys(M.field).forEach(k => { names[k] = M.field[k].nombre; });
+  const have = {}; seen.forEach(f => { have[String(f.pk)] = 1; });
+  const tour = (loadTours_(ss) || {})[pk];
+  ((tour && tour.fields) || []).forEach(f => { if (!have[f]) seen.push({ pk: f, name: names[f] || '', ejemplo: '' }); });
+  return { ok: true, campos: seen };
+}
+/** Everything the advanced screen shows (after unlocking). */
+function cfgAvGet(pin, token) {
+  cfgTokenOk_(pin, token);
+  const ss = ss_(), M = loadMapeos_(ss) || { ctype: {}, field: {}, role: {} };
+  const toursRows = ss.getSheetByName('Tours') ? readTab_(ss, 'Tours', TOURS_HEADERS.concat(['Barco', TOURS_ESTADO_HDR, TOURS_VISTO_HDR])).filter(r => r[0] !== '') : [];
+  const items = toursRows.map(r => ({ pk: String(r[0]), nombre: String(r[1] || ''), tipo: String(r[2] || '').toLowerCase().trim(), barco: norm_(r[6]), fields: String(r[3] || '').split(',').map(x => x.trim()).filter(String), estado: tourEstado_(r[7], r[5]) }));
+  const mk = (map, f) => Object.keys(map).map(k => Object.assign({ clave: k, nombre: map[k].nombre, estado: map[k].estado, en: map[k].en }, f(map[k])));
+  const campos = mk(M.field, e => ({ uso: e.uso, prod: e.prod, ejemplo: e.ejemplo }));
+  const tipos = mk(M.ctype, e => ({ uso: e.uso }));
+  const roles = mk(M.role, e => ({ tarifa: e.tarifa, nombreRol: e.nombreRol }));
+  const tarifaRoles = ROL_OPCIONES_.slice();
+  readTab_(ss, 'Tarifas', TAR_HEADERS).forEach(r => { const x = norm_(r[0]); if (x && x !== '*' && x !== 'traslado' && tarifaRoles.indexOf(x) < 0) tarifaRoles.push(x); });
+  const cfg = readConfig_(ss), extra = [];
+  if (ss.getSheetByName('Config')) readTab_(ss, 'Config', CONFIG_HEADERS).forEach(r => { const k = String(r[0] || '').trim(); if (k && !Object.prototype.hasOwnProperty.call(CONFIG_DEFAULTS_, k)) extra.push({ key: k, valor: String(r[1] === undefined ? '' : r[1]), por: String(r[3] || '') }); });
+  return { ok: true, items: items, campos: campos, tipos: tipos, roles: roles,
+    conceptos: conceptosFromRows_(readTab_(seedTab_(ss, CONC_TAB, CONC_HEADERS, CONC_SEED).getParent(), CONC_TAB, CONC_HEADERS), true),
+    config: Object.keys(CONFIG_DEFAULTS_).sort((a, b) => (a === 'semana_pago' ? -1 : b === 'semana_pago' ? 1 : 0)).map(k => ({ key: k, label: CFG_LABELS_[k] || k, valor: cfg[k] })), configExtra: extra,
+    historial: cambiosFromRows_(ss.getSheetByName(CAMBIOS_TAB) ? readTab_(ss, CAMBIOS_TAB, CAMBIOS_HEADERS) : [], 200),
+    opciones: { usosT: USOS_CT, usosC: USOS_CF, tarifas: tarifaRoles, barcos: Object.keys(BARCO_LABEL), tipos: ITEM_TIPOS_, prods: readProdRows_(ss).filter(r => r[0] !== '').map(r => ({ id: String(r[0]), name: String(r[1] || '') })) },
+    rebuildPending: isRebuildPending_() };
+}
 // ---------------- One-off migration (owner runs it once from the editor) ----------------
 function migrate20261124() {
   return withLock_(() => {
@@ -1360,11 +1616,16 @@ function anularAjusteSalida(pin, id, motivo) {
 function saveConcepto(pin, p) {
   const u = auth_(pin);
   if (u.rol !== 'admin') throw new Error('Solo el admin puede editar los conceptos');
+  cfgGate_(pin, (p || {}).token); // round 27: with a configuration code set, a live token is required
   return withLock_(() => {
     const ss = ss_(), sh = seedTab_(ss, CONC_TAB, CONC_HEADERS, CONC_SEED), n = sh.getLastRow() - 1;
     const rows = n >= 1 ? sh.getRange(2, 1, n, CONC_HEADERS.length).getValues() : [];
     const v = validateConcepto_(p, rows);
+    const old = v.row ? rows[v.row - 2] : null, t = x => String(x === undefined || x === null ? '' : x);
     if (v.row) sh.getRange(v.row, 1, 1, CONC_HEADERS.length).setValues([v.values]); else sh.appendRow(v.values);
+    const key = v.values[1] + ':' + v.values[0];
+    if (!old) cfgLog_(ss, u, 'conceptos', key, v.values[0], 'nuevo', '', 'monto ' + t(v.values[2]) + ' · activo ' + v.values[3]);
+    else [[0, 'nombre'], [2, 'monto'], [3, 'activo']].forEach(c => { if (t(old[c[0]]) !== t(v.values[c[0]])) cfgLog_(ss, u, 'conceptos', key, v.values[0], c[1], t(old[c[0]]), t(v.values[c[0]])); });
     return { ok: true, conceptos: conceptosFromRows_(readTab_(ss, CONC_TAB, CONC_HEADERS), true) };
   });
 }
@@ -1442,5 +1703,5 @@ if (typeof module !== 'undefined') module.exports = {
   cleanLines_, slugId_, rateLabel_, buildRates_, latestRevs_, roleLabel_, bitQty_, extrasText_, ciFrom_, buildDeps_, trFrom_, moneyFrom_, buildPend_, fieldsFromBookings_, saludAlerts_, setMapeo, planTarifasMigration_, pluralEs_, appendNote_,
   login, getData, refreshFin, windowTest_, staleFin_, addCompra, anularCompra, editCompra, addAjuste, addConteo, addComida, markPaid, markRev, saveProducto, saveTarifa, savePerm, saveTourBarco, setConfig, validateConfig_, configFromRows_, migrate20261124, stockReport_, stockReport, loadMoves_, cidRow_, cidOf_, ensureCidCol_,
   eventualesReport_, eventualesReport, usersFromRows_, validateUser_, listUsers, saveUser, normFeedback_, feedbackFileName_, feedbackFromRows_, validEstado_, addFeedback, setFeedbackEstado, FEEDBACK_HEADERS,
-  normAjusteSalida_, conceptosFromRows_, validateConcepto_, staffFromCrew_, addAjusteSalida, anularAjusteSalida, saveConcepto, cancelAntesTxt_, cancDecision_, cancelAlerts_
+  normAjusteSalida_, conceptosFromRows_, validateConcepto_, staffFromCrew_, addAjusteSalida, anularAjusteSalida, saveConcepto, cfgAvEstado, cfgAvUnlock, cfgAvChangeCode, cfgAvGet, cfgAvItemCampos, setConfigAvanzada, cfgAvRevertir, cfgHash_, cfgOwner_, isCfgOwner_, cambiosFromRows_, mapeoDiff_, CAMBIOS_HEADERS, cancelAntesTxt_, cancDecision_, cancelAlerts_
 };

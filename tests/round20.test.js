@@ -280,7 +280,7 @@ test('client optApply: addAjusteSalida counts at once (aj + costs.tot), idempote
   assert.deepStrictEqual(S.conceptos.map(c => [c.n, c.m, c.a]), [['Bono extra', 20, false], ['Propina', null, true]]);
 });
 test('client wiring: Crew "+ Ajuste" + tappable crew rows, Costos "+ Agregar", Conceptos screen/row, person lines → goDep, Compartir, versions v17', () => {
-  ['data-ajnew="${esc(d.id)}|pago|"', 'data-ajnew="${esc(d.id)}|costo|"', '+ Ajuste', '+ Agregar', 'data-ajd=', 'data-evdep=', 'data-share=', "row('conceptos','tag','Conceptos'", "act2==='addconc'", 'async function goDep', 'navigator.share', "toast('Copiado')",
+  ['data-ajnew="${esc(d.id)}|pago|"', 'data-ajnew="${esc(d.id)}|costo|"', '+ Ajuste', '+ Agregar', 'data-ajd=', 'data-evdep=', 'data-share=', "row('cfgav','lock','Configuración avanzada'", "act2==='addconc'", 'async function goDep', 'navigator.share', "toast('Copiado')",
     "enqueue('addAjusteSalida'", "enqueue('anularAjusteSalida'", "enqueue('saveConcepto'", 'Motivo (obligatorio)', "can('ajustes')"].forEach(k => assert.ok(html.indexOf(k) >= 0, k));
   assert.ok(!/srv\('addAjusteSalida'|act\('addAjusteSalida'/.test(html), 'writes only through the queue');
   assert.strictEqual(U.SCREENS.conceptos, 'Conceptos');

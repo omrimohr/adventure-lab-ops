@@ -223,6 +223,27 @@ init();
 // round 17: users (PINs never leave the stub) + pay history for the Eventuales period view
 D.users=[{nombre:'Omri',pin:'0000',rol:'admin',activo:true},{nombre:'Carlos',pin:'1111',rol:'admin',activo:true},{nombre:'Daniel',pin:'2222',rol:'admin',activo:true},{nombre:'Jesús',pin:'3333',rol:'op',activo:true}];
 const who=pin=>D.users.find(u=>u.activo&&String(u.pin)===String(pin))||D.users[0];
+// ---------- configuración avanzada (demo) ----------
+const isOwner=pin=>{const u=who(pin);return u.rol==='admin'&&u.nombre==='Omri'};
+const CFG={set:true,code:'123456',bad:0,lock:false,tok:'',pending:false,seq:2,
+ items:[{pk:'244132',nombre:'Private Boat Tour',tipo:'privado',barco:'ponton',fields:['1463805'],estado:'OK'},{pk:'258806',nombre:'Bacalar Lagoon Boat Tour',tipo:'compartido',barco:'ponton',fields:[],estado:'OK'},{pk:'337344',nombre:'Velero Monocasco [HBTS]',tipo:'privado',barco:'monocasco',fields:['1463805'],estado:'Nuevo – revisar'},{pk:'244134',nombre:'Sunrise Paddleboard Tour',tipo:'compartido',barco:'sup',fields:[],estado:'OK'}],
+ campos:[{clave:'2024634',nombre:'Vino',uso:'producto',prod:'vin',estado:'OK',ejemplo:'2',en:'Private Boat Tour'},{clave:'2021180',nombre:'Hora extra (staff)',uso:'hora extra',prod:'',estado:'OK',ejemplo:'1',en:''},{clave:'1889802',nombre:'Number of people',uso:'personas',prod:'',estado:'OK',ejemplo:'4',en:''},{clave:'2026466',nombre:'Traslado ida',uso:'traslado',prod:'',estado:'OK',ejemplo:'true',en:''}],
+ tipos:[{clave:'1331886',nombre:'OPS · Salida',uso:'ops salida',estado:'OK'},{clave:'1332005',nombre:'OPS · Regreso',uso:'ops regreso',estado:'OK'},{clave:'1105001',nombre:'Adult',uso:'pax',estado:'OK'}],
+ roles:[{clave:'11',nombre:'Capitan',nombreRol:'Capitán',tarifa:'capitan',estado:'OK'},{clave:'12',nombre:'Marinero',nombreRol:'Marinero',tarifa:'marinero',estado:'OK'},{clave:'13',nombre:'Guia',nombreRol:'Guía',tarifa:'guia',estado:'Nuevo – revisar'}],
+ hist:[{id:2,fecha:addDays(-1)+' 16:40',por:'Omri',sec:'items',clave:'244132',nombre:'Private Boat Tour',campo:'barco',antes:'catamaran',despues:'ponton',rev:true},{id:3,fecha:addDays(-1)+' 16:42',por:'Omri',sec:'config',clave:'semana_pago',nombre:'Semana de pago de eventuales',campo:'valor',antes:'lunes',despues:'jueves',rev:true},{id:4,fecha:addDays(0)+' 09:05',por:'Omri',sec:'conceptos',clave:'pago:Bono',nombre:'Bono',campo:'monto',antes:'',despues:'300',rev:false}]};
+const cfgTok=()=>{CFG.tok='tok'+Date.now();return {token:CFG.tok,segundos:900}};
+const cfgChk=(pin,tok)=>{if(!isOwner(pin))throw new Error('No disponible para tu usuario');if(!tok||tok!==CFG.tok)throw new Error('Sesión de configuración vencida. Ingresa el código otra vez.')};
+function cfgSet(sec,clave,campo,valor){
+  let row,nombre,antes;
+  if(sec==='config'){nombre=clave==='semana_pago'?'Semana de pago de eventuales':'Semana del reporte de stock';antes=D.config[clave];D.config[clave]=valor}
+  else{const l={items:CFG.items,campos:CFG.campos,tipos:CFG.tipos,roles:CFG.roles}[sec];row=l.find(x=>(x.pk||x.clave)===clave);if(!row)throw new Error('No encontré esto en la lista (¿ya cambió?). Actualiza la app.');nombre=row.nombre;
+    if(campo==='fields'){antes=row.fields.join(',');row.fields=String(valor).split(',').filter(Boolean)}
+    else if(sec==='campos'&&campo==='uso'){antes=row.uso==='producto'?'producto:'+row.prod:row.uso;if(/^producto:/.test(valor)){row.uso='producto';row.prod=valor.slice(9)}else{row.uso=valor;row.prod=''}}
+    else{antes=row[campo];row[campo]=valor}}
+  if(String(antes)===String(valor))return {ok:true,changed:false};
+  CFG.hist.push({id:++CFG.seq+10,fecha:addDays(0)+' '+hm(),por:'Omri',sec:sec,clave:clave,nombre:nombre,campo:campo,antes:String(antes),despues:String(valor),rev:true});CFG.pending=true;
+  return {ok:true,changed:true,rebuildPending:true}}
+
 const usersOut=()=>D.users.map(u=>({nombre:u.nombre,rol:u.rol,activo:u.activo}));
 (function history(){
   // ~9 weeks of earlier departures per person (deterministic) → rows like the Eventuales tab: {d, av, n, r, tot}; Pagos for every completed pay week, paid 7 days after the week starts (some people still owed)
@@ -248,11 +269,11 @@ function evReport(desde,hasta){
 }
 // ---------- API ----------
 const API={
- login:(pin)=>{const u=D.users.find(x=>x.activo&&String(x.pin)===String(pin));return u?{ok:true,nombre:u.nombre,rol:u.rol,perms:D.perms}:{ok:false}},
+ login:(pin)=>{const u=D.users.find(x=>x.activo&&String(x.pin)===String(pin));return u?{ok:true,nombre:u.nombre,rol:u.rol,perms:D.perms,cfgAv:u.rol==='admin'&&u.nombre==='Omri'}:{ok:false}},
  getData:(pin,from,to)=>{const me=who(pin);
    const today=addDays(0);D.calls++;
    const stale=D.staleOnce;D.staleOnce=false;
-   return JSON.parse(JSON.stringify({ok:true,user:{nombre:me.nombre,rol:me.rol},perms:D.perms,today:today,now:hm(),desde:from||addDays(-21),hasta:to||addDays(7),
+   return JSON.parse(JSON.stringify({ok:true,user:{nombre:me.nombre,rol:me.rol,cfgAv:me.rol==='admin'&&me.nombre==='Omri'},perms:D.perms,today:today,now:hm(),desde:from||addDays(-21),hasta:to||addDays(7),
      items:D.items,purchases:D.purchases,moves:D.moves,priceLog:D.priceLog,deps:D.deps,rates:D.rates,paid:D.paid,weekly:D.weekly,externos:D.externos,control:D.control,
      tours:D.tours,conceptos:me.rol==='admin'?D.conceptos:D.conceptos.filter(c=>c.a),staff:D.staff,comidas:D.comidas,fh:D.fh,pend:D.pend,salud:D.salud,feedback:D.feedback,fhOk:true,config:D.config,stale:stale,rebuildPending:false}));
  },
@@ -307,9 +328,22 @@ const API={
  saveConcepto:(pin,p)=>{if(who(pin).rol!=='admin')throw new Error('Solo el admin puede editar los conceptos');const low=x=>String(x==null?'':x).trim().toLowerCase(),n=String(p.concepto||'').trim();if(!n)throw new Error('Escribe el nombre del concepto');
    let i=p.original?D.conceptos.findIndex(c=>c.t===p.original.tipo&&low(c.n)===low(p.original.concepto)):-1;const same=D.conceptos.findIndex(c=>c.t===p.tipo&&low(c.n)===low(n));if(same>=0&&same!==i){if(i>=0||!p.original)throw new Error('Ya existe ese concepto');i=same}
    const row={n:n,t:p.tipo,m:p.monto===''||p.monto==null?null:Number(p.monto),a:p.activo!==false};if(i>=0)D.conceptos[i]=row;else D.conceptos.push(row);return {ok:true}},
+ // ---- Configuración avanzada (round 27): demo code 123456 ----
+ cfgAvEstado:(pin)=>{if(!isOwner(pin))throw new Error('No disponible para tu usuario');return {ok:true,set:CFG.set,bloqueado:CFG.lock}},
+ cfgAvUnlock:(pin,code,code2)=>{if(!isOwner(pin))throw new Error('No disponible para tu usuario');
+   if(!CFG.set){if(!/^\d{6}$/.test(code||''))throw new Error('El código debe tener exactamente 6 dígitos');if(code!==code2)throw new Error('Los dos códigos no coinciden');CFG.code=code;CFG.set=true;return Object.assign({ok:true,creado:true},cfgTok())}
+   if(CFG.lock)throw new Error('Demasiados intentos. Espera 10 minutos.');
+   if(code!==CFG.code){CFG.bad++;if(CFG.bad>=5){CFG.lock=true;throw new Error('Demasiados intentos. Espera 10 minutos.')}throw new Error('Código incorrecto. Te quedan '+(5-CFG.bad)+(5-CFG.bad===1?' intento.':' intentos.'))}
+   CFG.bad=0;return Object.assign({ok:true},cfgTok())},
+ cfgAvChangeCode:(pin,tok,a,n,n2)=>{cfgChk(pin,tok);if(a!==CFG.code)throw new Error('Código incorrecto. Te quedan 4 intentos.');if(!/^\d{6}$/.test(n||''))throw new Error('El código debe tener exactamente 6 dígitos');if(n!==n2)throw new Error('Los dos códigos no coinciden');CFG.code=n;return Object.assign({ok:true},cfgTok())},
+ cfgAvGet:(pin,tok)=>{cfgChk(pin,tok);return {ok:true,items:CFG.items,campos:CFG.campos,tipos:CFG.tipos,roles:CFG.roles,conceptos:D.conceptos,config:[{key:'semana_pago',label:'Semana de pago de eventuales',valor:D.config.semana_pago},{key:'semana_inicio',label:'Semana del reporte de stock',valor:D.config.semana_inicio}],configExtra:[],
+   historial:CFG.hist.slice().reverse(),opciones:{tarifas:['capitan','marinero','guia','instructor lider','instructor asistente','externo','ignorar'],barcos:[],tipos:[],prods:[],usosT:[],usosC:[]},rebuildPending:CFG.pending}},
+ cfgAvItemCampos:(pin,tok,pk)=>{cfgChk(pin,tok);return {ok:true,campos:[{pk:'1463805',name:'Sailboat (4 hours)',ejemplo:'0'},{pk:'1463814',name:'Sailboat (3 hours)',ejemplo:'2'},{pk:'1889802',name:'Number of people',ejemplo:'4'}]}},
+ setConfigAvanzada:(pin,tok,sec,clave,campo,valor)=>{cfgChk(pin,tok);return cfgSet(sec,clave,campo,valor)},
+ cfgAvRevertir:(pin,tok,id)=>{cfgChk(pin,tok);const h=CFG.hist.find(x=>x.id===Number(id));if(!h||!h.rev)throw new Error('No encontré ese cambio');return cfgSet(h.sec,h.clave,h.campo,h.antes)},
  setMapeo:(pin,kind,clave)=>{D.pend=D.pend.filter(x=>!(x.kind===kind&&x.clave===clave));return {ok:true,rebuildPending:false}}
 };
-const WRITES={saveUser:1,addFeedback:1,setFeedbackEstado:1,addCompra:1,addAjuste:1,addConteo:1,markRev:1,markPaid:1,setMapeo:1,addAjusteSalida:1,anularAjusteSalida:1,saveConcepto:1};
+const WRITES={setConfigAvanzada:1,cfgAvRevertir:1,saveUser:1,addFeedback:1,setFeedbackEstado:1,addCompra:1,addAjuste:1,addConteo:1,markRev:1,markPaid:1,setMapeo:1,addAjusteSalida:1,anularAjusteSalida:1,saveConcepto:1};
 window.fetch=function(url,opts){
   let delay=350,fail='';try{delay=Number(localStorage.getItem('demo_delay'))||350;fail=localStorage.getItem('demo_fail')||''}catch(e){}   // demo_delay (ms) / demo_fail ('net' | 'final') para ver "guardando…" y el error
   return new Promise((res,rej)=>setTimeout(()=>{
