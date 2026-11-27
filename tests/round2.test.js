@@ -36,7 +36,7 @@ test('computeSalida_: resources from active customer bookings only (not cancelle
   list[3].b.resource_uses = [ru(9, 888, 'OPS barco', 5)];
   const s = J(E.computeSalida_('9300', list, tours, NOW, {}, null)).salida;
   const H = E.SAL_HEADERS;
-  assert.deepStrictEqual(J(H.slice(-5, -3)), ['Recursos', 'Recursos pk'], 'round 6 appended Check-in / No show after them (round 14 appended Recursos conocidos)');
+  assert.deepStrictEqual(J(H.slice(-9, -7)), ['Recursos', 'Recursos pk'], 'round 6 appended Check-in / No show after them (round 14 appended Recursos conocidos)');
   assert.strictEqual(s.length, H.length);
   assert.strictEqual(s[H.indexOf('Recursos')], 'Barracuda (5) · Ramona (1)');
   assert.strictEqual(s[H.indexOf('Recursos pk')], '309946:Barracuda:5|309950:Ramona:1');

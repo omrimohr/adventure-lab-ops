@@ -50,23 +50,23 @@ test('camposText_: non-bitácora answers only; excludes OPS customers and Uso pr
 
 test('reservaRow_ appends Check-in / No show / Check-in detalle / Campos / Teléfono at the END (OPS rows: blank except phone)', () => {
   const H = E.RES_HEADERS, n = H.length;
-  assert.deepStrictEqual(J(H.slice(-12, -7)), ['Check-in', 'No show', 'Check-in detalle', 'Campos', 'Teléfono']);
+  assert.deepStrictEqual(J(H.slice(-16, -11)), ['Check-in', 'No show', 'Check-in detalle', 'Campos', 'Teléfono']);
   assert.strictEqual(H.indexOf('Link FareHarbor'), 32, 'earlier columns did not move');
   const p = bk(7010, 9400, [cu(100, 'Adult', { type: 'checked-in' }), cu(100, 'Adult', null), cu(100, 'Adult', { name: 'No show' })]); p.booking.contact.normalized_phone = '+529831112233'; p.booking.contact.phone = '983 111 2233';
   p.booking.custom_field_values = [F.cfv(555, 'Hotel', 'Magic')];
   const row = J(E.reservaRow_(p.booking, 'now', 5, { 258806: { tipo: 'compartido', fields: [] } }, {}, null));
   assert.strictEqual(row.length, n);
-  assert.deepStrictEqual(row.slice(-12, -7), ['1 de 3', 1, 'Adult:in|Adult:pending|Adult:noshow', 'Hotel: Magic', '+529831112233']);
+  assert.deepStrictEqual(row.slice(-16, -11), ['1 de 3', 1, 'Adult:in|Adult:pending|Adult:noshow', 'Hotel: Magic', '+529831112233']);
   const p2 = bk(7011, 9400, [cu(100, 'Adult', null)]); p2.booking.contact.phone = '983 999 0000';
-  assert.strictEqual(J(E.reservaRow_(p2.booking, 'now', 5, { 258806: { tipo: 'compartido', fields: [] } }, {}, null)).slice(-8)[0], '983 999 0000', 'phone falls back to contact.phone');
+  assert.strictEqual(J(E.reservaRow_(p2.booking, 'now', 5, { 258806: { tipo: 'compartido', fields: [] } }, {}, null)).slice(-12)[0], '983 999 0000', 'phone falls back to contact.phone');
   const o = bk(7012, 9400, [cu(1331886, 'OPS · Salida', { type: 'checked-in' })]);
-  assert.deepStrictEqual(J(E.reservaRow_(o.booking, 'now', 5, {}, {}, null)).slice(-12, -7), ['', '', '', '', '']);
+  assert.deepStrictEqual(J(E.reservaRow_(o.booking, 'now', 5, {}, {}, null)).slice(-16, -11), ['', '', '', '', '']);
   const none = bk(7013, 9400, [cu(100, 'Adult', null)]);
-  assert.deepStrictEqual(J(E.reservaRow_(none.booking, 'now', 5, { 258806: { tipo: 'compartido', fields: [] } }, {}, null)).slice(-12, -7), ['0 de 1', 0, 'Adult:pending', '', '']);
+  assert.deepStrictEqual(J(E.reservaRow_(none.booking, 'now', 5, { 258806: { tipo: 'compartido', fields: [] } }, {}, null)).slice(-16, -11), ['0 de 1', 0, 'Adult:pending', '', '']);
 });
 
 test('headers + rule version: Salidas ends with Check-in / No show; BITACORA_RULE_V is 6', () => {
-  assert.deepStrictEqual(J(E.SAL_HEADERS.slice(-3)), ['Check-in', 'No show', 'Recursos conocidos']);
+  assert.deepStrictEqual(J(E.SAL_HEADERS.slice(-7, -4)), ['Check-in', 'No show', 'Recursos conocidos']);
   assert.ok(/^\d+$/.test(E.BITACORA_RULE_V));
   assert.strictEqual(E.bitacoraRuleStale_('4'), true);
 });

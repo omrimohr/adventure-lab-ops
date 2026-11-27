@@ -39,9 +39,9 @@ test('moneyCells_: 7 values in order; absent keys → "" (short-form backfill pa
 
 test('RES_HEADERS: new columns appended at the END in order; earlier columns did not move; stale header triggers recompute', () => {
   const H = E.RES_HEADERS;
-  assert.deepStrictEqual(J(H.slice(-7)), ['Subtotal (MXN)', 'IVA (MXN)', 'Descuentos', 'Cargos extra', 'Pagos', 'Reembolsado (MXN)', 'Comisión procesamiento (MXN)']);
+  assert.deepStrictEqual(J(H.slice(-11, -4)), ['Subtotal (MXN)', 'IVA (MXN)', 'Descuentos', 'Cargos extra', 'Pagos', 'Reembolsado (MXN)', 'Comisión procesamiento (MXN)']);
   assert.strictEqual(H.indexOf('Teléfono'), 37);
-  assert.strictEqual(E.resHeaderStale_(H.slice(0, H.length - 7)), true);
+  assert.strictEqual(E.resHeaderStale_(H.slice(0, H.length - 11)), true);
   assert.strictEqual(E.resHeaderStale_(H), false);
   assert.strictEqual(E.reservaRow_(full().booking, 'now', 5, { 258806: { tipo: 'compartido', fields: [] } }, {}, null).length, H.length);
 });

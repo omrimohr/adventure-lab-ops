@@ -103,11 +103,11 @@ test('traslado ways, costo adicional and hora extra follow the customer side', (
   assert.strictEqual(bit.find(r => r[7] === '2021180')[5], 'Salida');
 });
 
-test('BITACORA_RULE_V bumped to 7 → first rebuildFinanzas recalculates once', () => {
+test('BITACORA_RULE_V bumped (≥ 7) → first rebuildFinanzas recalculates once', () => {
   const e = env();
   e.post(oneCustomerPayload()); e.G.ex.ensureMapeos_(e.ss); e.G.ex.rebuildAll();
-  assert.strictEqual(e.G.ex.BITACORA_RULE_V, '7');
+  assert.ok(Number(e.G.ex.BITACORA_RULE_V) >= 7);
   e.fe.props.BITACORA_RULE_V = '6';
   assert.strictEqual(J(e.G.ex.rebuildFinanzas()).reconstruido, true);
-  assert.strictEqual(e.fe.props.BITACORA_RULE_V, '7');
+  assert.strictEqual(e.fe.props.BITACORA_RULE_V, e.G.ex.BITACORA_RULE_V);
 });

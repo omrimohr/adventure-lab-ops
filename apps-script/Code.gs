@@ -34,12 +34,19 @@ const RES_HEADERS = ['Booking pk', 'Display ID', 'Estado', 'Cuenta', 'Reemplazad
   // round 6 (appended at the END): check-in "2 de 3", no-show count, "Adult:in|Adult:pending|Child:noshow", custom-field answers, phone
   'Check-in', 'No show', 'Check-in detalle', 'Campos', 'Teléfono',
   // round 16 (appended at the END): money detail as FareHarbor shows it (display only; Ingreso neto is NOT derived from these)
-  'Subtotal (MXN)', 'IVA (MXN)', 'Descuentos', 'Cargos extra', 'Pagos', 'Reembolsado (MXN)', 'Comisión procesamiento (MXN)'];
+  'Subtotal (MXN)', 'IVA (MXN)', 'Descuentos', 'Cargos extra', 'Pagos', 'Reembolsado (MXN)', 'Comisión procesamiento (MXN)',
+  // round 24 (appended at the END, only filled for CANCELLED customer bookings): money kept (paid − refunds), its Ingreso neto (report or estimate), source, cancel time (ISO)
+  'Cobrado sin reembolso (MXN)', 'Ingreso cancelada (MXN)', 'Fuente ingreso cancelada', 'Cancelada (hora)'];
+const RES_FEE_COL = 45; // 1-based column of 'Comisión procesamiento (MXN)' (importReport_ writes it; NOT the last column any more)
+const RES_KEPT = 45, RES_CNET = 46, RES_CSRC = 47, RES_CTC = 48; // 0-based indexes of the round 24 columns
 const SAL_HEADERS = ['Availability pk', 'Item pk', 'Item', 'Tipo tour', 'Fecha', 'Hora', 'Inicio', 'Fin',
   'Reservas activas', 'Pax', 'Unidades', 'Bitácora', 'Reserva salida', 'Reserva regreso', 'Tripulación',
   'Alertas', 'Actualizado', 'Ingreso neto (MXN)', 'Fuente ingreso', 'Recursos', 'Recursos pk',
   'Check-in', 'No show', // round 6: "in de total" over active customer bookings, no-show count
-  'Recursos conocidos']; // round 14: 'sí' when at least one customer booking carries resource_uses (early short-form imports don't)
+  'Recursos conocidos', // round 14: 'sí' when at least one customer booking carries resource_uses (early short-form imports don't)
+  // round 24: cancelled departures. 'sí' = ≥1 cancelled customer booking and none active; net income kept from cancelled customer bookings (already INSIDE Ingreso neto); cancel time (ISO); minutes before the start
+  'Cancelada', 'Cobro cancelaciones (MXN)', 'Cancelación (hora)', 'Cancelada antes (min)'];
+const SAL_CANC = 24, SAL_CCOBRO = 25, SAL_CHORA = 26, SAL_CMIN = 27; // 0-based indexes
 const ING_HEADERS = ['Booking pk', 'Ingreso neto (MXN)', 'Fecha tour', 'Archivo', 'Subido', 'Fila reporte', 'Comisión procesamiento']; // round 16: last column = report's Processing Fees ('' when the report has none)
 const CARGA_HEADERS = ['Subido', 'Archivo', 'Hash', 'Duplicado', 'Filas', 'Reservas encontradas', 'No encontradas',
   'Fechas', 'Notas'];
@@ -338,6 +345,61 @@ function netEstimate_(b) {
   return b.affiliate_company ? c(b.invoice_price) : c(b.amount_paid);
 }
 
+// ---- round 24: cancelled bookings ----
+/** Pure: ISO text of a Date / date string ('' when empty or invalid) */
+function isoOf_(v) {
+  if (v === undefined || v === null || v === '') return '';
+  const t = v instanceof Date ? v.getTime() : Date.parse(String(v));
+  return isNaN(t) ? '' : new Date(t).toISOString();
+}
+/** Pure: money a CANCELLED booking kept = amount paid − refunds (MXN, never negative). 0 when nothing was paid. */
+function keptAmount_(b) {
+  const paid = Number(b && b.amount_paid), ref = reembolsadoTotal_(b || {});
+  if (!isFinite(paid) || paid <= 0) return 0;
+  return Math.max(0, Math.round((paid / 100 - (ref === '' ? 0 : Number(ref))) * 100) / 100);
+}
+/** Pure: estimate of the Ingreso neto of a cancelled booking = the netEstimate_ logic applied to the KEPT amount (direct → what was kept; affiliate → invoice price, never more than what was kept). */
+function cancelNetEstimate_(b, kept) {
+  const inv = (b.invoice_price === undefined || b.invoice_price === null || b.invoice_price === '') ? 0 : Number(b.invoice_price) / 100;
+  return b.affiliate_company && inv > 0 ? Math.min(inv, kept) : kept;
+}
+/** Pure: income of a cancelled customer booking → {kept, net, est}. kept = 0 → no income. Report value (Net Revenue Collected + fee, like exactNet_) wins over the estimate. */
+function cancelIncome_(b, ing) {
+  const kept = keptAmount_(b);
+  if (!(kept > 0)) return { kept: 0, net: 0, est: false };
+  ing = ing || {};
+  if (ing[String(b.pk)] !== undefined) return { kept: kept, net: exactNet_(ing, b.pk), est: false };
+  return { kept: kept, net: Math.round(cancelNetEstimate_(b, kept) * 100) / 100, est: true };
+}
+/**
+ * Pure: when was this booking cancelled? Looks in the payload for a timestamp under a key that mentions cancel
+ * (cancelled_at, canceled_at, cancellation.cancelled_at, cancellation_date, …; ISO strings only). '' when the payload has none →
+ * the caller falls back to the Raw "Recibido" time of the first payload that came with status cancelled.
+ */
+function cancelAtOf_(b) {
+  let found = '';
+  const iso = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v) && !isNaN(Date.parse(v));
+  const walk = (o, depth, inCancel) => {
+    if (found || !o || typeof o !== 'object' || depth > 4) return;
+    Object.keys(o).forEach(k => {
+      if (found) return;
+      const v = o[k];
+      const direct = /cancel/i.test(k) && /(_at|_on|date|time)$|^cancel{1,2}ed$|^cancellation$/i.test(k);
+      const nested = inCancel && /^(at|created_at|date|time|timestamp)$/i.test(k);
+      if (iso(v) && (direct || nested)) found = isoOf_(v);
+      else if (v && typeof v === 'object' && k !== 'availability' && k !== 'customers' && k !== 'payments') walk(v, depth + 1, inCancel || /cancel/i.test(k));
+    });
+  };
+  walk(b || {}, 0, false);
+  return found;
+}
+/** Pure: the 4 appended Reservas cells [Cobrado sin reembolso, Ingreso cancelada, Fuente, Cancelada (hora)]. Customer (non-OPS) bookings with status cancelled only. tc = Raw 'Recibido' of the first payload with status cancelled. */
+function cancelCells_(b, status, ops, ing, tc) {
+  if (status !== 'cancelled' || ops) return ['', '', '', ''];
+  const c = cancelIncome_(b, ing);
+  return [c.kept > 0 ? c.kept : '', c.kept > 0 ? c.net : '', c.kept > 0 && c.est ? 'estimado' : '', cancelAtOf_(b) || isoOf_(tc)];
+}
+
 function opsType_(b, M) {
   const t = (b.customers || []).map(c => typeUso_(M, c));
   let o = '';
@@ -392,8 +454,9 @@ function bitacoraNoAplica_(tipo, barco) { return String(tipo || '').toLowerCase(
 // '4' (25 Nov 2026): Costos adicionales amounts (Costos salida col S, Externos col I) and the Bitácora text of costo adicional/extras fields.
 // '5' (26 Nov 2026): check-in / no-show (Reservas + Salidas columns, alert "No show: N"), Reservas Campos / Teléfono.
 // '7' (26 Nov 2026): Bitácora Salida/Regreso per CUSTOMER type (one OPS booking with two customers); Bitácora gets column 'Customer pk'.
+// '8' (26 Nov 2026): cancelled bookings (income kept = paid − refunds, Reservas/Salidas columns, cancel time), no automatic 50% for cancelled departures (round 24).
 // '6' (26 Nov 2026): Ingreso neto = Net Revenue Collected + Processing Fees (exactNet_); Externos amount from the Capitán Externo crew note (externoNota_), Costos salida counts it once.
-const BITACORA_RULE_V = '7';
+const BITACORA_RULE_V = '8';
 // Items that got OPS · Salida/Regreso bitácora fields in FareHarbor on 24 Nov 2026 → Tours "Lleva bitácora" = sí (sheet record only)
 const BITACORA_SI_20261124 = [244134, 398421, 243654, 398153, 337343, 337931, 398154, 703654, 689738, 185852, 703536, 770935];
 function markBitacoraSi_(ss) {
@@ -476,12 +539,24 @@ function computeSalida_(avPk, list, tours, now, ing, M) {
   const active = list.filter(x => x.b.status === 'booked');
   const opsBk = active.filter(x => opsType_(x.b, M));
   const custBk = active.filter(x => !opsType_(x.b, M));
+  // round 24: cancelled CUSTOMER bookings that kept money count as income (never as pax / unidades / check-in / departure)
+  const cancBk = list.filter(x => x.b.status === 'cancelled' && !opsType_(x.b, M));
 
   let pax = 0, unidades = 0, paxPend = false, ingreso = 0, estimados = 0;
   custBk.forEach(x => {
     const exact = ing[String(x.b.pk)];
     if (exact !== undefined) ingreso += exactNet_(ing, x.b.pk); else { ingreso += netEstimate_(x.b); estimados++; }
   });
+  let cobroCanc = 0, cancHora = '';
+  cancBk.forEach(x => {
+    const c = cancelIncome_(x.b, ing);
+    if (c.kept > 0) { cobroCanc += c.net; if (c.est) estimados++; }
+    const at = cancelAtOf_(x.b) || isoOf_(x.tc);
+    if (at && at > cancHora) cancHora = at; // the departure became fully cancelled with the LAST cancellation
+  });
+  cobroCanc = Math.round(cobroCanc * 100) / 100; ingreso += cobroCanc;
+  const cancelada = !custBk.length && cancBk.length > 0;
+  const startMs = Date.parse(av.start_at), cancMin = cancelada && cancHora && !isNaN(startMs) ? Math.round((startMs - Date.parse(cancHora)) / 60000) : '';
   const alerts = [];
   custBk.forEach(x => {
     const p = bookingPax_(x.b, tour, M);
@@ -540,12 +615,13 @@ function computeSalida_(avPk, list, tours, now, ing, M) {
     crew.map(c => (c[4] || 'sin rol') + ': ' + (c[5] || c[6])).join(' · '),
     alerts.join(' | '), now, Math.round(ingreso * 100) / 100, estimados ? 'estimado' : '',
     resources.map(r => r.name + ' (' + r.n + ')').join(' · '), resources.map(r => r.pk + ':' + r.name + ':' + r.n).join('|'),
-    checkinText_(ci.in, ci.n), ci.n ? ci.ns : '', resKnown ? 'sí' : 'no'];
+    checkinText_(ci.in, ci.n), ci.n ? ci.ns : '', resKnown ? 'sí' : 'no',
+    cancelada ? 'sí' : '', cobroCanc > 0 ? cobroCanc : '', cancelada ? cancHora : '', cancelada ? cancMin : ''];
   return { salida: salida, bit: bit, crew: crew, hasCustomers: custBk.length > 0 };
 }
 
 // ---------------- Reservas ----------------
-function reservaRow_(b, eventTime, rawRow, tours, ing, M) {
+function reservaRow_(b, eventTime, rawRow, tours, ing, M, tc) {
   ing = ing || {};
   const av = b.availability || {};
   const item = av.item || {};
@@ -571,7 +647,8 @@ function reservaRow_(b, eventTime, rawRow, tours, ing, M) {
     ...incomeCells_(b, status, ops, ing),
     b.dashboard_url || '', // 'Link FareHarbor' (older sheets get it on the next full rebuild)
     ...(ops ? ['', '', '', '', phoneOf_(b)] : (k => [checkinText_(k.in, k.n), k.n ? k.ns : '', k.det, camposText_(b, M), phoneOf_(b)])(checkinSummary_(b, M))),
-    ...moneyCells_(b, ops, ing)
+    ...moneyCells_(b, ops, ing),
+    ...cancelCells_(b, status, ops, ing, tc)
   ];
 }
 
@@ -648,12 +725,13 @@ function upsertReserva_(ss, b, eventTime, rawRow, tours, ing, M) {
     sh.getRange(1, 1, 1, RES_HEADERS.length).setValues([RES_HEADERS]).setFontWeight('bold');
     setRebuildPending_(); // older bookings lack 'Link FareHarbor': refill from Raw once (never in the webhook)
   }
-  const row = reservaRow_(b, eventTime, rawRow, tours, ing, M);
+  const row = reservaRow_(b, eventTime, rawRow, tours, ing, M, eventTime); // a webhook arrives when it happens: this payload is the first one with status cancelled…
   const n = Math.max(sh.getLastRow() - 1, 1);
   const found = sh.getRange(2, 1, n, 1).createTextFinder(String(b.pk)).matchEntireCell(true).findNext();
   if (found) {
     const r = found.getRow();
     const prev = sh.getRange(r, 1, 1, RES_HEADERS.length).getValues()[0];
+    if (b.status === 'cancelled' && prev[2] === 'cancelled' && prev[RES_CTC] && !cancelAtOf_(b)) row[RES_CTC] = prev[RES_CTC]; // …unless it was already cancelled (keep the first time)
     if (prev[2] === 'rebooked' && row[2] !== 'rebooked') { row[2] = prev[2]; row[3] = prev[3]; row[4] = prev[4] || row[4]; }
     sh.getRange(r, 1, 1, RES_HEADERS.length).setValues([row]);
   } else {
@@ -679,7 +757,9 @@ function latestFromRaw_(ss) {
       if (prev && prev.b.status === 'rebooked' && b.status !== 'rebooked') {
         b.status = 'rebooked'; b.rebooked_to = b.rebooked_to || prev.b.rebooked_to;
       }
-      latest[b.pk] = { b: b, t: v[0], row: i + 2 };
+      // round 24: Raw 'Recibido' of the FIRST payload with status cancelled (fallback for the cancel time)
+      const tc = b.status === 'cancelled' ? ((prev && prev.b.status === 'cancelled' && prev.tc) ? prev.tc : v[0]) : '';
+      latest[b.pk] = { b: b, t: v[0], row: i + 2, tc: tc };
     } catch (err) { logError_(ss, 'leer Raw fila ' + (i + 2), err, json); }
   });
   return latest;
@@ -694,7 +774,7 @@ function rebuildReservas() {
   const latest = latestFromRaw_(ss);
   Object.values(latest).forEach(x => ensureTour_(ss, tours, x.b));
   registerUnknowns_(ss, Object.values(latest).map(x => x.b), M, ctxFor_(ss, tours), new Date()); // keep unknowns, never drop data
-  const rows = Object.values(latest).map(x => reservaRow_(x.b, x.t, x.row, tours, ing, M));
+  const rows = Object.values(latest).map(x => reservaRow_(x.b, x.t, x.row, tours, ing, M, x.tc));
   rows.sort((a, b) => String(a[11]).localeCompare(String(b[11])) || (a[0] - b[0]));
   writeTab_(ss, 'Reservas', RES_HEADERS, rows);
   return latest;
@@ -712,7 +792,7 @@ function rebuildAll() {
   Object.values(latest).forEach(x => {
     const k = String(((x.b.availability || {}).pk) || '');
     if (!k) return;
-    (byAv[k] = byAv[k] || []).push({ b: x.b, row: x.row });
+    (byAv[k] = byAv[k] || []).push({ b: x.b, row: x.row, tc: x.tc });
   });
   const now = new Date();
   const sal = [], bit = [], crew = [];
@@ -745,7 +825,7 @@ function recomputeSalidas_(ss, avPks, tours, ing, M) {
       try {
         const b = JSON.parse(json).booking;
         if (r[2] === 'rebooked') b.status = 'rebooked';
-        list.push({ b: b, row: Number(r[29]) });
+        list.push({ b: b, row: Number(r[29]), tc: r[RES_CTC] });
       } catch (err) { logError_(ss, 'recompute ' + avPk, err, json); }
     });
     if (!list.length) return;
@@ -905,7 +985,8 @@ function importReport_(ss, input, archivo) {
     const i = idx[pk], r = rv[i];
     const cells = (r[3] === 'sí' && !r[13]) ? [exactNet_(ing, pk), ''] : [0, ''];
     res.getRange(i + 2, 31, 1, 2).setValues([cells]);
-    if (ing['fee:' + pk] !== undefined && r[3] === 'sí' && !r[13]) res.getRange(i + 2, RES_HEADERS.length).setValue(ing['fee:' + pk]);
+    if (ing['fee:' + pk] !== undefined && r[3] === 'sí' && !r[13]) res.getRange(i + 2, RES_FEE_COL).setValue(ing['fee:' + pk]);
+    if (r[2] === 'cancelled' && !r[13] && Number(r[RES_KEPT]) > 0) res.getRange(i + 2, RES_CNET + 1, 1, 2).setValues([[exactNet_(ing, pk), '']]); // round 24: a cancelled booking that kept money: the report's figure replaces the estimate
     if (r[6]) avs[String(r[6])] = true;
     if (r[9]) fechas[fmtCell_(r[9])] = true;
   });
@@ -1069,7 +1150,6 @@ const TAR_SEED = [
   ['instructor lider', 'sup', '', '', '', '', 400, 'salida', 'Instructor SUP Líder A/B'],
   ['instructor asistente', '*', '', '', '', '', 400, 'salida', ''],
   ['hora extra', '*', '', '', '', '', 100, 'hora', 'Capitán y marinero, campo "Hora extra" de la bitácora'],
-  ['cancelado', '*', '', '', '', '', 0.5, 'factor', 'Tour cancelado con tripulación asignada = 50%'],
   ['festivo', '*', '', '', '', '', '', 'factor', 'PENDIENTE: Omri confirma'],
   ['traslado', 'catamaran', '', '', '', '', 100, 'salida', 'Por trayecto (ida / regreso), a cada tripulante'],
   ['traslado', 'monocasco', '', '', '', '', 100, 'salida', ''],
@@ -1380,8 +1460,9 @@ function ajustesActivos_(rows) {
   (rows || []).forEach(r => {
     if (r[0] === '' || r[0] === null || r[0] === undefined) return;
     if (/^s/i.test(String(r[11] || ''))) return; // annulled
-    const tipo = String(r[5] || '').toLowerCase().trim() === 'costo' ? 'costo' : 'pago', monto = Number(r[8]);
-    if (!isFinite(monto) || monto === 0) return;
+    const t0 = String(r[5] || '').toLowerCase().trim(), tipo = t0 === 'costo' ? 'costo' : t0 === 'decision' ? 'decision' : 'pago', monto = Number(r[8]);
+    if (tipo === 'decision') { if (!isFinite(monto)) return; } // round 24: a decision (e.g. "Cancelación: no se paga") is a marker with monto 0
+    else if (!isFinite(monto) || monto === 0) return;
     out.push({ id: String(r[0]), creado: r[1] instanceof Date ? fmtDate_(r[1], 'yyyy-MM-dd HH:mm') : String(r[1] || ''), av: String(r[2]), fecha: ymd_(r[3]), item: String(r[4] || ''),
       tipo: tipo, persona: String(r[6] || ''), concepto: String(r[7] || ''), monto: Math.round(monto * 100) / 100, motivo: String(r[9] || ''), por: String(r[10] || ''), cid: String(r[14] || '') });
   });
@@ -1391,6 +1472,7 @@ function ajustesActivos_(rows) {
 function ajustesPorSalida_(ajs) {
   const m = {};
   (ajs || []).forEach(a => {
+    if (a.tipo === 'decision') return;
     const o = m[a.av] = m[a.av] || { pago: 0, costo: 0, total: 0 };
     o[a.tipo === 'costo' ? 'costo' : 'pago'] += a.monto; o.total += a.monto;
   });
@@ -1416,7 +1498,10 @@ function payForSalida_(sal, crew, bitRows, rules, barco, M, now, payDow) {
   const out = [], ext = [];
   const fecha = fmtDate_(sal[6], 'yyyy-MM-dd') || ymd_(sal[4]), hora = fmtDate_(sal[6], 'HH:mm'), horas = hoursBetween_(sal[6], sal[7]);
   const activas = Number(sal[8]) || 0;
-  const factorCancel = ruleValue_(rules, 'cancelado', 0.5);
+  // round 24: NO automatic 50% any more. A departure without active customer bookings: with a Salida bitácora (it went out) the crew is paid the full normal rate;
+  // without one nothing is paid automatically (Tarifa is still recorded so the app can offer "Pagar 50% / completo"; the decision becomes a pago Ajuste).
+  const salio = bitRows.some(r => String(r[5]) === 'Salida');
+  const sinPago = !activas && !salio;
   const extraRate = ruleValue_(rules, 'hora extra', 100);
   let horasExtra = 0;
   bitRows.forEach(b => { if (bitUso_(b, M).uso === 'hora extra') horasExtra += horaExtraQty_(b); }); // number of hours OR a checkbox (= 1 h), round 20
@@ -1434,17 +1519,18 @@ function payForSalida_(sal, crew, bitRows, rules, barco, M, now, payDow) {
       return;
     }
     const rate = findRate_(rules, rolT, barco, horas, sal[2], nombre);
-    let factor = 1, alerta = '';
-    if (!activas) { factor = factorCancel; alerta = 'Sin reservas activas: ' + (factorCancel * 100) + '%'; }
+    let factor = sinPago ? 0 : 1, alerta = '';
     let tarifa = 0;
     if (!rate) alerta = (alerta ? alerta + ' | ' : '') + 'Sin tarifa para ' + rol + ' / ' + barco;
     else if (rate.pendiente) alerta = (alerta ? alerta + ' | ' : '') + 'Tarifa pendiente';
     else tarifa = rate.monto;
-    const extra = /capitan|marinero/.test(norm_(rolT)) ? horasExtra : 0;
+    const extra = !sinPago && /capitan|marinero/.test(norm_(rolT)) ? horasExtra : 0;
     const extraMx = extra * extraRate;
-    const regla = (rate ? 'Tarifas fila ' + rate.regla : '') + (nWays ? (rate ? ' | ' : '') + 'Traslado ' + trVias.replace(',', ' + ') : '');
+    const trPay = sinPago ? 0 : trMx;
+    const regla = (rate ? 'Tarifas fila ' + rate.regla : '') + (nWays && !sinPago ? (rate ? ' | ' : '') + 'Traslado ' + trVias.replace(',', ' + ') : '')
+      + (sinPago ? (rate ? ' | ' : '') + 'Cancelada: sin pago automático' : (!activas ? (rate ? ' | ' : '') + 'Cancelada · salió' : ''));
     out.push([weekStart_(fecha, payDow), fecha, hora, sal[2], sal[0], nombre, usuario, rol, barco, horas, tarifa, factor,
-      extra, extraMx, Math.round((tarifa * factor + extraMx + trMx) * 100) / 100, regla, alerta, '', trMx, trVias]);
+      extra, extraMx, Math.round((tarifa * factor + extraMx + trPay) * 100) / 100, regla, alerta, '', trPay, sinPago ? '' : trVias]);
   });
   // Externos (round 19): the amount comes from the Capitán Externo's crew note ("Barco: San Ángel (externo) – Juan Pérez – $3,500", row[11]);
   // the note wins. FALLBACK (older days, no amount in any note): the "barco externo" lines of Costos adicionales (OPS · Regreso bookings);
@@ -2132,4 +2218,4 @@ function sheet_(ss, name, headers) {
 if (typeof module !== 'undefined') module.exports = { ctKey_, cfKey_, roleKey_, guessCtype_, guessFieldUso_, guessRolTarifa_, camposMap_, typeUso_, fieldUso_, bitUso_, crewTarifa_,
   reportFileName_, archiveReport_, mapeosFromRows_, observe_, collectUnknowns_, seedMapeos_, validateMapeo_, toursFromRows_, tourEstado_, TOURS_SEED_ROWS: TOURS_SEED, USOS_CT, USOS_CF,
   CT_HEADERS, CF_HEADERS, ROL_HEADERS, CREW_HEADERS, BIT_HEADERS, ESTADO_NUEVO, ESTADO_OK, rawRowFor_, doPost, rebuildFinanzas, rebuildAll, ensureMapeos_, loadMapeos_,
-  registerUnknowns_, prepararMapeos, parseCostos_, externoNota_, barcoNota_, exactNet_, costoAdicionalText_, EXT_HEADERS, COSTO_HEADERS, bitacoraNoAplica_, bitacoraRuleStale_, markBitacoraSi_, BITACORA_RULE_V, checkinOf_, checkinSummary_, checkinText_, parseCheckin_, camposText_, phoneOf_, reservaRow_, importReport_, horaExtraQty_, planHoraExtraMigration_, checkTicked_, trasladoWays_, trasladoRate_, planTrasladoCampos_, planTrasladoTarifas_, migrateTrasladoCampos20261126_, migrateTrasladoTarifas20261126_, TRASLADO_FIELDS, TRASLADO_TAR_SEED, migrateHoraExtra20261126_, ajustesActivos_, ajustesPorSalida_, ajusteEvRows_, AJS_HEADERS, CONC_HEADERS, CONC_SEED, EV_HEADERS, loadIngresos_, moneyCells_, pricedFields_, descuentosText_, cargosText_, pagosText_, reembolsadoTotal_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payDow_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };
+  registerUnknowns_, prepararMapeos, isoOf_, keptAmount_, cancelNetEstimate_, cancelIncome_, cancelAtOf_, cancelCells_, RES_KEPT, RES_CNET, RES_CSRC, RES_CTC, SAL_CANC, SAL_CCOBRO, SAL_CHORA, SAL_CMIN, parseCostos_, externoNota_, barcoNota_, exactNet_, costoAdicionalText_, EXT_HEADERS, COSTO_HEADERS, bitacoraNoAplica_, bitacoraRuleStale_, markBitacoraSi_, BITACORA_RULE_V, checkinOf_, checkinSummary_, checkinText_, parseCheckin_, camposText_, phoneOf_, reservaRow_, importReport_, horaExtraQty_, planHoraExtraMigration_, checkTicked_, trasladoWays_, trasladoRate_, planTrasladoCampos_, planTrasladoTarifas_, migrateTrasladoCampos20261126_, migrateTrasladoTarifas20261126_, TRASLADO_FIELDS, TRASLADO_TAR_SEED, migrateHoraExtra20261126_, ajustesActivos_, ajustesPorSalida_, ajusteEvRows_, AJS_HEADERS, CONC_HEADERS, CONC_SEED, EV_HEADERS, loadIngresos_, moneyCells_, pricedFields_, descuentosText_, cargosText_, pagosText_, reembolsadoTotal_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payDow_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };

@@ -244,7 +244,7 @@ function rateLabel_(r) {
 function buildRates_(rows) {
   const out = [];
   rows.forEach((r, i) => {
-    if (r[0] === '') return;
+    if (r[0] === '' || norm_(r[0]) === 'cancelado') return; // round 24: the automatic 50% rule is gone; an old Tarifas row stays in the sheet but is no longer shown or read
     out.push({ id: i + 2, l: rateLabel_(r), amt: r[6] === '' ? '' : Number(r[6]), u: String(r[7] || 'salida'), note: String(r[8] || ''), pending: r[6] === '' });
   });
   return out;
@@ -342,6 +342,26 @@ function trFrom_(e) {
   if (!v.length) return null;
   return { ida: v.indexOf('ida') >= 0, regreso: v.indexOf('regreso') >= 0, monto: r2_(e[18]), ways: v.length };
 }
+/** Pure (round 24): "cancelada 26 h antes" / "40 min antes" from the minutes between the cancellation and the departure start (negative = after the start) */
+function cancelAntesTxt_(min) {
+  if (min === null || min === undefined || min === '' || isNaN(Number(min))) return '';
+  const m = Number(min);
+  if (m < 0) return 'cancelada después de la hora de salida';
+  if (m < 60) return 'cancelada ' + m + ' min antes';
+  if (m < 72 * 60) return 'cancelada ' + Math.round(m / 60) + ' h antes';
+  return 'cancelada ' + Math.round(m / 1440) + ' días antes';
+}
+/** Pure: is this active adjustment a decision about a cancelled departure ("no se paga" marker, or a Cancelación pago)? */
+function cancDecision_(a) { return !!a && (a.tipo === 'decision' || (a.tipo === 'pago' && /^cancelaci[oó]n/i.test(String(a.concepto || '')))); }
+/** Pure: notifications (same shape as saludAlerts_) for cancelled departures with crew, no Salida bitácora and no decision yet. Last 14 days up to today. Admin and op. */
+function cancelAlerts_(deps, today) {
+  const lo = addDays_(today, -14), out = [];
+  (deps || []).forEach(d => {
+    if (!d.cn || !d.cn.need || d.date < lo || d.date > today || (d.aj || []).some(cancDecision_)) return;
+    out.push({ nivel: 'warn', tipo: 'cancelada', texto: 'Cancelada con tripulación: ¿se paga? ' + d.date + ' ' + d.time + ' ' + d.item + (d.cn.min !== null ? ' · ' + cancelAntesTxt_(d.cn.min) : ''), rol: 'todos', fecha: d.date, av: String(d.id) });
+  });
+  return out.sort((a, b) => (b.fecha + b.texto).localeCompare(a.fecha + a.texto));
+}
 function buildDeps_(inp) {
   const group = (rows, col) => { const m = {}; rows.forEach(r => { const k = String(r[col]); (m[k] = m[k] || []).push(r); }); return m; };
   const inWin = windowTest_(inp.desde, inp.hasta);
@@ -365,7 +385,7 @@ function buildDeps_(inp) {
     const crew = (crewBy[pk] || []).map(c => {
       const n = String(c[5] || c[6] || ''), e = evBy[pk + '|' + String(c[5])], x = extBy[pk + '|' + String(c[5])];
       const nt = String(c[7] || ''); // crew Note in FareHarbor, e.g. "Barco: El Cormoran" (externo: "San Ángel – Juan Pérez")
-      if (e) return { n: n, r: roleLabel_(c[4]), nt: nt, bc: barcoNota_(nt), pay: { base: r2_(Number(e[10]) * Number(e[11])), hx: r2_(e[13]), tot: r2_(e[14]), tr: trFrom_(e) }, alert: String(e[16] || '') };
+      if (e) return { n: n, r: roleLabel_(c[4]), nt: nt, bc: barcoNota_(nt), pay: { base: r2_(Number(e[10]) * Number(e[11])), rate: r2_(e[10]), hx: r2_(e[13]), tot: r2_(e[14]), tr: trFrom_(e) }, alert: String(e[16] || '') };
       if (x) return { n: n, r: roleLabel_(c[4]), nt: nt, bc: String(x[9] || '') || barcoNota_(nt), who: String(x[10] || ''), ext: true, note: String(x[6] || ''), monto: x[8] === '' || x[8] === undefined ? null : r2_(x[8]), pay: { base: 0, hx: 0, tot: 0 }, alert: String(x[7] || '') };
       return { n: n, r: roleLabel_(c[4]), nt: nt, bc: barcoNota_(nt), pay: { base: 0, hx: 0, tot: 0 }, alert: '' };
     });
@@ -377,6 +397,18 @@ function buildDeps_(inp) {
       pk: String(r[0]), note: String(r[21] || ''), paid: r2_(numOr_(r[23], 0)), aff: String(r[18] || ''), src: String(r[19] || ''), by: String(r[20] || ''),
       created: r[25] ? fmtDate_(r[25], 'yyyy-MM-dd HH:mm') : '', ci: ciFrom_(r[33], r[34], r[35]), campos: String(r[36] || ''), tel: String(r[37] || '')
     }, moneyFrom_(r)));
+    // round 24: cancelled CUSTOMER bookings (money kept counts as income; never pax). need = all cancelled, crew with a rate, no Salida bitácora, date reached
+    const cancRows = (resBy[pk] || []).filter(r => r[2] === 'cancelled' && !r[13]).sort((a, b) => Number(a[0]) - Number(b[0]));
+    const salio = bits.some(b => String(b[5]) === 'Salida');
+    const cn = cancRows.length ? (() => {
+      const bks = cancRows.map(r => ({ id: String(r[1] || r[0]), pk: String(r[0]), name: String(r[17] || ''), url: String(r[32] || ''), paid: r2_(numOr_(r[23], 0)), refund: r2_(numOr_(r[43], 0)),
+        kept: r2_(numOr_(r[RES_KEPT], 0)), net: r[RES_CNET] === '' || r[RES_CNET] === undefined ? null : r2_(r[RES_CNET]), est: r[RES_CSRC] === 'estimado' }));
+      const all = String(s[SAL_CANC] || '') === 'sí', min = s[SAL_CMIN] === '' || s[SAL_CMIN] === undefined || s[SAL_CMIN] === null ? null : Number(s[SAL_CMIN]);
+      const dt = fmtDate_(s[6], 'yyyy-MM-dd');
+      return { all: all, n: bks.length, bks: bks, kept: r2_(bks.reduce((a, x) => a + x.kept, 0)), net: r2_(Number(s[SAL_CCOBRO]) || 0), est: bks.some(x => x.est),
+        at: String(s[SAL_CHORA] || ''), min: isNaN(min) ? null : min, salio: salio,
+        need: all && !salio && crew.some(c => c.pay && c.pay.rate !== undefined) && (!inp.today || dt <= inp.today) };
+    })() : null;
     const firstUrl = list => { for (let i = 0; i < list.length; i++) if (urls[list[i]]) return urls[list[i]]; return ''; };
     const k = costBy[pk];
     const barco = inp.barcos[String(s[1])] || '';
@@ -389,6 +421,7 @@ function buildDeps_(inp) {
       costs: k ? { b: r2_(k[8]), g: r2_(k[10]), h: r2_(k[9]), f: r2_(k[11]), des: r2_(k[12]), ev: r2_(k[13]), tot: r2_(k[14]), pct: k[15] === '' ? null : Number(k[15]), ca: r2_(k[18]), aj: r2_(k[19]),
         ext: crew.filter(c => c.ext).map(c => ({ barco: c.bc || '', persona: c.who || '', monto: c.monto === undefined ? null : c.monto })), // Renta de barco: one per external (amount from the crew note)
         adic: r2_(k[18] - crew.filter(c => c.ext).reduce((a, c) => a + (Number(c.monto) || 0), 0)) } : null, // Costos adicionales without the external boat cost
+      cn: cn,
       aj: (ajBy[pk] || []).map(a => ({ id: a.id, tipo: a.tipo, persona: a.persona, concepto: a.concepto, monto: a.monto, motivo: a.motivo, por: a.por, creado: a.creado, cid: a.cid })),
       ci: (k => k ? { in: k.in, n: k.n, ns: Number(s[22]) || 0 } : null)(parseCheckin_(s[21])),
       paxTxt: String(s[9]), salidaUrl: firstUrl(ids(s[12])), regresoUrl: firstUrl(ids(s[13])), salidaPk: ids(s[12]).join(', '), regresoPk: ids(s[13]).join(', '),
@@ -646,7 +679,7 @@ function getData(pin, desde, hasta) {
   const crewRows = readTab_(ss, 'Tripulación', CREW_HEADERS);
   const deps = buildDeps_({
     ajs: ajRows,
-    desde: desde, hasta: hasta, salidas: salidas, bit: bit, barcos: barcos, productos: productos, M: M,
+    desde: desde, hasta: hasta, today: today, salidas: salidas, bit: bit, barcos: barcos, productos: productos, M: M,
     reservas: reservas, crew: crewRows,
     ev: readTab_(ss, 'Eventuales', EV_HEADERS), ext: extRows, costos: readTab_(ss, 'Costos salida', COSTO_HEADERS),
     revs: latestRevs_(readTab_(ss, 'Revisiones', REV_HEADERS), today)
@@ -671,7 +704,7 @@ function getData(pin, desde, hasta) {
     control: control.map(c => ({ d: c.d, est: c.est })), pendMs: pend.map(x => x.ms), erroresHoy: fh.errores
   });
   const fhOk = !saludAll.some(a => a.tipo === 'webhook'); // FareHarbor connection healthy (the app's green/orange dot)
-  const salud = saludAll.filter(a => u.rol === 'admin' || a.rol === 'todos');
+  const salud = saludAll.concat(cancelAlerts_(deps, today)).filter(a => u.rol === 'admin' || a.rol === 'todos'); // round 24: + cancelled departures waiting for a pay decision
   const comidas = readTab_(ss, 'Comida empleado', COMIDA_HEADERS).filter(r => r[1] !== '').slice(-15).reverse()
     .map(r => ({ d: ymd_(r[0]), n: String(r[1]), tipo: String(r[2]), q: Number(r[3]) || 0, nota: String(r[4] || ''), por: String(r[5] || '') }));
 
@@ -1231,8 +1264,9 @@ function normAjusteSalida_(p) {
   p = p || {};
   const av = clean_(p.av, 40); if (!av) throw new Error('Falta la salida');
   const t = String(p.tipo === undefined || p.tipo === null ? '' : p.tipo).toLowerCase().trim();
-  if (t !== 'pago' && t !== 'costo') throw new Error('Tipo inválido');
+  if (t !== 'pago' && t !== 'costo' && t !== 'decision') throw new Error('Tipo inválido');
   const concepto = clean_(p.concepto, 80); if (!concepto) throw new Error('Elige el concepto');
+  if (t === 'decision') return { av: av, tipo: t, persona: '', concepto: concepto, monto: 0, motivo: clean_(p.motivo, 300) }; // round 24: marker row (e.g. "Cancelación: no se paga"), no money
   const persona = clean_(p.persona, 80);
   if (t === 'pago' && !persona) throw new Error('Elige la persona');
   const raw = typeof p.monto === 'string' ? p.monto.replace(/[$\s,]/g, '').replace(/^−/, '-') : p.monto;
@@ -1400,5 +1434,5 @@ if (typeof module !== 'undefined') module.exports = {
   cleanLines_, slugId_, rateLabel_, buildRates_, latestRevs_, roleLabel_, bitQty_, extrasText_, ciFrom_, buildDeps_, trFrom_, moneyFrom_, buildPend_, fieldsFromBookings_, saludAlerts_, setMapeo, planTarifasMigration_, pluralEs_, appendNote_,
   login, getData, refreshFin, windowTest_, staleFin_, addCompra, anularCompra, editCompra, addAjuste, addConteo, addComida, markPaid, markRev, saveProducto, saveTarifa, savePerm, saveTourBarco, setConfig, validateConfig_, configFromRows_, migrate20261124, stockReport_, stockReport, loadMoves_, cidRow_, cidOf_, ensureCidCol_,
   eventualesReport_, eventualesReport, usersFromRows_, validateUser_, listUsers, saveUser, normFeedback_, feedbackFileName_, feedbackFromRows_, validEstado_, addFeedback, setFeedbackEstado, FEEDBACK_HEADERS,
-  normAjusteSalida_, conceptosFromRows_, validateConcepto_, staffFromCrew_, addAjusteSalida, anularAjusteSalida, saveConcepto
+  normAjusteSalida_, conceptosFromRows_, validateConcepto_, staffFromCrew_, addAjusteSalida, anularAjusteSalida, saveConcepto, cancelAntesTxt_, cancDecision_, cancelAlerts_
 };

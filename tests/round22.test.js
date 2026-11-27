@@ -4,9 +4,9 @@ const { test } = require('./lib');
 const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 const html = read('docs/index.html'), sw = read('docs/sw.js');
 
-test('round 22: APP_VER = v20 = sw CACHE', () => {
-  assert.ok(/const APP_VER='v20'/.test(html));
-  assert.ok(sw.indexOf("const CACHE = 'al-ops-v20'") >= 0);
+test('round 22: APP_VER = sw CACHE', () => {
+  const v = /const APP_VER='(v\d+)'/.exec(html)[1];
+  assert.ok(sw.indexOf("const CACHE = 'al-ops-" + v + "'") >= 0);
 });
 test('round 22: roleBar wraps top bar + optional extra in a sticky .stk; Operación passes the date row', () => {
   const bar = /function roleBar\(extra\)\{[^\n]*/.exec(html)[0];
@@ -28,7 +28,7 @@ test('round 22: filter row (icon + "Filtrar", "Filtro: … · quitar" at the lef
   assert.ok(fr > 0 && op.indexOf('data-fopen') > fr && op.indexOf('Filtrar${fOn') > 0 && op.indexOf('Filtro: <b>') > fr && op.indexOf('quitar') > fr);
   assert.ok(op.indexOf('${r3}${r4}</div>`+fr') > ds, 'fr appended right after dsum');
   assert.ok(op.indexOf('chips fchips') > fr, 'chips are part of the row block');
-  assert.ok(/if\(!ds\.length\)return h\+fr\+/.test(op), 'also on days without departures');
+  assert.ok(/if\(!ds\.length(&&[^)]*\))?\)return h\+fr\+/.test(op) || op.indexOf('if(!ds.length&&') > 0, 'also on days without departures');
 });
 test('round 22: scroll targets account for the sticky height (--stk, scroll-margin-top); light and dark share the same variables', () => {
   assert.ok(/function stkSync\(\)\{[^\n]*--stk/.test(html) && /stkSync\(\);\n/.test(html));

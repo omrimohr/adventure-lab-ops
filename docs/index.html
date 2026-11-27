@@ -313,6 +313,9 @@ button.live{width:100%;background:none;border:0;font:inherit;font-size:12px;colo
 /* Rentas y pases de día: fila compacta de 2 líneas (ícono + hora + nombre en sistema 14 + etiqueta «Renta»); los tours conservan las 4 líneas con serif */
 .drow.dcompact{padding-block:8px}
 .drow.dquiet{padding-block:6px;background:var(--paper2)}.drow.dquiet .cn,.drow.dquiet .mq,.drow.dquiet .ki{color:var(--ink3);font-size:13px}.drow.dquiet .mq{flex:none;display:inline-flex;gap:8px;align-items:center;font-variant-numeric:tabular-nums}.drow.dquiet .aw{color:var(--orange);display:inline-flex;align-items:center;gap:2px}.drow.dquiet .l1{min-height:20px}.drow.dquiet .px{flex:none;color:var(--ink3);font-size:13px;white-space:nowrap}
+.drow.dcanc .ln{display:inline-flex;align-items:center;gap:8px;min-width:0;flex:1}.drow.dcanc .cn s{text-decoration-thickness:1px}.drow.dcanc .l2c{display:block;font-size:12px;line-height:16px;margin-top:2px;color:var(--ink3);font-variant-numeric:tabular-nums}.drow.dcanc .ql{color:var(--orange);font-weight:500}
+.cpill{flex:none;font-size:11px;line-height:16px;padding:0 8px;border-radius:999px;background:var(--fill);color:var(--ink2);font-weight:500;white-space:nowrap}.cpill.q{background:none;box-shadow:inset 0 0 0 1px var(--orange);color:var(--orange)}
+.cancact{display:flex;gap:8px;padding:8px var(--px) 12px}.cancact .gbtn{flex:1;padding:0 8px;display:flex;align-items:center;justify-content:center}.cancact .gbtn.n{background:none;box-shadow:inset 0 0 0 1px var(--hair);color:var(--ink2)}
 .drow.dcompact .l1,.drow.dcompact .l2{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .drow.dcompact .l1{min-height:24px}
 .drow.dcompact .ln{flex:1;min-width:0;display:flex;align-items:center;gap:8px}
@@ -545,9 +548,9 @@ const RB={'Capitán':'Cap.','Marinero':'Mar.','Instructor':'Inst.','Auxiliar':'A
 const rb=r=>RB[r]||(r.length>5?r.slice(0,4)+'.':r);
 const S={role:'op',realRole:'op',user:'',date:'',wk:'',
   perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},pend:[],salud:[],feedback:[],conceptos:[],staff:[],fbf:'nuevo',fbEdit:null,evp:null,users:null,usersErr:'',rebuildPending:false,fhOk:true,offline:false,dataAt:0,
-  win:{from:'',to:''},fetchedAt:'',q:'',filter:'todas',fopen:false,config:{semana_inicio:'jueves',semana_pago:'jueves'}};
+  win:{from:'',to:''},fetchedAt:'',q:'',filter:'todas',fopen:false,canc:'dinero',czero:'',config:{semana_inicio:'jueves',semana_pago:'jueves'}};
 let PIN='';
-const APP_VER='v20';   // = sufijo de CACHE en docs/sw.js ('al-ops-v19'); se manda con cada reporte
+const APP_VER='v21';   // = sufijo de CACHE en docs/sw.js ('al-ops-v21'); se manda con cada reporte
 
 // ===== Servidor =====
 // Servidor: Apps Script web app (misma URL que el webhook de FareHarbor). POST text/plain = sin preflight CORS.
@@ -848,7 +851,7 @@ const isPase=d=>String((d&&d.barco)||'').toLowerCase().trim()==='otro'; // day p
 const noRes=d=>!!(((d&&d.bookings)||[]).length&&!((d&&d.res)||[]).length&&(d&&d.resKnown)!==false); // resKnown=false: early short-form import without resource_uses → no se sabe, no se avisa
 // Falta bitácora: misma regla que los puntos rojos (ida vencida al empezar, regreso vencido al terminar). Sin nowKey no se evalúa. No aplica / sin reservas / aún no toca: nada.
 const bitAlert=(d,nowKey)=>{if(!d||!nowKey)return '';const p=bitParts(d,nowKey);if(p.na)return '';const a=p.ida==='late',r=p.reg==='late';return a&&r?'Falta bitácora de ida y regreso':a?'Falta bitácora de ida':r?'Falta bitácora de regreso':''};
-const depAlerts=(d,nowKey)=>String((d&&d.alerts)||'').split(' | ').filter(a=>a&&!/^Sin recurso asignado|^Costo adicional sin monto/.test(a)).concat(noRes(d)?['Sin recurso asignado']:[]).concat(bitAlert(d,nowKey)||[]).concat(d&&d.ca&&d.ca.unparsed?['Costo adicional sin monto']:[]);
+const depAlerts=(d,nowKey)=>isCanc(d)?String(d.alerts||'').split(' | ').filter(a=>a&&!/^Sin recurso asignado|^Costo adicional sin monto/.test(a)).concat(cancPend(d)?[cancAlertText(d)]:[]):String((d&&d.alerts)||'').split(' | ').filter(a=>a&&!/^Sin recurso asignado|^Costo adicional sin monto/.test(a)).concat(noRes(d)?['Sin recurso asignado']:[]).concat(bitAlert(d,nowKey)||[]).concat(d&&d.ca&&d.ca.unparsed?['Costo adicional sin monto']:[]);
 const depAlertN=(d,nowKey)=>depAlerts(d,nowKey).length+(d.crew||[]).filter(c=>(!c.r&&!c.ext)||c.alert).length;
 // Costos adicionales (texto libre ya leído por el servidor: ca = {items:[{label,amount,ext}], total, unparsed, rest:[..], raw})
 // Alertas de un externo sin la de nota (esa se pinta aparte)
@@ -858,6 +861,25 @@ const caHas=d=>!!(d&&d.ca&&(caItems(d).length||d.ca.rest.length));
 // Por revisar: solo si el día ya terminó (fecha anterior a hoy) y nadie la marcó revisada
 const needsReview=(d,today)=>d.date<today&&!d.rev;
 const hasBk=d=>!!(d&&d.bookings&&d.bookings.length);   // salida con reservas activas (las canceladas no cuentan en ningún resumen)
+// --- Canceladas (ronda 24). d.cn = null | {all, n, bks[], kept, net, est, at, min, salio, need}: reservas de CLIENTES canceladas. El dinero cobrado sin reembolso cuenta como ingreso; nunca como pax, check-in ni salida.
+const isCanc=d=>!!(d&&d.cn&&d.cn.all);                                   // TODAS las reservas de clientes de la salida están canceladas
+const cancDec=a=>!!a&&(a.tipo==='decision'||(a.tipo==='pago'&&/^cancelaci[oó]n/i.test(String(a.concepto||''))));
+const cancPend=d=>isCanc(d)&&!!d.cn.need&&!(d.aj||[]).some(cancDec);      // con tripulación y sin bitácora de salida: ¿se paga? (sin decisión todavía)
+function cancAntes(m){
+  if(m===null||m===undefined||m===''||isNaN(Number(m)))return '';m=Number(m);
+  if(m<0)return 'cancelada después de la hora de salida';
+  if(m<60)return 'cancelada '+m+' min antes';
+  if(m<72*60)return 'cancelada '+Math.round(m/60)+' h antes';
+  return 'cancelada '+Math.round(m/1440)+' días antes';
+}
+const CANC_Q='Cancelada con tripulación: ¿se paga?';
+const cancAlertText=d=>CANC_Q+(d&&d.cn&&d.cn.min!==null&&d.cn.min!==undefined?' · '+cancAntes(d.cn.min):'');
+const cancTot=d=>d&&d.costs?(Number(d.costs.tot)||0):0;
+const cancMoney=d=>isCanc(d)&&(Number(d.cn.kept)>0||cancTot(d)!==0||cancPend(d));   // se muestra si cobró sin reembolso, tiene algún costo o espera decisión
+const CANC_MODES=[['dinero','Solo con dinero'],['todas','Todas'],['ocultar','Ocultar']];
+const cancMode=m=>CANC_MODES.some(x=>x[0]===m)?m:'dinero';
+const cancShow=(d,mode,filt)=>!isCanc(d)||filt==='canc'||mode==='todas'||(cancMode(mode)==='dinero'&&cancMoney(d));
+const grossOf=d=>(Number(d&&d.gross)||0)+(d&&d.cn?Number(d.cn.kept)||0:0);
 // Cantidad en bodega, SIEMPRE con íconos: 📦 cajas + 🥫 sueltas (el mismo ícono para todos los productos). Sin cajas (pack 1): solo 🥫 y el total.
 function packs(it,s){
   const ui='🥫';   // un solo ícono de unidad (lata) para TODOS los productos
@@ -888,10 +910,11 @@ function dayCi(ds,nowKey){
 const DEP_FILTERS=[
   {key:'todas',label:'Todas',test:()=>true},
   {key:'revisar',label:'Por revisar',test:(d,c)=>hasBk(d)&&needsReview(d,c.today)},
-  {key:'avisos',label:'Con advertencias',test:(d,c)=>hasBk(d)&&depAlertN(d,c&&c.nowKey)>0},
+  {key:'avisos',label:'Con advertencias',test:(d,c)=>(hasBk(d)||isCanc(d))&&depAlertN(d,c&&c.nowKey)>0},
   {key:'checkin',label:'Sin check-in',test:(d,c)=>depStarted(d,c&&c.nowKey)&&ciPend(d.ci)>0},
-  {key:'tours',label:'Tours',test:d=>!isRenta(d)},
-  {key:'rentas',label:'Rentas',test:d=>isRenta(d)}];
+  {key:'tours',label:'Tours',test:d=>!isCanc(d)&&!isRenta(d)},
+  {key:'rentas',label:'Rentas',test:d=>!isCanc(d)&&isRenta(d)},
+  {key:'canc',label:'Canceladas',test:d=>isCanc(d)}];
 const depFilter=k=>DEP_FILTERS.find(f=>f.key===k)||DEP_FILTERS[0];
 // Resumen del día: solo salidas con reservas activas. Tours = todo lo que no es renta.
 function dayCounts(ds){
@@ -903,7 +926,7 @@ function dayCounts(ds){
 // → {t:{n,pax}, r:{n,pax}, warn (suma de depAlertN de esas salidas), ci (dayCi|null), rev:{n,tot}|null (solo días pasados)}
 function daySummary(ds,nowKey,today,date){
   const act=(ds||[]).filter(hasBk),c=dayCounts(act);
-  const warn=act.reduce((a,d)=>a+depAlertN(d,nowKey),0);
+  const warn=act.reduce((a,d)=>a+depAlertN(d,nowKey),0)+(ds||[]).filter(isCanc).reduce((a,d)=>a+depAlertN(d,nowKey),0);
   return {t:c.t,r:c.r,warn:warn,ci:dayCi(act,nowKey),rev:(date<today&&act.length)?{n:act.filter(d=>d.rev).length,tot:act.length}:null};
 }
 // Proveedor recordado por producto (mapa {idProducto: proveedor}): el del primer producto del carrito que tenga uno; al guardar se recuerda para todos
@@ -1145,11 +1168,13 @@ const fbContext=(screen,date,user,ver)=>'Se envía con: pantalla '+screen+' · '
 function fbPayload(f,ctx){return {cid:ctx.cid,tipo:f.tipo==='Sugerencia'?'Sugerencia':'Error',texto:String(f.texto||'').trim(),pantalla:ctx.screen,fecha:ctx.date,version:ctx.ver,img:f.img||''}}
 // ==PURE-END==
 try{S.filter=depFilter(localStorage.getItem('adv_ops_depfilter')||'todas').key}catch(e){} // último filtro usado
+try{S.canc=cancMode(localStorage.getItem('adv_ops_canc'))}catch(e){} // Ajustes › Canceladas (por dispositivo)
 
 const depsOn=d=>S.deps.filter(x=>x.date===d).sort((a,b)=>a.time<b.time?-1:1);
 // Estado de la bitácora (viene de la columna "Bitácora" de Salidas)
 const isFut=d=>d.date>TODAY||(d.date===TODAY&&d.time>NOW&&d.bit==='Sin bitácora');
 function status(d){
+  if(isCanc(d))return 'canc';   // cancelada: no hay bitácora que exigir ni revisión
   if(isFut(d))return 'prog';
   if(d.bit==='Completa')return 'ok';
   if(d.bit==='Falta regreso')return 'sal';
@@ -1157,17 +1182,17 @@ function status(d){
   if(d.bit==='No aplica')return 'na';
   return d.bookings.length?'none':'na'; // sin reservas activas no hay bitácora que exigir
 }
-const okish=d=>{const s=status(d);return s==='ok'||s==='na'};
+const okish=d=>{const s=status(d);return s==='ok'||s==='na'||s==='canc'};
 const needBit=d=>{const s=status(d);return s==='none'||s==='sal'||s==='fsal'};
 const missingRole=d=>d.crew.filter(c=>!c.r&&!c.ext);
 const cost=d=>okish(d)?d.costs:null;                // costos de la hoja "Costos salida"
-const netOf=d=>d.bookings.some(b=>b.net===null)?null:d.bookings.reduce((a,b)=>a+b.net,0);
+const netOf=d=>d.bookings.some(b=>b.net===null)?null:d.bookings.reduce((a,b)=>a+b.net,0)+(d.cn?(Number(d.cn.net)||0):0);   // ronda 24: + ingreso de canceladas que se quedaron con dinero
 const paxOf=d=>d.bookings.reduce((a,b)=>a+b.pax,0);
 function dayState(date){
   const ds=depsOn(date);if(!ds.length)return 'none';
   if(date>TODAY)return 'prog';
   if(ds.some(needBit))return 'r';
-  if(ds.some(d=>status(d)!=='prog'&&!d.rev))return 'y';
+  if(ds.some(d=>status(d)!=='prog'&&!isCanc(d)&&!d.rev))return 'y';
   return ds.every(d=>status(d)==='prog')?'prog':'g';
 }
 function faltan(){
@@ -1256,7 +1281,7 @@ const PEND_GROUPS=[['tipo','Customer types','tag'],['campo','Custom fields','sli
 const PEND_TITLE={tipo:'Customer type',campo:'Custom field',rol:'Crew role',item:'Item nuevo'};
 const pendN=()=>S.role==='admin'?S.pend.length:0;
 const saludList=()=>(S.salud||[]).filter(a=>S.role==='admin'||a.rol==='todos');
-const notifList=()=>notifBuild(S.salud,S.pend,S.role,S.feedback);
+const notifList=()=>notifBuild((S.salud||[]).filter(a=>a.tipo!=='cancelada'||!(S.deps.find(x=>x.id===String(a.av))||{aj:[]}).aj.some(cancDec)),S.pend,S.role,S.feedback);   // ronda 24: la decisión que acabas de tomar quita el aviso al instante
 function saludRows(){
   const l=saludList();
   return l.map(a=>`<div class="cell w-orange"><span class="main"><span class="s" style="margin:0">${WI}${esc(fixDates(a.texto))}</span></span></div>`).join('')||`<div class="cell"><span class="main t okc">${svgI('okc',18).replace('class="gi"','class="wi"')}Todo en orden</span></div>`;
@@ -1275,17 +1300,18 @@ function pendRow(p,i){
 // ===== Screens =====
 const V={
 op(){
-  const date=S.date,ds=depsOn(date),fut=date>TODAY,fOn=S.filter!=='todas';
+  const date=S.date,ds0=depsOn(date),ds=ds0.filter(d=>cancShow(d,S.canc,S.filter)),fut=date>TODAY,fOn=S.filter!=='todas';   // ronda 24: canceladas visibles según Ajustes (o el filtro Canceladas)
   let h=`<div class="ttl"><h1>Operación</h1></div>`;
   const fr=`<div class="frow"><span class="fl">${fOn?`Filtro: <b>${esc(depFilter(S.filter).label)}</b> · <button type="button" class="link" data-filter="todas">quitar</button>`:''}</span><button type="button" class="fbtn${fOn?' on':''}" data-fopen aria-label="Filtrar salidas" aria-expanded="${S.fopen}">${svgI('filter',20)}Filtrar${fOn?'<i class="fdot"></i>':''}</button></div>`+(S.fopen?`<div class="chips fchips" role="group" aria-label="Filtro de salidas">${DEP_FILTERS.map(f=>`<button type="button" class="chip" data-filter="${f.key}" aria-pressed="${S.filter===f.key}">${f.label}</button>`).join('')}</div>`:'');
-  if(!ds.length)return h+fr+`<div class="group"><div class="list"><div class="empty">${S.loadingRange?'Cargando…':'Sin salidas este día.'}${!S.loadingRange&&pd(date).getDay()===3?' Los miércoles no hay tours.':''}</div></div></div>`;
+  if(!ds.length&&!ds0.some(d=>isCanc(d)&&cancMoney(d)))return h+fr+`<div class="group"><div class="list"><div class="empty">${S.loadingRange?'Cargando…':'Sin salidas este día.'}${!S.loadingRange&&pd(date).getDay()===3?' Los miércoles no hay tours.':''}</div></div></div>`;
   // Resumen del día: un grupo plano. Todo se cuenta SOLO sobre salidas con reservas activas.
   const sm=daySummary(ds,nowKey(),TODAY,date),dact=ds.filter(hasBk);
   let r1;
   if(fut)r1=`<div class="c"><div class="k">Reservado</div><div class="bigv g">${fmt(dact.reduce((a,d)=>a+(d.gross||0),0))}</div><div class="sub">aún sin neto ni costos</div></div><div class="c"><div class="k">Personas</div><div class="bigv">${dact.reduce((a,d)=>a+paxOf(d),0)}</div><div class="sub">reservadas</div></div>`;
   else{
     let netSum=0,netMiss=0,costSum=0,a=0,b=0,costMiss=0,est=false,grossSum=0;
-    dact.forEach(d=>{grossSum+=d.gross||0;const n=netOf(d),c=cost(d);if(n===null)netMiss++;else{netSum+=n;if(d.netSource==='estimado')est=true}if(c)costSum+=c.tot;else if(status(d)!=='prog')costMiss++;if(n!==null&&n>0&&c){a+=c.tot;b+=n}});
+    // ronda 24: el ingreso de canceladas con dinero y sus costos cuentan siempre (aunque Ajustes las oculte); no cuentan como Tours ni pax
+    dact.concat(ds0.filter(isCanc)).forEach(d=>{grossSum+=grossOf(d);const n=netOf(d),c=cost(d);if(n===null)netMiss++;else{netSum+=n;if(d.netSource==='estimado')est=true}if(c)costSum+=c.tot;else if(status(d)!=='prog'&&!isCanc(d))costMiss++;if(n!==null&&n>0&&c){a+=c.tot;b+=n}});
     const pct=b?Math.round(a/b*100):null;
     r1=`<div class="c"><div class="k">Ingreso</div><div class="bigv g">${fmt(grossSum)}</div><div class="sub${netMiss&&!netSum?' pend':''}">${netMiss?(netSum?'neto parcial '+fmt(netSum):'neto pendiente'):'neto '+fmt(netSum)+(est?' est.':'')}</div></div>
       <div class="c"><div class="k">Costo${costMiss?' · parcial':''}</div><div class="bigv">${fmt(costSum)}</div><div class="sub">${pct===null?'—':pct+' % del neto'}</div></div>`;
@@ -1313,17 +1339,18 @@ dep(id){
   const st=status(d),c=cost(d),n=netOf(d),miss=missingRole(d),fut=st==='prog',est=d.netSource==='estimado';
   const avUrl=d.itemPk?fhAvailUrl(d.itemPk,d.id,d.date):'';
   let h=topBar(d.item,{back:bk.back,backTo:bk.backTo,lede:[d.time,d.boat?esc(d.boat):'',fd(d.date),d.label?esc(d.label):'',avUrl?fhA(avUrl,'#'+d.id,{label:'Abrir la salida '+d.id+' en FareHarbor'}):''].filter(Boolean).join(' · ')});
-  const dal=depAlerts(d,nowKey());
-  if(dal.length)h+=`<div class="group">${gh('alert','Avisos')}<div class="list">${dal.map(a=>`<div class="cell ${/^No show/.test(a)?'w-red':'w-orange'}"><span class="main"><span class="s" style="margin:0">${esc(a)}</span></span></div>`).join('')}</div></div>`;
+  const dal=depAlerts(d,nowKey()).filter(a=>!(isCanc(d)&&a===cancAlertText(d))),cq=cancPend(d)?cancQ(d):'';
+  if(dal.length||cq)h+=`<div class="group">${gh('alert','Avisos')}<div class="list">${cq}${dal.map(a=>`<div class="cell ${/^No show/.test(a)?'w-red':'w-orange'}"><span class="main"><span class="s" style="margin:0">${esc(a)}</span></span></div>`).join('')}</div></div>`;
   const started=depStarted(d,nowKey());
-  h+=`<div class="group">${gh('bookings','Bookings')}<div class="list dlist">${d.bookings.map(b=>{const tl=typesLine(b.types),bst=ciState(b.ci,started);
+  if(!isCanc(d))h+=`<div class="group">${gh('bookings','Bookings')}<div class="list dlist">${d.bookings.map(b=>{const tl=typesLine(b.types),bst=ciState(b.ci,started);
     return `<div class="cell tap" role="button" tabindex="0" data-bk="${esc(d.id)}|${esc(b.pk)}" aria-label="Ver detalle de la reserva ${esc(hid(b.id))}"><span class="main"><span class="t">${esc(b.name||hid(b.id))}</span><div class="s">${b.url?fhA(fhBookUrl(b.url,d.date),hid(b.id),{label:'Abrir la reserva '+hid(b.id)+' en FareHarbor'}):avUrl?fhA(avUrl,hid(b.id),{gray:true,label:'Abrir la salida en FareHarbor (la reserva no tiene enlace)'}):esc(hid(b.id))} · ${personasTxt(b.pax)}${tl?' · '+esc(tl):''}</div>${bst||b.note?`<div class="s bkx">${ciChip(b.ci,bst,b.ci&&b.ci.ns?' · No show':'')}${b.note?`<span class="ni" role="img" aria-label="Tiene nota">${svgI('note',16)}</span>`:''}</div>`:''}</span><span class="v">${money2(b.gross,fut?undefined:b.net,b.est)}</span></div>`}).join('')||'<div class="empty">Sin reservas activas.</div>'}
     ${d.bookings.length?`<div class="cell tot"><span class="main t"><b>Total · ${personasTxt(paxOf(d))}</b></span><span class="v">${money2(d.gross,fut?undefined:n,est)}</span></div>`:''}</div></div>`;
-  h+=`<div class="group">${gh('resources','Resources')}<div class="list">${(d.res||[]).map(r=>`<div class="cell c"><span class="main t">${esc(r.name)}</span><span class="v">${num(r.n)}</span></div>`).join('')||'<div class="empty">Sin resources asignados.</div>'}</div></div>`;
+  h+=cancBooks(d);
+  if(!isCanc(d))h+=`<div class="group">${gh('resources','Resources')}<div class="list">${(d.res||[]).map(r=>`<div class="cell c"><span class="main t">${esc(r.name)}</span><span class="v">${num(r.n)}</span></div>`).join('')||'<div class="empty">Sin resources asignados.</div>'}</div></div>`;
   h+=bitSection(d,fut);
   const ajOk=can('ajustes')&&!fut;
   h+=`<div class="group">${gh('crew','Tripulación',ajOk?`<button type="button" class="tlink" data-ajnew="${esc(d.id)}|pago|" aria-label="Agregar un ajuste de pago">+ Ajuste</button>`:'')}<div class="list dlist crewl">${d.crew.map(x=>{const p=payLine(d,x),own=ajOf(d,x.n),tapA=ajOk&&!x.ext;
-    return `<div class="cell${tapA?' tap crow':''}"${tapA?` role="button" tabindex="0" data-ajnew="${esc(d.id)}|pago|${esc(x.n)}" aria-label="Agregar un ajuste a ${esc(x.n)}"`:''}><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${x.ext?'<span class="rb">Ext.</span>'+(extCompact(x.note)?esc(extCompact(x.note)):'Externo')+'</div><div class="sn">incluido en Renta de barco':x.r?`<span class="rb">${esc(rb(x.r))}</span>${esc(x.r)}`:WI+'Falta rol'}${p.hx?` · hora extra ${fmt(p.hx)}`:''}</div>${p.tr&&!x.ext?`<div class="sn">incl. ${esc(trTxt(p.tr,d.barco).toLowerCase())}</div>`:''}${!x.ext&&(x.bc||x.nt)?`<div class="sn">${x.bc?'Barco: '+esc(x.bc):esc(x.nt)}</div>`:''}${x.alert?`<div class="s" style="color:var(--orange)">${WI}${esc(x.alert)}</div>`:''}</span>${x.ext?`<span class="v">${fmt(0)}</span>`:!x.r?'':`<span class="v">${fmt(p.tot)}</span>`}</div>`+own.map(a=>ajRow(d,a,true)).join('')}).join('')||'<div class="empty">Sin tripulación asignada.</div>'}${ajOtros(d)}${miss.length?`<div class="cell"><span class="main"><span class="t" style="color:var(--orange)">${WI}Falta rol en FareHarbor</span></span></div>`:''}</div>
+    return `<div class="cell${tapA?' tap crow':''}"${tapA?` role="button" tabindex="0" data-ajnew="${esc(d.id)}|pago|${esc(x.n)}" aria-label="Agregar un ajuste a ${esc(x.n)}"`:''}><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${x.ext?'<span class="rb">Ext.</span>'+(extCompact(x.note)?esc(extCompact(x.note)):'Externo')+'</div><div class="sn">incluido en Renta de barco':x.r?`<span class="rb">${esc(rb(x.r))}</span>${esc(x.r)}`:WI+'Falta rol'}${p.hx?` · hora extra ${fmt(p.hx)}`:''}</div>${p.tr&&!x.ext?`<div class="sn">incl. ${esc(trTxt(p.tr,d.barco).toLowerCase())}</div>`:''}${!x.ext&&(x.bc||x.nt)?`<div class="sn">${x.bc?'Barco: '+esc(x.bc):esc(x.nt)}</div>`:''}${x.alert?`<div class="s" style="color:var(--orange)">${WI}${esc(x.alert)}</div>`:''}</span>${x.ext?`<span class="v">${fmt(0)}</span>`:!x.r?'':`<span class="v">${fmt(p.tot)}</span>`}</div>`+own.map(a=>ajRow(d,a,true)).join('')}).join('')||'<div class="empty">Sin tripulación asignada.</div>'}${ajOtros(d)}${cancDecRows(d)}${miss.length?`<div class="cell"><span class="main"><span class="t" style="color:var(--orange)">${WI}Falta rol en FareHarbor</span></span></div>`:''}</div>
 </div>`;
   const costoLink=ajOk?`<button type="button" class="tlink" data-ajnew="${esc(d.id)}|costo|" aria-label="Agregar un costo a la salida">+ Agregar</button>`:'',cAj=ajCosto(d).map(a=>ajRow(d,a,false)).join(''),pAj=ajSum(ajPago(d));
   if(c)h+=`<div class="group">${gh('costos','Costos',costoLink)}<div class="list dlist">
@@ -1334,11 +1361,11 @@ dep(id){
     <div class="cell"><span class="main"><span class="t">Eventuales</span>${pAj?`<div class="sn">incluye ajustes ${ajMoney(pAj)}</div>`:''}</span><span class="v">${fmt(c.ev+pAj)}</span></div>
     ${rbRows(d)}${caRows(d)}${cAj}
     <div class="cell tot"><span class="main t"><b>Costo total</b></span><span class="big">${fmt(c.tot)}</span></div>
-    <div class="cell"><span class="main t">Ingreso</span><span class="v">${money2(d.gross,n,est)}</span></div>
+    <div class="cell"><span class="main t">Ingreso</span><span class="v">${money2(grossOf(d),n,est)}</span></div>
     <div class="cell"><span class="main t">Costo %</span><span class="v">${n?Math.round(c.tot/n*100)+'%':'—'}</span></div></div></div>`;
   else if(caHas(d)||cAj||rbRows(d))h+=`<div class="group">${gh('costos','Costos',costoLink)}<div class="list">${rbRows(d)}${caRows(d)}${cAj}</div></div>`;
-  else if(!fut)h+=`<div class="group">${gh('costos','Costos',costoLink)}<div class="list"><div class="empty">El costo se calcula cuando la bitácora tiene salida y regreso.</div></div></div>`;
-  if(!fut){
+  else if(!fut&&!isCanc(d))h+=`<div class="group">${gh('costos','Costos',costoLink)}<div class="list"><div class="empty">El costo se calcula cuando la bitácora tiene salida y regreso.</div></div></div>`;
+  if(!fut&&!isCanc(d)){
     if(d.rev)h+=`<div class="group"><div class="list"><div class="cell"><span class="main t okc">${svgI('okc',18).replace('class="gi"','class="wi"')}Revisado · ${esc(d.rev.by)} ${esc(revAt(d.rev))}${d.rev.pend?` <span class="sv${d.rev.pf?' bad':''}">${d.rev.pend}</span>`:''}</span></div></div></div>`;
     else if(okish(d)&&!miss.length&&can('revisar'))h+=`<div class="stack"><button class="btn" data-rev="${d.id}">Marcar revisado</button></div>`;
     else h+=`<div class="group"><div class="list"><div class="cell"><span class="main t mut">${!okish(d)?'Revisión pendiente: falta bitácora':miss.length?'Revisión pendiente: falta asignar rol':'Por revisar'}</span></div></div></div>`;
@@ -1481,6 +1508,9 @@ ajustes(){
   <div class="group"><div class="ghead" id="thL">Apariencia</div><div class="list"><div class="setrow">
     <div class="seg" role="group" aria-labelledby="thL">${[['auto','Automático'],['light','Claro'],['dark','Oscuro']].map(([k,l])=>`<button type="button" data-theme-set="${k}" aria-pressed="${tm===k}">${l}</button>`).join('')}</div></div></div>
   <div class="gfoot">Solo en este teléfono. Automático sigue el modo del teléfono.</div></div>
+  <div class="group"><div class="ghead" id="ccL">Canceladas</div><div class="list"><div class="setrow">
+    <div class="seg" role="group" aria-labelledby="ccL">${CANC_MODES.map(([k,l])=>`<button type="button" data-canc-set="${k}" aria-pressed="${cancMode(S.canc)===k}">${l}</button>`).join('')}</div></div></div>
+  <div class="gfoot">Solo en este teléfono. Qué salidas canceladas aparecen en Operación: solo las que cobraron sin reembolso o tienen costo, todas, o ninguna. El filtro «Canceladas» siempre las muestra. El dinero cobrado cuenta en el resumen del día de todos modos.</div></div>
   <div class="group"><div class="ghead" id="pwL">Semana de pago de eventuales: empieza el</div><div class="list"><div class="setrow">
     <div class="chips" role="group" aria-labelledby="pwL" style="margin:0">${PAYD.map(([k,l])=>`<button type="button" class="chip" data-payw="${k}" aria-pressed="${pw===k}" ${adm?'':'disabled'}>${l}</button>`).join('')}</div></div></div>
   <div class="gfoot">${adm?'':'Solo el admin puede cambiar los ajustes. '}Define cómo se agrupan las semanas de pago en Eventuales. Los pagos ya hechos se quedan con su fecha.</div></div>
@@ -1893,7 +1923,43 @@ function dayCiHtml(c){
 const BOAT_I='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="M12 4.5l6 9.5h-6"/><path d="M12 8L7 14h5"/><path d="M4 17.5h16l-2.2 3.2H6.2z"/></svg>';
 // Fila de salida (lista plana): 4 líneas en posiciones fijas, nada salta.
 //  1  hora · estado ............ bruto     2  nombre del tour (serif) ............ neto     3  recursos · tripulación     4  bitácora ● Ida ● Regreso ............ check-in · ⚠N · revisión
+// --- Salida cancelada: detalle ---
+// Aviso «¿se paga?» con 3 acciones. Pagar 50% / completo = un ajuste de pago «Cancelación» por persona de la tripulación (50% / 100% de su tarifa normal); No pagar = marca «decisión» sin dinero. Cualquiera quita el aviso; anularla lo trae de vuelta.
+function cancQ(d){
+  const ok=can('ajustes'),pay=cancStaff(d).length>0;
+  return `<div class="cell w-orange"><span class="main"><span class="t">${CANC_Q}</span><div class="s">${esc(cancAntes(d.cn.min)||'Sin hora de cancelación')}</div><div class="sn">Sin bitácora de salida: no se paga automático.</div></span></div>`
+   +(ok?`<div class="cancact"><button type="button" class="gbtn" data-cdec="${esc(d.id)}|50"${pay?'':' disabled'}>Pagar 50%</button><button type="button" class="gbtn" data-cdec="${esc(d.id)}|100"${pay?'':' disabled'}>Pagar completo</button><button type="button" class="gbtn n" data-cdec="${esc(d.id)}|0">No pagar</button></div>`:'');
+}
+// Personal de la salida con tarifa normal (> 0): a ellos se les calcula el 50% / 100%
+const cancStaff=d=>(d.crew||[]).filter(c=>!c.ext&&c.pay&&Number(c.pay.rate)>0);
+// Los ajustes de pago de la decisión: monto = pct % de la tarifa normal de cada persona (redondeo a centavos)
+const cancAdj=(d,pct,user)=>cancStaff(d).map(c=>({av:d.id,fecha:d.date,item:d.item,tipo:'pago',persona:c.n,concepto:'Cancelación',monto:Math.round(Number(c.pay.rate)*pct)/100,motivo:'Cancelada · decidido por '+user,cid:uuid()}));
+function cancDecide(id,pct){
+  const d=S.deps.find(x=>x.id===String(id));if(!d||!can('ajustes')||!cancPend(d))return;
+  if(pct===0){enqueue('addAjusteSalida',[{av:d.id,fecha:d.date,item:d.item,tipo:'decision',persona:'',concepto:'Cancelación: no se paga',monto:0,motivo:'Cancelada · decidido por '+S.user,cid:uuid()}]);toast('Listo: no se paga');return}
+  const l=cancAdj(d,pct,S.user);if(!l.length){toast('Sin tarifa: usa + Ajuste','err');return}
+  l.forEach(p=>enqueue('addAjusteSalida',[p]));toast(pct===100?'Pago completo guardado':'Pago del 50% guardado');
+}
+// Decisiones («Cancelación: no se paga») como renglón de la tripulación; tócalo para verlo o anularlo
+function cancDecRows(d){
+  return (d.aj||[]).filter(a=>a.tipo==='decision').map(a=>`<button type="button" class="cell aj" data-ajd="${esc(d.id)}|${esc(a.id)}"><span class="main"><span class="t">${esc(a.concepto)}</span><div class="s">${esc(a.por||'')}${a.motivo?' · '+esc(a.motivo):''}${a.pend?` · <span class="sv${a.pf?' bad':''}">${a.pend}</span>`:''}</div></span></button>`).join('');
+}
+// Reservas canceladas de la salida: con dinero cobrado (cuentan como ingreso) y, plegadas, las de $0
+function cancBooks(d){
+  const c=d.cn;if(!c||!c.bks.length)return '';
+  const withM=c.bks.filter(b=>b.kept>0),zero=c.bks.filter(b=>!(b.kept>0)),open=S.czero===d.id;
+  const row=b=>`<div class="cell"><span class="main"><span class="t">${esc(b.name||hid(b.id))}</span><div class="s"><span class="cpill">Cancelada</span> ${b.url?fhA(fhBookUrl(b.url,d.date),hid(b.id),{label:'Abrir la reserva '+hid(b.id)+' en FareHarbor'}):esc(hid(b.id))}${b.kept>0?` · Pagó ${fmt(b.paid)} · ${b.refund>0?'reembolsó '+fmt(b.refund):'sin reembolso'} → cuenta como ingreso`:' · sin cobro'}</div></span>${b.kept>0?`<span class="v">${money2(b.kept,b.net,b.est)}</span>`:''}</div>`;
+  return `<div class="group">${gh('bookings','Canceladas')}<div class="list dlist">${withM.map(row).join('')}${zero.length?`<button type="button" class="cell tap" data-czero="${esc(d.id)}" aria-expanded="${open}"><span class="main t mut">${zero.length} ${zero.length===1?'cancelada sin cobro':'canceladas sin cobro'} (${open?'Ocultar':'Ver'})</span></button>${open?zero.map(row).join(''):''}`:''}</div></div>`;
+}
+// Salida cancelada (todas sus reservas de clientes): tira gris con «Cancelada», nombre tachado y "Cobrado sin reembolso $X · Costo $Y". Nunca cuenta como tour ni pax.
+function cancCard(d,sec){
+  const an=depAlertN(d,nowKey()),c=cost(d),pend=cancPend(d);
+  return `<button class="drow dquiet dcanc dcard s-${sec||'x'}" data-dep="${d.id}">
+    <span class="l1"><span class="ln"><span class="cn"><s>${d.time} ${esc(d.item)}</s></span><span class="cpill${pend?' q':''}">${d.cn.salio?'Cancelada · salió':'Cancelada'}</span></span><span class="mq">${an?`<span class="aw">${WI}${an}</span>`:''}</span></span>
+    <span class="l2c">Cobrado sin reembolso ${fmt(d.cn.kept)} · Costo ${fmt(c?c.tot:0)}${pend?' · <span class="ql">¿se paga?</span>':''}</span></button>`;
+}
 function depCard(d,sec){
+  if(isCanc(d))return cancCard(d,sec);
   const st=status(d),n=netOf(d),fut=st==='prog',est=d.netSource==='estimado',bp=bitParts(d,nowKey());
   const first=x=>String(x||'').trim().split(/\s+/)[0];
   const crew=d.crew.map(x=>`${x.ext?'Ext.':x.r?esc(rb(x.r)):'<span class="wq">?</span>'} ${esc(first(x.n))}`).join(' · ');
@@ -2022,10 +2088,10 @@ function saveAj(){
 // Detalle de un ajuste: datos + «Anular» (pide motivo; nunca se borra)
 function openAjS(av,id){
   const d=S.deps.find(x=>x.id===String(av)),a=d&&(d.aj||[]).find(x=>x.id===id);if(!a)return;
-  sheet(a.tipo==='pago'?'Ajuste':'Costo',`<div class="group"><div class="list">
+  sheet(a.tipo==='pago'?'Ajuste':a.tipo==='decision'?'Decisión':'Costo',`<div class="group"><div class="list">
     <div class="cell"><span class="main t">Concepto</span><span class="v">${esc(a.concepto)}</span></div>
     ${a.tipo==='pago'?`<div class="cell"><span class="main t">Persona</span><span class="v">${esc(a.persona)}</span></div>`:''}
-    <div class="cell"><span class="main t">Monto</span><span class="v" style="color:${ajClr(a.monto)}">${ajMoney(a.monto)}</span></div>
+    ${a.tipo==='decision'?'':`<div class="cell"><span class="main t">Monto</span><span class="v" style="color:${ajClr(a.monto)}">${ajMoney(a.monto)}</span></div>`}
     <div class="cell"><span class="main t">Salida</span><span class="v" style="text-align:right">${wdd(d.date)} · ${esc(d.time)}<div class="s">${esc(d.item)}</div></span></div>
     <div class="cell"><span class="main t">Por</span><span class="v">${esc(a.por||'—')}</span></div>
     ${a.creado?`<div class="cell"><span class="main t">Registrado</span><span class="v">${esc(fdt(a.creado))}</span></div>`:''}
@@ -2035,7 +2101,7 @@ function openAjS(av,id){
 }
 function ajAnular(av,id){
   const d=S.deps.find(x=>x.id===String(av)),a=d&&(d.aj||[]).find(x=>x.id===id);if(!a)return;
-  sheet('Anular',`<div class="group"><div class="list"><div class="cell"><span class="main"><span class="t">${esc(a.concepto)}${a.tipo==='pago'?' · '+esc(a.persona):''}</span><div class="s">${wdd(d.date)} ${esc(d.time)} · ${esc(d.item)}</div></span><span class="v" style="color:${ajClr(a.monto)}">${ajMoney(a.monto)}</span></div></div></div>
+  sheet('Anular',`<div class="group"><div class="list"><div class="cell"><span class="main"><span class="t">${esc(a.concepto)}${a.tipo==='pago'?' · '+esc(a.persona):''}</span><div class="s">${wdd(d.date)} ${esc(d.time)} · ${esc(d.item)}</div></span>${a.tipo==='decision'?'':`<span class="v" style="color:${ajClr(a.monto)}">${ajMoney(a.monto)}</span>`}</div></div></div>
     <div class="group"><div class="ghead">Motivo (obligatorio)</div>${noteBox('anM','Por qué se anula')}<div id="anErr" class="ferr" role="alert" hidden>Escribe el motivo</div><div class="gfoot">El ajuste se queda en la hoja marcado como anulado; ya no cuenta.</div></div>`,
     {okLabel:'Anular',disabled:true,input:()=>{$('sheetOk').disabled=!$('anM').value.trim()},ok:()=>{
       const note=$('anM').value.trim();if(!note){$('anErr').hidden=false;return}
@@ -2448,6 +2514,9 @@ document.addEventListener('click',e=>{
   const pm=on('[data-perm]');if(pm){const[r,p]=pm.dataset.perm.split(':');
     if(can('config')&&!(r==='admin'&&p==='config')){const cur=!!S.perms[r][p];S.perms[r][p]=!cur;render();
       srv('savePerm',r,p,!cur).catch(er=>{S.perms[r][p]=cur;render();toast(errMsg(er),'err')})}return}
+  const cdb=on('[data-cdec]');if(cdb){const a=cdb.dataset.cdec.split('|');cancDecide(a[0],Number(a[1]));return}
+  const czb=on('[data-czero]');if(czb){S.czero=S.czero===czb.dataset.czero?'':czb.dataset.czero;render();return}
+  const cmb=on('[data-canc-set]');if(cmb){S.canc=cancMode(cmb.dataset.cancSet);try{localStorage.setItem('adv_ops_canc',S.canc)}catch(e){}render();return}
   const thb=on('[data-theme-set]');if(thb){const m=thb.dataset.themeSet;window.setTheme(m);render();return}
   const pwb=on('[data-payw]');if(pwb){askPayWeek(pwb.dataset.payw);return}
   const cfb=on('[data-cfg]');if(cfb){const i=cfb.dataset.cfg.indexOf(':');setCfg(cfb.dataset.cfg.slice(0,i),cfb.dataset.cfg.slice(i+1));return}

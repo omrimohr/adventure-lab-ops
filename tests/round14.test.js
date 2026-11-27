@@ -52,7 +52,7 @@ test('round 14: computeSalida_ "Sin recurso asignado" only when a customer booki
     paid: 100000, customers: [F.cust(100, 'Adult')] })).booking;
   const run = bs => J(E2.computeSalida_('9300', bs.map((b, i) => ({ b: b, row: i + 2 })), tours, new Date('2026-11-24T12:00:00Z'), {}, null)).salida;
   const H = E2.SAL_HEADERS, iA = H.indexOf('Alertas'), iK = H.indexOf('Recursos conocidos');
-  assert.strictEqual(iK, H.length - 1);
+  assert.strictEqual(iK, 23); // round 24 appended 4 cancelled-departure columns after it
   const a = mk(1); a.resource_uses = [];
   let r = run([a]); assert.ok(/Sin recurso asignado/.test(r[iA])); assert.strictEqual(r[iK], 'sí'); assert.strictEqual(r.length, H.length);
   const b = mk(2); delete b.resource_uses; b._source = 'import';

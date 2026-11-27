@@ -177,6 +177,21 @@ function init(){
   D.salud=[{nivel:'warn',tipo:'bitacora',texto:'Falta bitácora: '+addDays(-1)+' 14:00 Private Boat Tour',rol:'todos',fecha:addDays(-1),av:(D.deps.find(x=>x.date===addDays(-1)&&x.time==='14:00')||D.deps[0]||{}).id},
            {nivel:'warn',tipo:'reporte',texto:'Falta reporte de Comercial del '+addDays(-1),rol:'admin'},
            {nivel:'warn',tipo:'config',texto:'1 cosa por configurar desde hace más de 2 días',rol:'admin'}];
+  // round 24: cancelled departures (all customer bookings cancelled). A) kept money + crew + Salida bitácora ("salió", crew paid in full);
+  // B) crew and NO bitácora, cancelled 40 min before → pending decision "¿se paga?"; C) cancelled with nothing at all → hidden by default.
+  {
+    const y=addDays(-1),mk=(id,time,end,crewL,cn,extra)=>Object.assign({},D.deps[0],{id:id,date:y,time:time,end:y+' '+end,item:'Bacalar Lagoon Boat Tour',label:'',bookings:[],gross:0,res:[],crew:crewL,out:null,back:null,
+      costs:null,ca:{items:[],total:0,unparsed:false,rest:[],raw:''},extras:'',rev:null,bit:'Sin bitácora',ci:null,alerts:'',netSource:cn.est&&cn.kept?'estimado':'',salidaId:'',regresoId:'',salidaUrl:'',regresoUrl:'',aj:[],cn:cn},extra||{});
+    const cb=(id,name,paid,refund,net,est)=>({id:'#'+id,pk:String(id),name:name,url:FHB+(364800000+id)+'/bookings/'+id+'-demo/',paid:paid,refund:refund,kept:Math.max(0,paid-refund),net:net,est:!!est});
+    const staff=(n,r,rate,tot)=>({n:n,r:r,pay:{base:tot,rate:rate,hx:0,tot:tot},alert:''});
+    D.deps.push(mk('9101','09:00','12:00',[staff('Juan Pérez','Capitán',450,450),staff('Luis Martínez','Marinero',300,300)],
+      {all:true,n:2,bks:[cb(393700101,'Familia Ortega',1800,0,1650,true),cb(393700102,'Sofía Lin',0,0,null,false)],kept:1800,net:1650,est:true,at:addDays(-2)+'T15:30:00.000Z',min:1560,salio:true,need:false},
+      {bit:'Falta regreso',out:{cer:12,agu:24},costs:{b:280,g:0,h:0,f:0,des:0,ev:750,tot:1030,pct:62,ca:0,aj:0,ext:[],adic:0},netSource:'estimado'}));
+    D.deps.push(mk('9102','14:00','17:00',[staff('Juan Pérez','Capitán',450,0),staff('Luis Martínez','Marinero',300,0)],
+      {all:true,n:1,bks:[cb(393700103,'Daniel Weiss',0,0,null,false)],kept:0,net:0,est:false,at:y+'T18:20:00.000Z',min:40,salio:false,need:true},{costs:{b:0,g:0,h:0,f:0,des:0,ev:0,tot:0,pct:null,ca:0,aj:0,ext:[],adic:0}}));
+    D.deps.push(mk('9103','17:00','19:30',[],{all:true,n:1,bks:[cb(393700104,'Ana Pech',0,0,null,false)],kept:0,net:0,est:false,at:addDays(-3)+'T12:00:00.000Z',min:4320,salio:false,need:false}));
+    D.salud.push({nivel:'warn',tipo:'cancelada',texto:'Cancelada con tripulación: ¿se paga? '+y+' 14:00 Bacalar Lagoon Boat Tour · cancelada 40 min antes',rol:'todos',fecha:y,av:'9102'});
+  }
   D.perms={admin:{compras:true,revisar:true,pagar:true,inventario:true,ajuste:true,editar:true,comida:true,ajustes:true,config:true},
            op:{compras:true,revisar:true,pagar:false,inventario:false,ajuste:false,editar:false,comida:true,ajustes:true,config:false}};
   D.feedback=[
