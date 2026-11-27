@@ -153,7 +153,7 @@ test('rebuildFinanzas runs both migrations (source) before the pending-rebuild c
 test('client: Traslado option in Por configurar, Eventuales line, crew note, slip; versions v18 together', () => {
   const html = read('docs/index.html'), sw = read('docs/sw.js');
   ["['traslado','Traslado']", 'const trTxt=', 'trTxt(l.pl.tr,l.d.barco)', 'incl. ${esc(trTxt(p.tr,d.barco).toLowerCase())}'].forEach(k => assert.ok(html.includes(k), k));
-  assert.ok(html.includes("const APP_VER='v18'") && sw.includes("const CACHE = 'al-ops-v18'"));
+  {const v=(html.match(/const APP_VER='v(\d+)'/)||[])[1];assert.ok(v&&+v>=18&&sw.includes("const CACHE = 'al-ops-v"+v+"'"))};
   // run the pure formatters
   const m = /const trWays=[^\n]*\n[^\n]*\n/.exec(html); assert.ok(m);
   const fmt = n => '$' + n;

@@ -1350,7 +1350,7 @@ function feedbackFromRows_(rows, user, max) {
   const adm = user.rol === 'admin', me = String(user.nombre || '').trim().toLowerCase();
   const own = (rows || []).filter(r => r[0] !== '' && (adm || String(r[2]).trim().toLowerCase() === me));
   return own.slice(-(max || 100)).reverse().map(r => ({ id: String(r[0]), fecha: str_(r[1]).slice(0, 16), usuario: String(r[2]), tipo: String(r[4]) === 'Sugerencia' ? 'Sugerencia' : 'Error',
-    texto: String(r[5]), pantalla: String(r[6]), fechaApp: str_(r[7]), version: String(r[8]), url: String(r[9] || ''), estado: String(r[10] || 'Nuevo'), notas: String(r[11] || ''), cid: String(r[13] || '') }));
+    texto: String(r[5]), pantalla: String(r[6]), fechaApp: ymd_(r[7]), version: String(r[8]), url: String(r[9] || ''), estado: String(r[10] || 'Nuevo'), notas: String(r[11] || ''), cid: String(r[13] || '') }));
 }
 function feedbackData_(ss, u) {
   try {

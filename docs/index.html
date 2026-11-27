@@ -542,7 +542,7 @@ const S={role:'op',realRole:'op',user:'',date:'',wk:'',
   perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},pend:[],salud:[],feedback:[],conceptos:[],staff:[],fbf:'nuevo',fbEdit:null,evp:null,users:null,usersErr:'',rebuildPending:false,fhOk:true,offline:false,dataAt:0,
   win:{from:'',to:''},fetchedAt:'',q:'',filter:'todas',fopen:false,config:{semana_inicio:'jueves',semana_pago:'jueves'}};
 let PIN='';
-const APP_VER='v18';   // = sufijo de CACHE en docs/sw.js ('al-ops-v18'); se manda con cada reporte
+const APP_VER='v19';   // = sufijo de CACHE en docs/sw.js ('al-ops-v19'); se manda con cada reporte
 
 // ===== Servidor =====
 // Servidor: Apps Script web app (misma URL que el webhook de FareHarbor). POST text/plain = sin preflight CORS.
@@ -756,7 +756,7 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 const DOW=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'],WD3=['dom.','lun.','mar.','mié.','jue.','vie.','sáb.'],MON=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 const MONTHS=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 const p2=n=>String(n).padStart(2,'0');
-const pd=d=>new Date(d+'T12:00:00');
+const pd=d=>{const t=String(d||'');const m=t.match(/^(\d{4}-\d{2}-\d{2})/);return m?new Date(m[1]+'T12:00:00'):new Date(t)};
 const addD=(d,n)=>{const x=pd(d);x.setDate(x.getDate()+n);return x.getFullYear()+'-'+p2(x.getMonth()+1)+'-'+p2(x.getDate())};
 // Semana de pago de eventuales: empieza el día del ajuste «semana_pago» (jueves por defecto)
 const PAYDOW={domingo:0,lunes:1,martes:2,miercoles:3,jueves:4,viernes:5,sabado:6};
@@ -1523,7 +1523,7 @@ fbd(id){
   const est=S.fbEdit&&S.fbEdit.id===id?S.fbEdit.estado:r.estado,kv=(k,v)=>v?`<div class="cell"><span class="main t">${k}</span><span class="v" style="white-space:normal;text-align:right">${v}</span></div>`:'';
   return topBar(r.tipo==='Sugerencia'?'Sugerencia':'Error',{back:'Feedback',backTo:'mas',backView:'feedback',lede:esc(r.usuario)+' · '+esc(fdt(r.fecha))+(r.pend?` · <span class="sv${r.pf?' bad':''}">${r.pend}</span>`:'')})+
   `<div class="group"><div class="list"><div class="cell"><span class="main t fbfull">${esc(r.texto)}</span></div></div></div>
-  <div class="group"><div class="list">${kv('Pantalla',esc(r.pantalla))}${kv('Fecha en la app',r.fechaApp?esc(fdate(r.fechaApp)):'')}${kv('Versión',esc(r.version))}${kv('Estado',esc(r.estado))}
+  <div class="group"><div class="list">${kv('Pantalla',esc(r.pantalla))}${kv('Fecha en la app',r.fechaApp?esc(isNaN(pd(r.fechaApp))?String(r.fechaApp):fdate(r.fechaApp)):'')}${kv('Versión',esc(r.version))}${kv('Estado',esc(r.estado))}
     ${r.url?(adm?kv('Captura',`<a href="${esc(r.url)}" target="_blank" rel="noopener" style="color:var(--acc)">Ver captura</a>`):kv('Captura','Adjunta')):''}${!adm&&r.notas?kv('Respuesta',esc(r.notas)):''}</div></div>`+
   (adm?`<div class="group"><div class="ghead">Estado</div><div class="chips" role="group" aria-label="Estado del reporte">${FB_ESTADOS.map(e=>`<button type="button" class="chip" data-fbe="${e}" aria-pressed="${est===e}">${e}</button>`).join('')}</div>
     <textarea id="fbNote" class="note" placeholder="Nota (opcional)" aria-label="Nota">${esc(r.notas||'')}</textarea>
