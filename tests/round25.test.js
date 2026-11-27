@@ -129,3 +129,21 @@ test('card wiring: pax sits in the last line (.rt) before the check-in chip; boo
   assert.ok(/b\.paxQ\?`<span class="pq">/.test(html) && /Total · \$\{personasTxt\(paxOf\(d\),depPax\(d\)\.q\)\}/.test(html));
   assert.ok(/const APP_VER='v22'/.test(html) && sw.indexOf("const CACHE = 'al-ops-v22'") >= 0);
 });
+
+// ---- scroll memory ----
+const U2 = vm.runInNewContext(m[1] + '\n({scrollKey,scrollFor})', {});
+test('scrollKey: Operación by day + filter, Eventuales by week/period, tabs, detail views by name + arg; scrollFor defaults to 0', () => {
+  const S = { date: '2026-11-27', filter: 'todas', wk: '2026-11-26', evp: null };
+  assert.strictEqual(U2.scrollKey('op', null, S), 'op:2026-11-27:todas');
+  assert.notStrictEqual(U2.scrollKey('op', null, S), U2.scrollKey('op', null, Object.assign({}, S, { date: '2026-11-28' })));
+  assert.notStrictEqual(U2.scrollKey('op', null, S), U2.scrollKey('op', null, Object.assign({}, S, { filter: 'tours' })));
+  assert.strictEqual(U2.scrollKey('ev', null, S), 'ev:2026-11-26'); assert.strictEqual(U2.scrollKey('mas', null, S), 'mas');
+  assert.strictEqual(U2.scrollKey('op', { name: 'dep', arg: '9201' }, S), 'v:dep:9201');
+  assert.strictEqual(U2.scrollFor({ a: 120 }, 'a'), 120); assert.strictEqual(U2.scrollFor({}, 'a'), 0);
+});
+test('scroll wiring: positions recorded per view, restored only by the back button, same-view re-render keeps scrollY, new views still goTop', () => {
+  assert.ok(/scrollMem\[curKey\]=window\.scrollY/.test(html));
+  assert.ok(/data-back'\);if\(bk\)|const bk=on\('\[data-back\]'\);if\(bk\)\{[^\n]*render\(\);restoreScroll\(\);return\}/.test(html));
+  assert.ok(/keepY=nk===curKey\?window\.scrollY:0/.test(html) && /behavior:'instant'/.test(html));
+  assert.ok(/const dp=on\('\[data-dep\]'\);if\(dp\)\{[^\n]*render\(\);goTop\(\)/.test(html));
+});

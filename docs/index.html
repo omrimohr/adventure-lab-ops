@@ -788,6 +788,9 @@ const hids=list=>String(list||'').split(',').map(x=>hid(x)).filter(Boolean).join
 const personasTxt=(n,q)=>q?(Number(n)>0?n+' + ? pax':'? pax'):n+' pax';
 const depPax=d=>({n:(d.bookings||[]).reduce((a,b)=>a+(Number(b.pax)||0),0),q:(d.bookings||[]).some(b=>!!b.paxQ)});
 // Pax en la última línea de la tarjeta, junto al check-in: "8 pax · ✓ 7/8" (naranja si falta el # de personas)
+// round 25: scroll memory per view. Clave de la pantalla visible: lista de Operación (día + filtro), Eventuales (semana/periodo), pestaña, o pantalla de detalle (nombre + arg)
+const scrollKey=(tab,sv,s)=>sv?'v:'+sv.name+':'+(sv.arg===undefined||sv.arg===null?'':sv.arg):tab==='op'?'op:'+s.date+':'+s.filter:tab==='ev'?'ev:'+(s.evp?JSON.stringify(s.evp):s.wk):String(tab);
+const scrollFor=(mem,key)=>Math.max(0,Number((mem||{})[key])||0);
 const paxChip=(d,hasCi)=>{const p=depPax(d);if(!(p.n>0)&&!p.q)return '';return `<span class="pxc${p.q?' q':''}">${personasTxt(p.n,p.q)}${hasCi?'<span class="sp" aria-hidden="true"> · </span>':''}</span>`};
 const typesLine=t=>{const a=String(t||'').split(/,\s*(?=\d+×\s)/).map(x=>x.trim()).filter(Boolean);return a.length>1?a.map(x=>x.replace(/^(\d+)×\s*/,'$1 ')).join(' · '):''};
 // "hace x min / h / días" o la fecha si pasaron más de 7 días
@@ -2378,10 +2381,14 @@ function start(){
 
 // ===== Render + events =====
 function stkSync(){const el=document.querySelector('.stk');if(!el)return;document.documentElement.style.setProperty('--stk',el.offsetHeight+'px');el.classList.toggle('scrolled',window.scrollY>0)}
-window.addEventListener('scroll',()=>{const el=document.querySelector('.stk');if(el)el.classList.toggle('scrolled',window.scrollY>0)},{passive:true});
+let curKey='';const scrollMem={};
+window.addEventListener('scroll',()=>{const el=document.querySelector('.stk');if(el)el.classList.toggle('scrolled',window.scrollY>0);if(curKey)scrollMem[curKey]=window.scrollY},{passive:true});
+// Al volver (‹) a una lista se restaura su scroll (sin animación); abrir una vista nueva sigue empezando arriba (goTop)
+const restoreScroll=()=>{const y=scrollFor(scrollMem,curKey),go=()=>window.scrollTo({top:y,left:0,behavior:'instant'});go();requestAnimationFrame(()=>{stkSync();go()})};
 window.addEventListener('resize',stkSync);
 function render(){
-  const app=$('app');
+  const app=$('app'),nk=scrollKey(tab,stackView,S),keepY=nk===curKey?window.scrollY:0; // misma vista (datos nuevos, cola optimista): el scroll nunca salta
+  curKey=nk;
   try{app.innerHTML=roleBar(!stackView&&tab==='op'?opNav():'')+(stackView?V[stackView.name](stackView.arg):V[tab]())}
   catch(err){app.innerHTML=roleBar(!stackView&&tab==='op'?opNav():'')+`<div class="warn">No pude mostrar esta pantalla: ${esc(err.message)}</div>`;console.warn(err)}
   document.querySelectorAll('.tab').forEach(b=>b.dataset.tab===tab?b.setAttribute('aria-current','page'):b.removeAttribute('aria-current'));
@@ -2390,6 +2397,7 @@ function render(){
     if(n){if(!bd){bd=document.createElement('span');bd.className='bdg';mb.appendChild(bd)}bd.textContent=n;mb.setAttribute('aria-label','Más, '+n+' por configurar')}
     else{if(bd)bd.remove();mb.removeAttribute('aria-label')}}
   stkSync();
+  if(keepY>0&&window.scrollY!==keepY)window.scrollTo({top:keepY,left:0,behavior:'instant'});
   const q=$('q');if(q)q.oninput=()=>{S.q=q.value;const pos=q.selectionStart;render();const n=$('q');n.focus();n.setSelectionRange(pos,pos)};
 }
 const goTop=()=>window.scrollTo(0,0);
@@ -2505,7 +2513,7 @@ document.addEventListener('click',e=>{
   const mdp=on('[data-mvdep]');if(mdp){const a=mdp.dataset.mvdep.split('|');openDepFrom(a[0],a[1]);return}
   const mja=on('[data-mvaj]');if(mja){openAjDetail(mja.dataset.mvaj);return}
   const b=on('[data-tab]');if(b){tab=b.dataset.tab;stackView=null;S.depFrom='';render();goTop();if(tab==='ev'&&S.evp)evFetch();return}
-  const bk=on('[data-back]');if(bk){S.depFrom='';if(bk.dataset.back)tab=bk.dataset.back;stackView=bk.dataset.backview?{name:bk.dataset.backview}:null;render();goTop();return}
+  const bk=on('[data-back]');if(bk){S.depFrom='';if(bk.dataset.back)tab=bk.dataset.back;stackView=bk.dataset.backview?{name:bk.dataset.backview}:null;render();restoreScroll();return}
   const vw=on('[data-view]');if(vw){stackView={name:vw.dataset.view};render();goTop();if(vw.dataset.view==='usuarios')usersFetch();return}
   const mv=on('[data-movs]');if(mv){stackView={name:'movs'};render();goTop();return}
   const ed=on('[data-edit]');if(ed){openProducto(ed.dataset.edit);return}
