@@ -229,6 +229,7 @@ function slugId_(name, taken) {
 function rateLabel_(r) {
   const rol = norm_(r[0]), barco = norm_(r[1]), desde = r[2], hasta = r[3], item = String(r[4] || ''), persona = String(r[5] || '');
   const special = { 'hora extra': 'Hora extra (capitán y marinero)', 'cancelado': 'Tour cancelado con tripulación', 'festivo': 'Día festivo', 'traslado': 'Traslado' };
+  if (rol === 'traslado') return 'Traslado por trayecto · ' + (barco && barco !== '*' ? (BARCO_LABEL[barco] || barco).toLowerCase() : 'otros barcos'); // round 21
   if (special[rol]) return special[rol];
   let l = persona && (rol === '*' || !rol) ? persona + ' (tarifa especial)' : (ROL_LABEL[rol] || (rol && rol !== '*' ? rol.charAt(0).toUpperCase() + rol.slice(1) : 'Cualquier rol'));
   if (persona && rol !== '*' && rol) l += ' · ' + persona;
@@ -335,6 +336,12 @@ function moneyFrom_(r) {
     disc: parse(r[40]), extra: parse(r[41]), pays: pays, refund: num(r[43]), fee: num(r[44])
   };
 }
+/** Round 21: traslado of one Eventuales row (cols 18 = MXN, 19 = ways 'ida,regreso') → {ida, regreso, monto, ways} or null when nothing was ticked. monto is already included in pay.tot. */
+function trFrom_(e) {
+  const v = String(e[19] || '').split(',').filter(Boolean);
+  if (!v.length) return null;
+  return { ida: v.indexOf('ida') >= 0, regreso: v.indexOf('regreso') >= 0, monto: r2_(e[18]), ways: v.length };
+}
 function buildDeps_(inp) {
   const group = (rows, col) => { const m = {}; rows.forEach(r => { const k = String(r[col]); (m[k] = m[k] || []).push(r); }); return m; };
   const inWin = windowTest_(inp.desde, inp.hasta);
@@ -358,7 +365,7 @@ function buildDeps_(inp) {
     const crew = (crewBy[pk] || []).map(c => {
       const n = String(c[5] || c[6] || ''), e = evBy[pk + '|' + String(c[5])], x = extBy[pk + '|' + String(c[5])];
       const nt = String(c[7] || ''); // crew Note in FareHarbor, e.g. "Barco: El Cormoran" (externo: "San Ángel – Juan Pérez")
-      if (e) return { n: n, r: roleLabel_(c[4]), nt: nt, bc: barcoNota_(nt), pay: { base: r2_(Number(e[10]) * Number(e[11])), hx: r2_(e[13]), tot: r2_(e[14]) }, alert: String(e[16] || '') };
+      if (e) return { n: n, r: roleLabel_(c[4]), nt: nt, bc: barcoNota_(nt), pay: { base: r2_(Number(e[10]) * Number(e[11])), hx: r2_(e[13]), tot: r2_(e[14]), tr: trFrom_(e) }, alert: String(e[16] || '') };
       if (x) return { n: n, r: roleLabel_(c[4]), nt: nt, bc: String(x[9] || '') || barcoNota_(nt), who: String(x[10] || ''), ext: true, note: String(x[6] || ''), monto: x[8] === '' || x[8] === undefined ? null : r2_(x[8]), pay: { base: 0, hx: 0, tot: 0 }, alert: String(x[7] || '') };
       return { n: n, r: roleLabel_(c[4]), nt: nt, bc: barcoNota_(nt), pay: { base: 0, hx: 0, tot: 0 }, alert: '' };
     });
@@ -1390,7 +1397,7 @@ function setFeedbackEstado(pin, id, estado, nota) {
 
 if (typeof module !== 'undefined') module.exports = {
   pinStr_, findUser_, permsFromRows_, permOk_, guessIcon_, buildItems_, groupCompras_, lastCostFrom_, priceLogFrom_, buildMoves_, stockMap_, countDiffs_,
-  cleanLines_, slugId_, rateLabel_, buildRates_, latestRevs_, roleLabel_, bitQty_, extrasText_, ciFrom_, buildDeps_, moneyFrom_, buildPend_, fieldsFromBookings_, saludAlerts_, setMapeo, planTarifasMigration_, pluralEs_, appendNote_,
+  cleanLines_, slugId_, rateLabel_, buildRates_, latestRevs_, roleLabel_, bitQty_, extrasText_, ciFrom_, buildDeps_, trFrom_, moneyFrom_, buildPend_, fieldsFromBookings_, saludAlerts_, setMapeo, planTarifasMigration_, pluralEs_, appendNote_,
   login, getData, refreshFin, windowTest_, staleFin_, addCompra, anularCompra, editCompra, addAjuste, addConteo, addComida, markPaid, markRev, saveProducto, saveTarifa, savePerm, saveTourBarco, setConfig, validateConfig_, configFromRows_, migrate20261124, stockReport_, stockReport, loadMoves_, cidRow_, cidOf_, ensureCidCol_,
   eventualesReport_, eventualesReport, usersFromRows_, validateUser_, listUsers, saveUser, normFeedback_, feedbackFileName_, feedbackFromRows_, validEstado_, addFeedback, setFeedbackEstado, FEEDBACK_HEADERS,
   normAjusteSalida_, conceptosFromRows_, validateConcepto_, staffFromCrew_, addAjusteSalida, anularAjusteSalida, saveConcepto

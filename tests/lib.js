@@ -65,6 +65,7 @@ function fakeSpreadsheet() {
       setFrozenRows: n => { d.frozen = n; },
       appendRow: vals => { const r = sh.getLastRow() + 1; grow(r, vals.length); d.rows[r - 1] = vals.slice(); },
       insertRowBefore: () => {},
+      insertRowsBefore: (row, n) => { for (let i = 0; i < n; i++) d.rows.splice(row - 1, 0, []); },
       getParent: () => ss,
       getRange: (r, c, nr, nc) => {
         nr = nr || 1; nc = nc || 1;

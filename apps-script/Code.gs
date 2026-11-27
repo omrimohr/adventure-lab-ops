@@ -66,7 +66,7 @@ const CF_HEADERS = ['Clave', 'Nombre (FareHarbor)', 'Uso', 'Producto ID', 'Estad
 const ROL_HEADERS = ['Clave', 'Short name (FareHarbor)', 'Nombre rol', 'Rol tarifa', 'Estado', 'Visto primero', 'Visto en (item)', 'Notas',
   'Configurado por', 'Configurado'];
 const USOS_CT = ['pax', 'no cuenta', 'ops salida', 'ops regreso'];
-const USOS_CF = ['producto', 'personas', 'seats', 'hora extra', 'extras', 'costo adicional', 'ignorar'];
+const USOS_CF = ['producto', 'personas', 'seats', 'hora extra', 'traslado', 'extras', 'costo adicional', 'ignorar'];
 const PEOPLE_RE = /number of people|n[uú]mero de personas|cantidad de personas|# de personas|people in/i;
 const SEATS_RE = /^QTY\s*·\s*Seats/i;
 
@@ -446,7 +446,7 @@ function camposText_(b, M) {
   allCfvs_(b, M).forEach(x => {
     if (x.ops) return;
     const u = fieldUso_(M, x.v).uso;
-    if (/^(producto|hora extra|extras|costo adicional)$/.test(u)) return;
+    if (/^(producto|hora extra|traslado|extras|costo adicional)$/.test(u)) return;
     const raw = (x.v.display_value !== undefined && x.v.display_value !== null && x.v.display_value !== '') ? x.v.display_value : x.v.value;
     const val = String(raw === undefined || raw === null ? '' : raw).replace(/\s+/g, ' ').trim();
     if (!val) return;
@@ -1067,7 +1067,12 @@ const TAR_SEED = [
   ['hora extra', '*', '', '', '', '', 100, 'hora', 'Capitán y marinero, campo "Hora extra" de la bitácora'],
   ['cancelado', '*', '', '', '', '', 0.5, 'factor', 'Tour cancelado con tripulación asignada = 50%'],
   ['festivo', '*', '', '', '', '', '', 'factor', 'PENDIENTE: Omri confirma'],
-  ['traslado', '*', '', '', '', '', '', 'salida', 'PENDIENTE: falta campo en FareHarbor']
+  ['traslado', 'catamaran', '', '', '', '', 100, 'salida', 'Por trayecto (ida / regreso), a cada tripulante'],
+  ['traslado', 'monocasco', '', '', '', '', 100, 'salida', ''],
+  ['traslado', 'hobie', '', '', '', '', 100, 'salida', ''],
+  ['traslado', 'ponton', '', '', '', '', 50, 'salida', ''],
+  ['traslado', 'sup', '', '', '', '', 0, 'salida', 'Por ahora 0: Jesús agrega un Ajuste manual cuando aplica'],
+  ['traslado', '*', '', '', '', '', 0, 'salida', 'Otros barcos (kayak, otro): sin traslado']
 ];
 const BARCO_SEED = {
   258806: 'ponton', 244132: 'ponton', 398151: 'ponton', 337347: 'ponton', 398392: 'ponton', 703717: 'ponton',
@@ -1087,7 +1092,7 @@ const PAGO_HEADERS = ['Semana', 'Nombre', 'Monto (MXN)', 'Fecha pago', 'Por', 'N
 const STOCK_HEADERS = ['Producto ID', 'Producto', 'Unidad', 'Compras', 'Consumo', 'Ajustes', 'Stock', 'Mínimo', 'Alerta',
   'Costo unitario (MXN)', 'Valor (MXN)'];
 const EV_HEADERS = ['Semana (inicio)', 'Fecha', 'Hora', 'Item', 'Availability pk', 'Nombre', 'Usuario', 'Rol', 'Barco',
-  'Duración (h)', 'Tarifa (MXN)', 'Factor', 'Horas extra', 'Hora extra (MXN)', 'Total (MXN)', 'Regla', 'Alerta', 'Ajuste ID']; // round 20: last column = ID of a manual pay adjustment (Ajustes salida); '' on tour-pay rows
+  'Duración (h)', 'Tarifa (MXN)', 'Factor', 'Horas extra', 'Hora extra (MXN)', 'Total (MXN)', 'Regla', 'Alerta', 'Ajuste ID', 'Traslado (MXN)', 'Traslado vías']; // round 20: Ajuste ID = ID of a manual pay adjustment (Ajustes salida), '' on tour-pay rows. Round 21: Traslado (MXN) is already INCLUDED in Total; Traslado vías = 'ida' | 'regreso' | 'ida,regreso' ('' = none ticked)
 const RESUMEN_HEADERS = ['Semana (inicio)', 'Nombre', 'Salidas', 'Total (MXN)', 'Pagado (MXN)', 'Pendiente (MXN)', 'Alertas'];
 const EXT_HEADERS = ['Fecha', 'Hora', 'Item', 'Availability pk', 'Rol', 'Nombre', 'A quién se debe (nota)', 'Alerta', 'Monto (MXN)', 'Barco', 'Persona'];
 const COSTO_HEADERS = ['Availability pk', 'Fecha', 'Hora', 'Item', 'Barco', 'Pax', 'Ingreso neto (MXN)', 'Fuente ingreso',
@@ -1102,6 +1107,10 @@ const CONC_SEED = [['Día festivo', 'pago', 150, 'sí'], ['Cancelación 50%', 'p
   ['Hielo extra', 'costo', '', 'sí'], ['Gasolina extra', 'costo', '', 'sí'], ['Comida tripulación', 'costo', '', 'sí'], ['Reparación', 'costo', '', 'sí'], ['Otro', 'costo', '', 'sí']];
 const HX_FIELD_PK = '2021180'; // Campos Clave "Hora extra (staff)"
 const MIG_R20_PROP = 'MIG_R20_HX';
+// Round 21: Traslado (bitácora checkboxes "Traslado ida" / "Traslado regreso") paid to every staff crew member per ticked way, amount by boat (Tarifas, Rol 'traslado')
+const TRASLADO_FIELDS = [['2026466', 'Traslado ida'], ['2026467', 'Traslado regreso']];
+const MIG_R21_CF = 'MIG_R21_TR_CF', MIG_R21_TAR = 'MIG_R21_TR_TAR';
+const TRASLADO_TAR_SEED = [['traslado', 'catamaran', 100], ['traslado', 'monocasco', 100], ['traslado', 'hobie', 100], ['traslado', 'ponton', 50], ['traslado', 'sup', 0]];
 
 // ----- pure helpers -----
 function norm_(s) {
@@ -1270,6 +1279,96 @@ function migrateHoraExtra20261126_(ss) {
   return { found: true, changed: plan.change };
 }
 
+/** Pure (round 21): is this Bitácora row a ticked checkbox? Cantidad > 0 or Texto true/yes/sí/checked/x/1. */
+function checkTicked_(b) { return horaExtraQty_(b) > 0; }
+/**
+ * Pure (round 21): which traslado ways are ticked in the bitácora rows of ONE departure → {ida:bool, regreso:bool}.
+ * Only rows whose field has Uso 'traslado' (Campos; M optional: without it the name rule applies). Way = the OPS booking kind (col 5 'Salida' = ida, 'Regreso' = regreso), else the field name.
+ */
+function trasladoWays_(bitRows, M) {
+  const w = { ida: false, regreso: false };
+  (bitRows || []).forEach(b => {
+    if (bitUso_(b, M).uso !== 'traslado' || !checkTicked_(b)) return;
+    const k = norm_(b[5]), n = norm_(b[6]);
+    if (k === 'regreso' || (k !== 'salida' && /regreso/.test(n))) w.regreso = true; else w.ida = true;
+  });
+  return w;
+}
+/** Pure (round 21): amount of ONE traslado way for a boat: first Tarifas row with Rol 'traslado' and that Barco (or '*'); blank/none = 0 */
+function trasladoRate_(rules, barco) {
+  const b = norm_(barco);
+  for (let i = 0; i < (rules || []).length; i++) {
+    const x = rules[i];
+    if (norm_(x[0]) !== 'traslado') continue;
+    const xb = norm_(x[1]);
+    if (xb && xb !== '*' && xb !== b) continue;
+    return (x[6] === '' || x[6] === null || x[6] === undefined || isNaN(Number(x[6]))) ? 0 : Number(x[6]);
+  }
+  return 0;
+}
+/** Pure (round 21): Campos rows → {updates:[sheet row], appends:[Campos rows]} for the traslado fields 2026466 / 2026467 */
+function planTrasladoCampos_(cfRows) {
+  const plan = { updates: [], appends: [] };
+  TRASLADO_FIELDS.forEach(f => {
+    const i = (cfRows || []).findIndex(r => String(r[0]) === f[0]);
+    if (i < 0) plan.appends.push([f[0], f[1], 'traslado', '', ESTADO_OK, '', '', '', 'Round 21', '', '']);
+    else if (String(cfRows[i][2] || '').toLowerCase().trim() !== 'traslado' || String(cfRows[i][4] || '') !== ESTADO_OK) plan.updates.push(i + 2);
+  });
+  return plan;
+}
+/** One time (script property MIG_R21_TR_CF): Campos 2026466 / 2026467 → Uso 'traslado', Estado OK, Notas "Round 21" (rows appended when not seen yet). Sets REBUILD_PENDING when it changed anything. */
+function migrateTrasladoCampos20261126_(ss) {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty(MIG_R21_CF) === '1') return { skipped: true };
+  const sh = ss.getSheetByName(CF_TAB);
+  if (!sh) return { found: false }; // tab not created yet: retry on the next run
+  const n = sh.getLastRow() - 1;
+  const rows = n >= 1 ? sh.getRange(2, 1, n, CF_HEADERS.length).getValues() : [];
+  const plan = planTrasladoCampos_(rows);
+  plan.updates.forEach(r => {
+    sh.getRange(r, 3).setValue('traslado');
+    sh.getRange(r, 5).setValue(ESTADO_OK);
+    const old = String(rows[r - 2][8] || '').trim();
+    if (old.indexOf('Round 21') < 0) sh.getRange(r, 9).setValue(old ? old + ' | Round 21' : 'Round 21');
+  });
+  plan.appends.forEach(r => sh.getRange(sh.getLastRow() + 1, 1, 1, r.length).setValues([r]));
+  if (plan.updates.length || plan.appends.length) setRebuildPending_();
+  props.setProperty(MIG_R21_CF, '1');
+  return { found: true, updated: plan.updates.length, appended: plan.appends.length };
+}
+/**
+ * Pure (round 21): Tarifas rows → {inserts:[rows], at: 0-based index in `rows` to insert BEFORE (the generic traslado '*' row, else the end), starFix: sheet row of a blank traslado '*' amount (→ 0) or 0}.
+ * Only the missing traslado·barco rows are added; existing rows are never touched or deleted.
+ */
+function planTrasladoTarifas_(rows) {
+  const has = b => (rows || []).some(r => norm_(r[0]) === 'traslado' && norm_(r[1]) === b);
+  const inserts = TRASLADO_TAR_SEED.filter(x => !has(x[1])).map(x => [x[0], x[1], '', '', '', '', x[2], 'salida', x[1] === 'catamaran' ? 'Por trayecto (ida / regreso), a cada tripulante' : (x[1] === 'sup' ? 'Por ahora 0: Jesús agrega un Ajuste manual cuando aplica' : '')]);
+  const star = (rows || []).findIndex(r => norm_(r[0]) === 'traslado' && (norm_(r[1]) === '*' || norm_(r[1]) === ''));
+  const first = (rows || []).findIndex(r => norm_(r[0]) === 'traslado');
+  const at = star >= 0 ? star : (rows || []).length;
+  const starFix = (star >= 0 && (rows[star][6] === '' || rows[star][6] === null)) ? star + 2 : 0;
+  return { inserts: inserts, at: at, starFix: starFix, firstTraslado: first };
+}
+/** One time (script property MIG_R21_TR_TAR): inserts the missing traslado·barco rows above the generic traslado row and sets that row's blank amount to 0 */
+function migrateTrasladoTarifas20261126_(ss) {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty(MIG_R21_TAR) === '1') return { skipped: true };
+  const sh = ss.getSheetByName('Tarifas');
+  if (!sh) return { found: false };
+  const n = sh.getLastRow() - 1;
+  const rows = n >= 1 ? sh.getRange(2, 1, n, TAR_HEADERS.length).getValues() : [];
+  const plan = planTrasladoTarifas_(rows);
+  if (plan.starFix) { sh.getRange(plan.starFix, 7).setValue(0); sh.getRange(plan.starFix, 9).setValue('Otros barcos (kayak, otro): sin traslado'); }
+  if (plan.inserts.length) {
+    const row = plan.at + 2; // sheet row of the generic row (or first free row)
+    if (plan.at < rows.length) sh.insertRowsBefore(row, plan.inserts.length);
+    sh.getRange(row, 1, plan.inserts.length, TAR_HEADERS.length).setValues(plan.inserts);
+  }
+  if (plan.inserts.length || plan.starFix) setRebuildPending_();
+  props.setProperty(MIG_R21_TAR, '1');
+  return { inserted: plan.inserts.length, starFix: !!plan.starFix };
+}
+
 // ---------- Ajustes de salida (round 20) ----------
 /** Pure: Ajustes salida rows → active (not annulled) adjustments [{id, creado, av, fecha, item, tipo, persona, concepto, monto, motivo, por, cid}] */
 function ajustesActivos_(rows) {
@@ -1295,7 +1394,7 @@ function ajustesPorSalida_(ajs) {
   return m;
 }
 /**
- * Pure: pay adjustments (tipo pago) → Eventuales rows (EV_HEADERS, 18 columns). They belong to the pay week of the DEPARTURE date, exactly like the tour pay,
+ * Pure: pay adjustments (tipo pago) → Eventuales rows (EV_HEADERS, 20 columns). They belong to the pay week of the DEPARTURE date, exactly like the tour pay,
  * and keep the departure context (date, hour, item, availability pk). Rol = 'Ajuste'; Regla = 'Ajuste: <concepto>'; last column = adjustment ID.
  * salByAv: {av: Salidas row} (to take the hour). Only departures up to `today`.
  */
@@ -1304,7 +1403,7 @@ function ajusteEvRows_(ajs, salByAv, payDow, today) {
   (ajs || []).forEach(a => {
     if (a.tipo !== 'pago' || !a.persona || (today && a.fecha > today)) return;
     const s = (salByAv || {})[a.av], hora = s ? fmtDate_(s[6], 'HH:mm') : '';
-    out.push([weekStart_(a.fecha, payDow), a.fecha, hora, (s && s[2]) || a.item, a.av, a.persona, '', 'Ajuste', '', '', '', '', '', '', a.monto, 'Ajuste: ' + a.concepto, '', a.id]);
+    out.push([weekStart_(a.fecha, payDow), a.fecha, hora, (s && s[2]) || a.item, a.av, a.persona, '', 'Ajuste', '', '', '', '', '', '', a.monto, 'Ajuste: ' + a.concepto, '', a.id, 0, '']);
   });
   return out;
 }
@@ -1317,6 +1416,9 @@ function payForSalida_(sal, crew, bitRows, rules, barco, M, now, payDow) {
   const extraRate = ruleValue_(rules, 'hora extra', 100);
   let horasExtra = 0;
   bitRows.forEach(b => { if (bitUso_(b, M).uso === 'hora extra') horasExtra += horaExtraQty_(b); }); // number of hours OR a checkbox (= 1 h), round 20
+  const ways = trasladoWays_(bitRows, M), nWays = (ways.ida ? 1 : 0) + (ways.regreso ? 1 : 0), trRate = trasladoRate_(rules, barco);
+  const trVias = [ways.ida ? 'ida' : '', ways.regreso ? 'regreso' : ''].filter(Boolean).join(',');
+  const trMx = Math.round(nWays * trRate * 100) / 100; // each way counts once, per staff crew member
   crew.forEach(c => {
     const rol = c[4], nombre = c[5], usuario = c[6];
     const rolT = crewTarifa_(c, M); // Rol tarifa: mapped by role pk (Roles tab)
@@ -1336,8 +1438,9 @@ function payForSalida_(sal, crew, bitRows, rules, barco, M, now, payDow) {
     else tarifa = rate.monto;
     const extra = /capitan|marinero/.test(norm_(rolT)) ? horasExtra : 0;
     const extraMx = extra * extraRate;
+    const regla = (rate ? 'Tarifas fila ' + rate.regla : '') + (nWays ? (rate ? ' | ' : '') + 'Traslado ' + trVias.replace(',', ' + ') : '');
     out.push([weekStart_(fecha, payDow), fecha, hora, sal[2], sal[0], nombre, usuario, rol, barco, horas, tarifa, factor,
-      extra, extraMx, Math.round((tarifa * factor + extraMx) * 100) / 100, rate ? 'Tarifas fila ' + rate.regla : '', alerta]);
+      extra, extraMx, Math.round((tarifa * factor + extraMx + trMx) * 100) / 100, regla, alerta, '', trMx, trVias]);
   });
   // Externos (round 19): the amount comes from the Capitán Externo's crew note ("Barco: San Ángel (externo) – Juan Pérez – $3,500", row[11]);
   // the note wins. FALLBACK (older days, no amount in any note): the "barco externo" lines of Costos adicionales (OPS · Regreso bookings);
@@ -1467,6 +1570,8 @@ function rebuildFinanzas() {
     else if (rsv && rsv.getMaxColumns() < RES_HEADERS.length) setRebuildPending_();
   } catch (e) {}
   try { ensureStaffMeals_(ss); } catch (e) { logError_(ss, 'ensureStaffMeals_', e, ''); }
+  try { migrateTrasladoCampos20261126_(ss); } catch (e) { logError_(ss, 'migrateTrasladoCampos20261126_', e, ''); } // round 21: Campos 2026466/2026467 → 'traslado'
+  try { migrateTrasladoTarifas20261126_(ss); } catch (e) { logError_(ss, 'migrateTrasladoTarifas20261126_', e, ''); } // round 21: Tarifas traslado·barco rows
   try { migrateHoraExtra20261126_(ss); } catch (e) { logError_(ss, 'migrateHoraExtra20261126_', e, ''); } // round 20: Campos 2021180 → 'hora extra' (sets REBUILD_PENDING when it changes)
   if (seeded || isRebuildPending_()) {
     const lock = LockService.getScriptLock();
@@ -1645,6 +1750,7 @@ function guessFieldUso_(name, pk, ctx) {
     const id = ctx.campos && ctx.campos[norm_(n)];
     if (id) return { uso: 'producto', prod: id };
     if (/hora extra/i.test(n)) return { uso: 'hora extra', prod: '' };
+    if (/traslado/i.test(n)) return { uso: 'traslado', prod: '' }; // round 21
     if (/adicional/i.test(n)) return { uso: 'costo adicional', prod: '' };
     if (/extra/i.test(n)) return { uso: 'extras', prod: '' };
   }
@@ -2022,4 +2128,4 @@ function sheet_(ss, name, headers) {
 if (typeof module !== 'undefined') module.exports = { ctKey_, cfKey_, roleKey_, guessCtype_, guessFieldUso_, guessRolTarifa_, camposMap_, typeUso_, fieldUso_, bitUso_, crewTarifa_,
   reportFileName_, archiveReport_, mapeosFromRows_, observe_, collectUnknowns_, seedMapeos_, validateMapeo_, toursFromRows_, tourEstado_, TOURS_SEED_ROWS: TOURS_SEED, USOS_CT, USOS_CF,
   CT_HEADERS, CF_HEADERS, ROL_HEADERS, CREW_HEADERS, BIT_HEADERS, ESTADO_NUEVO, ESTADO_OK, rawRowFor_, doPost, rebuildFinanzas, rebuildAll, ensureMapeos_, loadMapeos_,
-  registerUnknowns_, prepararMapeos, parseCostos_, externoNota_, barcoNota_, exactNet_, costoAdicionalText_, EXT_HEADERS, COSTO_HEADERS, bitacoraNoAplica_, bitacoraRuleStale_, markBitacoraSi_, BITACORA_RULE_V, checkinOf_, checkinSummary_, checkinText_, parseCheckin_, camposText_, phoneOf_, reservaRow_, importReport_, horaExtraQty_, planHoraExtraMigration_, migrateHoraExtra20261126_, ajustesActivos_, ajustesPorSalida_, ajusteEvRows_, AJS_HEADERS, CONC_HEADERS, CONC_SEED, EV_HEADERS, loadIngresos_, moneyCells_, pricedFields_, descuentosText_, cargosText_, pagosText_, reembolsadoTotal_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payDow_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };
+  registerUnknowns_, prepararMapeos, parseCostos_, externoNota_, barcoNota_, exactNet_, costoAdicionalText_, EXT_HEADERS, COSTO_HEADERS, bitacoraNoAplica_, bitacoraRuleStale_, markBitacoraSi_, BITACORA_RULE_V, checkinOf_, checkinSummary_, checkinText_, parseCheckin_, camposText_, phoneOf_, reservaRow_, importReport_, horaExtraQty_, planHoraExtraMigration_, checkTicked_, trasladoWays_, trasladoRate_, planTrasladoCampos_, planTrasladoTarifas_, migrateTrasladoCampos20261126_, migrateTrasladoTarifas20261126_, TRASLADO_FIELDS, TRASLADO_TAR_SEED, migrateHoraExtra20261126_, ajustesActivos_, ajustesPorSalida_, ajusteEvRows_, AJS_HEADERS, CONC_HEADERS, CONC_SEED, EV_HEADERS, loadIngresos_, moneyCells_, pricedFields_, descuentosText_, cargosText_, pagosText_, reembolsadoTotal_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payDow_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };

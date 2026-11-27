@@ -284,7 +284,7 @@ test('client wiring: Crew "+ Ajuste" + tappable crew rows, Costos "+ Agregar", C
     "enqueue('addAjusteSalida'", "enqueue('anularAjusteSalida'", "enqueue('saveConcepto'", 'Motivo (obligatorio)', "can('ajustes')"].forEach(k => assert.ok(html.indexOf(k) >= 0, k));
   assert.ok(!/srv\('addAjusteSalida'|act\('addAjusteSalida'/.test(html), 'writes only through the queue');
   assert.strictEqual(U.SCREENS.conceptos, 'Conceptos');
-  assert.ok(html.includes("const APP_VER='v17'") && sw.includes("const CACHE = 'al-ops-v17'"));
+  const vH = /const APP_VER='(v\d+)'/.exec(html)[1], vS = /const CACHE = 'al-ops-(v\d+)'/.exec(sw)[1]; assert.ok(vH === vS && +vH.slice(1) >= 17);
 });
 test('client: crew label is Tripulación; externo note shown compactly (no amount, no "(externo)")', () => {
   assert.strictEqual(U.extCompact('Barco: San Ángel (externo) – Juan Pérez – $3,500'), 'Barco: San Ángel · Juan Pérez');

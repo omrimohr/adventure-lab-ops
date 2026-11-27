@@ -98,6 +98,7 @@ test('rebuildFinanzas without a pending flag only refreshes finanzas; with the l
   const e = env();
   F.DEPARTURES[9001].forEach(p => e.post(p)); e.G.ex.ensureMapeos_(e.ss); e.G.ex.rebuildAll();
   e.fe.props.BITACORA_RULE_V = e.G.ex.BITACORA_RULE_V; // rule v2 already applied
+  e.fe.props.MIG_R21_TR_CF = '1'; e.fe.props.MIG_R21_TR_TAR = '1'; // round 21 one-time migrations already applied
   assert.strictEqual(J(e.G.ex.rebuildFinanzas()).reconstruido, undefined);
   e.fe.props.REBUILD_PENDING = '1'; e.fe.setLockBusy(true);
   e.G.ex.rebuildFinanzas();
