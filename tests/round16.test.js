@@ -116,6 +116,6 @@ test('UI moneyRows: short-form / unknown values — "—" only for Subtotal and 
 });
 test('UI wiring: booking sheet uses moneyRows in the dlist block; APP_VER = sw CACHE', () => {
   assert.ok(html.indexOf('moneyRows(b).map') > 0);
-  assert.ok(/const APP_VER='v1[3-9]'/.test(html));
+  assert.ok(/const APP_VER='v(1[3-9]|2\d)'/.test(html));
   assert.ok(fs.readFileSync(path.join(__dirname, '..', 'docs', 'sw.js'), 'utf8').indexOf("const CACHE = 'al-ops-" + /const APP_VER='(v\d+)'/.exec(html)[1] + "'") >= 0);
 });

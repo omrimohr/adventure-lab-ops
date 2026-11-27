@@ -87,7 +87,6 @@ b,strong{font-weight:500}
 .drow.hl{animation:hl 2s ease-out}
 @keyframes hl{0%,60%{box-shadow:inset 0 0 0 2px var(--acc)}100%{box-shadow:inset 0 0 0 2px transparent}}
 @media (prefers-reduced-motion:reduce){.drow.hl{animation:none;box-shadow:inset 0 0 0 2px var(--acc)}}
-.list.deps{scroll-margin-top:12px}
 .nav{display:flex;justify-content:space-between;align-items:center;min-height:44px}
 .nav .back{display:inline-flex;align-items:center;gap:4px;color:var(--acc);background:none;border:0;font:inherit;font-weight:500;padding:0 8px 0 0;min-height:44px;cursor:pointer}
 .nav .back svg{width:18px;height:18px}
@@ -96,7 +95,7 @@ b,strong{font-weight:500}
 .nav .act svg{width:20px;height:20px}
 h1{font-family:var(--serif);font-size:26px;font-weight:500;line-height:32px;margin:0 0 4px}
 .lede{color:var(--ink2);font-size:14px;margin:0 0 24px}
-.rolebar+h1{margin-top:4px}
+.stk+h1{margin-top:4px}
 .ttl{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:44px;margin:0 0 12px}
 .ttl h1{margin:0}
 .tlink{background:none;border:0;font:inherit;font-weight:500;color:var(--acc);min-height:44px;padding:0 0 0 12px;cursor:pointer;white-space:nowrap}
@@ -244,16 +243,22 @@ button.live{width:100%;background:none;border:0;font:inherit;font-size:12px;colo
 .dnav .dt svg{color:var(--acc);width:18px;height:18px}
 .dnav .sp{flex:1}
 .dnav .hoy{font-weight:500;color:var(--acc);padding:0 12px}
-.fbtn{position:relative;width:44px;flex:none;display:flex;align-items:center;justify-content:center;color:var(--acc)}
+.fbtn{position:relative;flex:none;display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 0 0 12px;background:none;border:0;font:inherit;font-weight:500;color:var(--acc);cursor:pointer}
 .fbtn svg{width:20px;height:20px}
-.fbtn .fdot{position:absolute;top:10px;right:8px;width:8px;height:8px;border-radius:50%;background:var(--orange);box-shadow:0 0 0 2px var(--sand)}
+.fbtn .fdot{position:absolute;top:10px;left:22px;width:8px;height:8px;border-radius:50%;background:var(--orange);box-shadow:0 0 0 2px var(--sand)}
 .daterow{display:flex;align-items:center;justify-content:space-between;margin:0 -8px}
 .daterow button{background:none;border:0;font:inherit;color:var(--acc);cursor:pointer;min-height:44px}
 .daterow .nx{width:44px;font-size:22px;line-height:1;flex:none}
 .daterow .wk{flex:1;font-weight:500;color:var(--ink);text-align:center}
 .fchips{margin:0 0 8px}
-.fline{color:var(--ink2);text-align:center;margin:0 0 8px}
-.fline .link{padding:0 4px;min-height:32px}
+.frow{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;margin:4px 0 4px;font-size:14px}
+.frow .fl{color:var(--ink2);min-width:0}
+.frow .fl b{color:var(--ink);font-weight:500}
+/* Round 22: sticky header (top bar + date row). Safe-area top is inside the header (negative margin cancels the :root padding) so the notch is covered too. */
+.stk{position:sticky;top:0;z-index:4;margin:calc(-1*env(safe-area-inset-top,0px)) calc(-1*var(--px)) 0;padding:env(safe-area-inset-top,0px) var(--px) 0;background:var(--sand);border-bottom:1px solid transparent;transition:border-color .15s}
+.stk.scrolled{border-bottom-color:var(--hair)}
+.list.deps,.dsum,.frow,.fchips,.sec,.drow{scroll-margin-top:calc(var(--stk,100px) + 12px)}
+.frow .link{padding:0 4px;min-height:32px}
 /* Money: bruto green on top, neto under it (11px) */
 .m2{display:inline-flex;flex-direction:column;align-items:flex-end;line-height:1.3;font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
 .m2 .mg{color:var(--green);font-weight:500;font-size:14px}
@@ -542,7 +547,7 @@ const S={role:'op',realRole:'op',user:'',date:'',wk:'',
   perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},pend:[],salud:[],feedback:[],conceptos:[],staff:[],fbf:'nuevo',fbEdit:null,evp:null,users:null,usersErr:'',rebuildPending:false,fhOk:true,offline:false,dataAt:0,
   win:{from:'',to:''},fetchedAt:'',q:'',filter:'todas',fopen:false,config:{semana_inicio:'jueves',semana_pago:'jueves'}};
 let PIN='';
-const APP_VER='v19';   // = sufijo de CACHE en docs/sw.js ('al-ops-v19'); se manda con cada reporte
+const APP_VER='v20';   // = sufijo de CACHE en docs/sw.js ('al-ops-v19'); se manda con cada reporte
 
 // ===== Servidor =====
 // Servidor: Apps Script web app (misma URL que el webhook de FareHarbor). POST text/plain = sin preflight CORS.
@@ -1202,7 +1207,8 @@ function topBar(title,{back,backTo,backView,acts=[],lede}={}){
   const nav=(back||a)?`<div class="nav">${back?`<button class="back" data-back="${backTo||''}" ${backView?`data-backview="${backView}"`:''}>${svgI('left',18)}${esc(back)}</button>`:'<span></span>'}<span class="acts">${a}</span></div>`:'';
   return nav+`<h1>${esc(title)}</h1>${lede?`<p class="lede">${lede}</p>`:''}`;
 }
-function roleBar(){const n=notifList().length;return `<div class="rolebar"><span>Hola, ${esc(S.user)}</span><span class="rbr">${statusHtml()}<button type="button" class="bell rpt" data-report aria-label="Reportar error o sugerencia">${svgI('report',20)}</button><button type="button" class="bell" data-bell aria-label="${n?'Notificaciones, '+n:'Notificaciones'}">${svgI('bell',20)}${n?`<i class="nb">${n>9?'9+':n}</i>`:''}</button></span></div>`}
+function opNav(){const date=S.date;return `<div class="dnav"><button class="nx" data-day="-1" aria-label="Día anterior">${svgI('left',18)}</button><button class="dt" data-cal aria-label="Abrir calendario">${fd(date)}${svgI('cal',18)}</button><button class="nx" data-day="1" aria-label="Día siguiente">${svgI('right',18)}</button><span class="sp"></span>${date!==TODAY?'<button class="hoy" data-today>Hoy</button>':''}${can('compras')?'<button type="button" class="tlink gasto" data-act="compra" data-pre="" aria-label="Agregar gasto o compra">+ Gasto</button>':''}</div>`}
+function roleBar(extra){const n=notifList().length;return `<div class="stk"><div class="rolebar"><span>Hola, ${esc(S.user)}</span><span class="rbr">${statusHtml()}<button type="button" class="bell rpt" data-report aria-label="Reportar error o sugerencia">${svgI('report',20)}</button><button type="button" class="bell" data-bell aria-label="${n?'Notificaciones, '+n:'Notificaciones'}">${svgI('bell',20)}${n?`<i class="nb">${n>9?'9+':n}</i>`:''}</button></span></div>${extra||''}</div>`}
 // Control de estado (arriba a la derecha): punto de conexión con FareHarbor, botón de actualizar y hora de los datos mostrados
 function statusHtml(){
   const ok=S.fhOk!==false&&!S.offline,ago=S.dataAt?relAgo(S.dataAt,Date.now()):'';
@@ -1270,9 +1276,9 @@ function pendRow(p,i){
 const V={
 op(){
   const date=S.date,ds=depsOn(date),fut=date>TODAY,fOn=S.filter!=='todas';
-  let h=`<div class="dnav"><button class="nx" data-day="-1" aria-label="Día anterior">${svgI('left',18)}</button><button class="dt" data-cal aria-label="Abrir calendario">${fd(date)}${svgI('cal',18)}</button><button class="nx" data-day="1" aria-label="Día siguiente">${svgI('right',18)}</button><span class="sp"></span>${date!==TODAY?'<button class="hoy" data-today>Hoy</button>':''}<button class="fbtn${fOn?' on':''}" data-fopen aria-label="Filtrar salidas" aria-expanded="${S.fopen}">${svgI('filter',20)}${fOn?'<i class="fdot"></i>':''}</button></div>
-  <div class="ttl"><h1>Operación</h1>${can('compras')?'<button class="tlink" data-act="compra" data-pre="" aria-label="Agregar gasto o compra">+ Gasto</button>':''}</div>`+(S.fopen?`<div class="chips fchips" role="group" aria-label="Filtro de salidas">${DEP_FILTERS.map(f=>`<button type="button" class="chip" data-filter="${f.key}" aria-pressed="${S.filter===f.key}">${f.label}</button>`).join('')}</div>`:'')+(fOn?`<div class="fline">Filtro: <b>${esc(depFilter(S.filter).label)}</b> · <button type="button" class="link" data-filter="todas">quitar</button></div>`:'');
-  if(!ds.length)return h+`<div class="group"><div class="list"><div class="empty">${S.loadingRange?'Cargando…':'Sin salidas este día.'}${!S.loadingRange&&pd(date).getDay()===3?' Los miércoles no hay tours.':''}</div></div></div>`;
+  let h=`<div class="ttl"><h1>Operación</h1></div>`;
+  const fr=`<div class="frow"><span class="fl">${fOn?`Filtro: <b>${esc(depFilter(S.filter).label)}</b> · <button type="button" class="link" data-filter="todas">quitar</button>`:''}</span><button type="button" class="fbtn${fOn?' on':''}" data-fopen aria-label="Filtrar salidas" aria-expanded="${S.fopen}">${svgI('filter',20)}Filtrar${fOn?'<i class="fdot"></i>':''}</button></div>`+(S.fopen?`<div class="chips fchips" role="group" aria-label="Filtro de salidas">${DEP_FILTERS.map(f=>`<button type="button" class="chip" data-filter="${f.key}" aria-pressed="${S.filter===f.key}">${f.label}</button>`).join('')}</div>`:'');
+  if(!ds.length)return h+fr+`<div class="group"><div class="list"><div class="empty">${S.loadingRange?'Cargando…':'Sin salidas este día.'}${!S.loadingRange&&pd(date).getDay()===3?' Los miércoles no hay tours.':''}</div></div></div>`;
   // Resumen del día: un grupo plano. Todo se cuenta SOLO sobre salidas con reservas activas.
   const sm=daySummary(ds,nowKey(),TODAY,date),dact=ds.filter(hasBk);
   let r1;
@@ -1292,7 +1298,7 @@ op(){
   let r4='';
   if(sm.rev){const pend=sm.rev.tot-sm.rev.n;
     r4=`<div class="r f"><span class="${pend?'':'ok'}" style="display:inline-flex;align-items:center;gap:8px;min-height:44px">${svgI('check',16)}${sm.rev.n}/${sm.rev.tot} revisadas</span>${pend?`<button type="button" class="tap drev" data-filter="revisar" aria-label="${pend} por revisar. Ver las que faltan">${pend} por revisar${svgI('right',14)}</button>`:'<span class="ok">Todo revisado</span>'}</div>`}
-  h+=`<div class="dsum"><div class="r">${r1}</div><div class="r">${r2}</div>${r3}${r4}</div>`;
+  h+=`<div class="dsum"><div class="r">${r1}</div><div class="r">${r2}</div>${r3}${r4}</div>`+fr;
   const f=depFilter(S.filter),list=ds.filter(d=>f.test(d,{today:TODAY,nowKey:nowKey()}));
   if(!list.length)return h+`<div class="group"><div class="list"><div class="empty">Ninguna salida con este filtro.</div></div></div>`;
   const SEC=[['done','Terminadas'],['live','En curso'],['next','Próximas']],by={done:[],live:[],next:[]};
@@ -2299,15 +2305,19 @@ function start(){
 }
 
 // ===== Render + events =====
+function stkSync(){const el=document.querySelector('.stk');if(!el)return;document.documentElement.style.setProperty('--stk',el.offsetHeight+'px');el.classList.toggle('scrolled',window.scrollY>0)}
+window.addEventListener('scroll',()=>{const el=document.querySelector('.stk');if(el)el.classList.toggle('scrolled',window.scrollY>0)},{passive:true});
+window.addEventListener('resize',stkSync);
 function render(){
   const app=$('app');
-  try{app.innerHTML=roleBar()+(stackView?V[stackView.name](stackView.arg):V[tab]())}
-  catch(err){app.innerHTML=roleBar()+`<div class="warn">No pude mostrar esta pantalla: ${esc(err.message)}</div>`;console.warn(err)}
+  try{app.innerHTML=roleBar(!stackView&&tab==='op'?opNav():'')+(stackView?V[stackView.name](stackView.arg):V[tab]())}
+  catch(err){app.innerHTML=roleBar(!stackView&&tab==='op'?opNav():'')+`<div class="warn">No pude mostrar esta pantalla: ${esc(err.message)}</div>`;console.warn(err)}
   document.querySelectorAll('.tab').forEach(b=>b.dataset.tab===tab?b.setAttribute('aria-current','page'):b.removeAttribute('aria-current'));
   const mb=document.querySelector('.tab[data-tab="mas"]');
   if(mb){let bd=mb.querySelector('.bdg');const n=pendN();
     if(n){if(!bd){bd=document.createElement('span');bd.className='bdg';mb.appendChild(bd)}bd.textContent=n;mb.setAttribute('aria-label','Más, '+n+' por configurar')}
     else{if(bd)bd.remove();mb.removeAttribute('aria-label')}}
+  stkSync();
   const q=$('q');if(q)q.oninput=()=>{S.q=q.value;const pos=q.selectionStart;render();const n=$('q');n.focus();n.setSelectionRange(pos,pos)};
 }
 const goTop=()=>window.scrollTo(0,0);

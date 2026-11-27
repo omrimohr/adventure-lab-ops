@@ -48,7 +48,7 @@ test('round 15: APP_VER matches the service-worker CACHE; top bar has the report
   const sw = fs.readFileSync(path.join(__dirname, '..', 'docs', 'sw.js'), 'utf8');
   const v = /const APP_VER='([^']+)'/.exec(html)[1];
   assert.ok(sw.indexOf("const CACHE = 'al-ops-" + v + "'") >= 0, 'bump both together');
-  const bar = /function roleBar\(\)\{[^\n]*/.exec(html)[0];
+  const bar = /function roleBar\(extra\)\{[^\n]*/.exec(html)[0];
   assert.ok(bar.indexOf('data-report') > 0 && bar.indexOf('data-report') < bar.indexOf('data-bell'));
   assert.ok(bar.indexOf('aria-label="Reportar error o sugerencia"') > 0);
 });

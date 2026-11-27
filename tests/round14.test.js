@@ -62,7 +62,7 @@ test('round 14: computeSalida_ "Sin recurso asignado" only when a customer booki
 });
 test('round 14: UI wiring — bell in top bar, no role switcher / health box, filters scroll to the list, sw CACHE bumped', () => {
   assert.ok(!/function saludBox|data-rolesw|Viendo como/.test(html));
-  assert.ok(/function roleBar\(\)[^\n]*data-bell/.test(html) && /bell:'<path/.test(html));
+  assert.ok(/function roleBar\(extra\)[^\n]*data-bell/.test(html) && /bell:'<path/.test(html));
   assert.ok(/Sin notificaciones/.test(html) && /'Notificaciones'/.test(html));
   assert.ok(/data-filter\]'\);if\(fl\)\{[^\n]*render\(\);goList\(\)/.test(html), 'summary taps and chips smooth-scroll to the departures list');
   assert.ok(/const goList=/.test(html) && /function flashDep/.test(html));
