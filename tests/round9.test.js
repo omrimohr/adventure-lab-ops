@@ -158,7 +158,7 @@ test('rentals and day passes are one quiet gray line (round 11): kayak icon, hou
   assert.ok(/dquiet/.test(compact) && /svgI\('kayak'/.test(compact) && /personasTxt\(pax\)/.test(compact));
   assert.strictEqual((compact.match(/class="l[0-9]"/g) || []).length, 1, 'one line');
   assert.ok(!/ciChip|\bres\b|nores|\$\{rt\}|netT/.test(compact), 'no resources / check-in / neto');
-  assert.ok(/class="l3"/.test(src) && /class="l4"/.test(src), 'tour rows keep 4 lines');
+  assert.ok(/class="l3 l3a"/.test(src) && /class="l4"/.test(src), 'tour rows keep 4 lines');
   const css = html.slice(html.indexOf('<style>'));
   assert.ok(/\.drow\.dquiet\{[^}]*background:var\(--paper2\)/.test(css) && /\.drow\.dquiet \.cn,[^{]*\{color:var\(--ink3\)/.test(css));
 });

@@ -79,7 +79,7 @@ test('flat layout: no radius on lists / rows / summaries; ONE filled button clas
   assert.deepStrictEqual(chrome, [], 'chrome emoji: ' + chrome.join(' '));
 });
 test('departure row: 4 fixed lines (hora·estado + bruto / nombre + neto / recursos·tripulación / bitácora + check-in)', () => {
-  assert.ok(/class="l1"/.test(html) && /class="l2"/.test(html) && /class="l3"/.test(html) && /class="l4"/.test(html));
+  assert.ok(/class="l1"/.test(html) && /class="l2"/.test(html) && /class="l3 l3a"/.test(html) && /class="l4"/.test(html));
   assert.ok(/terminado|en curso|próxima/.test(html));
   assert.strictEqual(U.depSection({ date: '2026-11-25', time: '09:00', end: '2026-11-25 12:00' }, '2026-11-25', '10:00'), 'live');
 });

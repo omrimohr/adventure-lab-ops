@@ -300,7 +300,9 @@ button.live{width:100%;background:none;border:0;font:inherit;font-size:12px;colo
 .drow .nt{font-size:11px;color:var(--ink2);font-variant-numeric:tabular-nums;white-space:nowrap}
 .drow .nt.pend{color:var(--orange)}
 .drow .st-w{white-space:nowrap}
-.drow .l3{display:block;font-size:12px;line-height:16px;min-height:16px;margin-top:2px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.drow .l3{display:flex;align-items:center;gap:6px;font-size:12px;line-height:16px;height:18px;margin-top:2px;color:var(--ink2);overflow:hidden}
+.drow .l3 .gi{flex:none;width:16px;height:16px;color:var(--ink3)}
+.drow .l3 .lt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .drow .l3 .nores,.drow .l3 .wq{color:var(--orange);font-weight:500}
 .drow .l4{min-height:28px;margin-top:4px;font-size:12px}
 .drow .bds{display:inline-flex;gap:12px;color:var(--ink2)}
@@ -551,7 +553,7 @@ const S={role:'op',realRole:'op',user:'',date:'',wk:'',
   perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},pend:[],salud:[],feedback:[],conceptos:[],staff:[],cfgAv:false,cfg:{tok:'',exp:0,est:null,d:null,next:null},fbf:'nuevo',fbEdit:null,evp:null,users:null,usersErr:'',rebuildPending:false,fhOk:true,offline:false,dataAt:0,
   win:{from:'',to:''},fetchedAt:'',q:'',filter:'todas',fopen:false,canc:'dinero',czero:'',config:{semana_inicio:'jueves',semana_pago:'jueves'}};
 let PIN='';
-const APP_VER='v24';   // = sufijo de CACHE en docs/sw.js ('al-ops-v24'); se manda con cada reporte
+const APP_VER='v25';   // = sufijo de CACHE en docs/sw.js ('al-ops-v25'); se manda con cada reporte
 
 // ===== Servidor =====
 // Servidor: Apps Script web app (misma URL que el webhook de FareHarbor). POST text/plain = sin preflight CORS.
@@ -738,6 +740,7 @@ const IC={
  logout:'<path d="M10 4H6a2 2 0 00-2 2v12a2 2 0 002 2h4"/><path d="M15 8l4 4-4 4M19 12H9"/>',
  okc:'<circle cx="12" cy="12" r="8.5"/><path d="M8 12.5l3 3 5-6"/>',
  kayak:'<path d="M3 15.5c4-3.2 14-3.2 18 0-4 3.2-14 3.2-18 0z"/><path d="M6.5 5.5l11 11"/><path d="M4.8 8.2l3-3M16.2 18.8l3-3"/>',
+ sailboat:'<path d="M12 3.5v11"/><path d="M12 4.5c3 2 5 5.5 5.5 9.5H12"/><path d="M10.5 7.5C8.5 9 7 11.5 6.5 14h4"/><path d="M4 17.5h16l-2.5 3h-11z"/>',
  boat:'<path d="M12 3v12"/><path d="M12 4.5l6 9.5h-6"/><path d="M12 8L7 14h5"/><path d="M4 17.5h16l-2.2 3.2H6.2z"/>',
  report:'<path d="M4 5.5A1.5 1.5 0 015.5 4h13A1.5 1.5 0 0120 5.5v9a1.5 1.5 0 01-1.5 1.5H10l-4.5 4v-4h0A1.5 1.5 0 014 14.5z"/><path d="M12 7.5v4M12 13.6v.1"/>',
  users:'<circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.5-3.4 2.7-5 5.5-5s5 1.6 5.5 5"/><path d="M16.5 5.2a3 3 0 010 5.6M18 14.3c1.6.6 2.6 2 3 4.7"/>',
@@ -2038,7 +2041,9 @@ function depCard(d,sec){
   // Revisión: solo un ícono. Pendiente = el día ya terminó y nadie la marcó; verde = revisada. Hoy y días futuros: nada.
   if(d.rev)rt+=`<span class="ri ok" role="img" aria-label="Revisado">${svgI('check',18)}</span>`;
   else if(needsReview(d,TODAY))rt+=`<span class="ri" role="img" aria-label="Por revisar">${svgI('clock',18)}</span>`;
-  const l3=[res||(nores?`<span class="nores">${WI}Sin recurso</span>`:''),crew||(rent?'':'Sin tripulación')].filter(Boolean).join(' · ');
+  // Líneas 3 y 4 (round 28): A = barco + recursos, B = personas + tripulación. Cada una en UNA línea con elipsis; altura fija aunque falte el texto.
+  const lnA=res?`<span class="lt">${res}</span>`:nores?`<span class="lt nores">Sin recurso</span>`:'';
+  const lnB=crew?`<span class="lt">${crew}</span>`:rent?'':'<span class="lt nores">Sin tripulación</span>';
   const netT=fut?'':n===null?'<span class="nt pend">neto pendiente</span>':`<span class="nt">neto ${fmt(n)}${est?' est.':''}</span>`;
   if(rent||d.barco==='otro'){
     // Rentas y pases: una sola línea gris (hora · nombre · pax ..... bruto). Solo el ⚠ conserva color.
@@ -2050,7 +2055,8 @@ function depCard(d,sec){
   return `<button class="drow dcard s-${sec||'x'}" data-dep="${d.id}">
     <span class="l1"><span class="st-w"><span class="hr">${d.time}</span> · <span class="st${sec==='live'?' now':''}">${word}</span></span><span class="mg">${d.gross===null||d.gross===undefined||d.gross===''?'—':fmt(d.gross)}</span></span>
     <span class="l2"><span class="tn">${esc(d.item)}${d.label?` <span class="lbl">· ${esc(d.label)}</span>`:''}</span>${netT}</span>
-    <span class="l3">${l3||'&nbsp;'}</span>
+    <span class="l3 l3a">${lnA?svgI('sailboat',16)+lnA:''}</span>
+    <span class="l3 l3b">${lnB?svgI('users',16)+lnB:''}</span>
     <span class="l4">${bits}<span class="rt">${rt}</span></span></button>`;
 }
 

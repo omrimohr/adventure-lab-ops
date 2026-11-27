@@ -7,7 +7,7 @@ const html = fs.readFileSync(path.join(ROOT, 'docs/index.html'), 'utf8'), sw = f
 const gs = fs.readFileSync(path.join(ROOT, 'apps-script/app.gs'), 'utf8');
 
 test('APP_VER = CACHE = v24', () => {
-  assert.ok(/const APP_VER='v24'/.test(html) && sw.indexOf("const CACHE = 'al-ops-v24'") >= 0);
+  const v = /const APP_VER='(v\d+)'/.exec(html); assert.ok(v && sw.indexOf("const CACHE = 'al-ops-" + v[1] + "'") >= 0);
 });
 
 function env() {
