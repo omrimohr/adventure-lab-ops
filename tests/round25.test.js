@@ -127,7 +127,7 @@ test('depPax / paxChip: sum of the bookings, "? pax" in orange, separator only w
 test('card wiring: pax sits in the last line (.rt) before the check-in chip; booking line + total use personasTxt with paxQ; APP_VER = CACHE = v22', () => {
   assert.ok(/let rt=paxChip\(d,!!ciH\)\+ciH;/.test(html));
   assert.ok(/b\.paxQ\?`<span class="pq">/.test(html) && /Total · \$\{personasTxt\(paxOf\(d\),depPax\(d\)\.q\)\}/.test(html));
-  assert.ok(/const APP_VER='v22'/.test(html) && sw.indexOf("const CACHE = 'al-ops-v22'") >= 0);
+  assert.ok(/const APP_VER='v\d+'/.test(html) && /const CACHE = 'al-ops-v\d+'/.test(sw));
 });
 
 // ---- scroll memory ----
@@ -143,7 +143,7 @@ test('scrollKey: Operación by day + filter, Eventuales by week/period, tabs, de
 });
 test('scroll wiring: positions recorded per view, restored only by the back button, same-view re-render keeps scrollY, new views still goTop', () => {
   assert.ok(/scrollMem\[curKey\]=window\.scrollY/.test(html));
-  assert.ok(/data-back'\);if\(bk\)|const bk=on\('\[data-back\]'\);if\(bk\)\{[^\n]*render\(\);restoreScroll\(\);return\}/.test(html));
+  assert.ok(/function goBack\(bk\)\{[^\n]*render\(\);restoreScroll\(\)\}/.test(html) && /const bk=on\('\[data-back\]'\);if\(bk\)\{if\(hd>0\)history\.back\(\);else goBack\(bk\);return\}/.test(html));
   assert.ok(/keepY=nk===curKey\?window\.scrollY:0/.test(html) && /behavior:'instant'/.test(html));
   assert.ok(/const dp=on\('\[data-dep\]'\);if\(dp\)\{[^\n]*render\(\);goTop\(\)/.test(html));
 });

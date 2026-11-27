@@ -551,7 +551,7 @@ const S={role:'op',realRole:'op',user:'',date:'',wk:'',
   perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},pend:[],salud:[],feedback:[],conceptos:[],staff:[],fbf:'nuevo',fbEdit:null,evp:null,users:null,usersErr:'',rebuildPending:false,fhOk:true,offline:false,dataAt:0,
   win:{from:'',to:''},fetchedAt:'',q:'',filter:'todas',fopen:false,canc:'dinero',czero:'',config:{semana_inicio:'jueves',semana_pago:'jueves'}};
 let PIN='';
-const APP_VER='v22';   // = sufijo de CACHE en docs/sw.js ('al-ops-v22'); se manda con cada reporte
+const APP_VER='v23';   // = sufijo de CACHE en docs/sw.js ('al-ops-v23'); se manda con cada reporte
 
 // ===== Servidor =====
 // Servidor: Apps Script web app (misma URL que el webhook de FareHarbor). POST text/plain = sin preflight CORS.
@@ -1174,6 +1174,8 @@ const SCREENS={conceptos:'Conceptos',usuarios:'Usuarios',dep:'Detalle de salida'
 const screenName=(tab,view,tabs)=>view?(SCREENS[view]||view):((tabs||{})[tab]||tab);
 const fbContext=(screen,date,user,ver)=>'Se envía con: pantalla '+screen+' · '+date+' · '+user+' · versión '+ver;
 function fbPayload(f,ctx){return {cid:ctx.cid,tipo:f.tipo==='Sugerencia'?'Sugerencia':'Error',texto:String(f.texto||'').trim(),pantalla:ctx.screen,fecha:ctx.date,version:ctx.ver,img:f.img||''}}
+// Round 26: destino del botón ‹ (data-back / data-backview / data-backarg); la vista con id (p. ej. Eventuales › persona) recupera su id
+const backTarget=ds=>({tab:ds.back||'',sv:ds.backview?(ds.backarg!==undefined&&ds.backarg!==''?{name:ds.backview,arg:ds.backarg}:{name:ds.backview}):null});
 // ==PURE-END==
 try{S.filter=depFilter(localStorage.getItem('adv_ops_depfilter')||'todas').key}catch(e){} // último filtro usado
 try{S.canc=cancMode(localStorage.getItem('adv_ops_canc'))}catch(e){} // Ajustes › Canceladas (por dispositivo)
@@ -1234,10 +1236,10 @@ $('tabs').innerHTML=TABS.map(([k,l,ic])=>`<button class="tab" data-tab="${k}"><s
 
 const PLUS=pre=>can('compras')&&{k:'compra',l:'Gasto / Compra',s:'+',pre};
 const DOTS=pre=>menuOk()&&{k:'menu',l:'Más acciones',s:'⋯',pre};
-function topBar(title,{back,backTo,backView,acts=[],lede}={}){
+function topBar(title,{back,backTo,backView,backArg,acts=[],lede}={}){
   const AI={'+':'plus','⋯':'dots'};
   const a=acts.filter(Boolean).map(x=>`<button class="act${x.s.length>2?' txt':''}" data-act="${x.k}" data-pre="${x.pre||''}" aria-label="${x.l}">${AI[x.s]?svgI(AI[x.s],20):x.s}</button>`).join('');
-  const nav=(back||a)?`<div class="nav">${back?`<button class="back" data-back="${backTo||''}" ${backView?`data-backview="${backView}"`:''}>${svgI('left',18)}${esc(back)}</button>`:'<span></span>'}<span class="acts">${a}</span></div>`:'';
+  const nav=(back||a)?`<div class="nav">${back?`<button class="back" data-back="${backTo||''}" ${backView?`data-backview="${backView}"`:''}${backView&&backArg!==undefined&&backArg!==null?` data-backarg="${esc(backArg)}"`:''}>${svgI('left',18)}${esc(back)}</button>`:'<span></span>'}<span class="acts">${a}</span></div>`:'';
   return nav+`<h1>${esc(title)}</h1>${lede?`<p class="lede">${lede}</p>`:''}`;
 }
 function opNav(){const date=S.date;return `<div class="dnav"><button class="nx" data-day="-1" aria-label="Día anterior">${svgI('left',18)}</button><button class="dt" data-cal aria-label="Abrir calendario">${fd(date)}${svgI('cal',18)}</button><button class="nx" data-day="1" aria-label="Día siguiente">${svgI('right',18)}</button><span class="sp"></span>${date!==TODAY?'<button class="hoy" data-today>Hoy</button>':''}${can('compras')?'<button type="button" class="tlink gasto" data-act="compra" data-pre="" aria-label="Agregar gasto o compra">+ Gasto</button>':''}</div>`}
@@ -1618,11 +1620,11 @@ role(k){
 let inFn=null;
 function sheet(title,body,{ok,okLabel='Guardar',disabled,back,input,closeLabel='Cancelar'}={}){
   $('sheetRoot').innerHTML=`<div class="scrim" data-scrim><div class="sheet" role="dialog" aria-modal="true" aria-label="${title}"><div class="bar">${back?`<button id="sheetBack">‹ ${back.label}</button>`:`<button data-close>${closeLabel}</button>`}<b>${title}</b>${ok?`<button class="ok" id="sheetOk" ${disabled?'disabled':''}>${okLabel}</button>`:'<span></span>'}</div>${body}</div></div>`;
-  inFn=input||null;
+  inFn=input||null;hSheet(true);
   if(ok)$('sheetOk').onclick=ok;
   if(back)$('sheetBack').onclick=back.fn;
 }
-function closeSheet(){if(cart&&cart.ticketUrl){try{URL.revokeObjectURL(cart.ticketUrl)}catch(e){}cart.ticketUrl=''}$('sheetRoot').innerHTML='';$('pickRoot').innerHTML='';inFn=null;flushRender()}
+function closeSheet(){if(cart&&cart.ticketUrl){try{URL.revokeObjectURL(cart.ticketUrl)}catch(e){}cart.ticketUrl=''}$('sheetRoot').innerHTML='';$('pickRoot').innerHTML='';inFn=null;hSheet(false);flushRender()}
 const ctlItems=()=>S.items.filter(i=>i.controlStock&&i.active);
 const noteBox=(id,ph)=>`<textarea id="${id}" class="note" placeholder="${ph}" aria-label="Nota"></textarea>`;
 
@@ -2336,7 +2338,7 @@ function showPin(msg){
 }
 function logout(msg){
   PIN='';Q=[];clearTimeout(qTimer);try{localStorage.removeItem('adv_ops_pin')}catch(e){}
-  cacheClear();S.date='';S.wk='';S.evp=null;S.users=null;S.usersErr='';S.role='op';tab='op';stackView=null;closeSheet();$('app').innerHTML='';showPin(msg||'');
+  cacheClear();S.date='';S.wk='';S.evp=null;S.users=null;S.usersErr='';S.role='op';tab='op';stackView=null;closeSheet();histReset();$('app').innerHTML='';showPin(msg||'');
 }
 async function pinKey(k){
   if($('pin').hidden||saving)return;
@@ -2396,10 +2398,51 @@ function render(){
   if(mb){let bd=mb.querySelector('.bdg');const n=pendN();
     if(n){if(!bd){bd=document.createElement('span');bd.className='bdg';mb.appendChild(bd)}bd.textContent=n;mb.setAttribute('aria-label','Más, '+n+' por configurar')}
     else{if(bd)bd.remove();mb.removeAttribute('aria-label')}}
-  stkSync();
+  stkSync();histSync();
   if(keepY>0&&window.scrollY!==keepY)window.scrollTo({top:keepY,left:0,behavior:'instant'});
   const q=$('q');if(q)q.oninput=()=>{S.q=q.value;const pos=q.selectionStart;render();const n=$('q');n.focus();n.setSelectionRange(pos,pos)};
 }
+// ==HIST-BEGIN== Round 26: botón atrás del teléfono = botón ‹ (History API). Sin hash ni URL nueva: no toca el Apps Script ni el service worker.
+// Cada vista de detalle y cada hoja empujan UNA entrada (pushState); cambiar de pestaña NO apila (se vuelve a la base con history.go).
+// Las operaciones sobre el historial van en cola: un back() espera su popstate antes de la siguiente (closeSheet + render seguidos no se pisan).
+let hd=0,hLoc='',shOpen=false,hQ=[],hBusy=false,hTimer=0,inPop=false;
+const histLoc=()=>stackView?stackView.name+':'+(stackView.arg===undefined||stackView.arg===null?'':stackView.arg):'';
+function hRun(){
+  while(!hBusy&&hQ.length){
+    const o=hQ.shift();
+    try{
+      if(o.t==='push')history.pushState({hd:o.hd},'');
+      else{hBusy=true;clearTimeout(hTimer);hTimer=setTimeout(()=>{hBusy=false;hRun()},700);history.go(-o.n)}
+    }catch(e){hBusy=false}
+  }
+}
+function hPush(){hd++;hQ.push({t:'push',hd});hRun()}
+function hBack(n){if(n<1)return;hd=Math.max(0,hd-n);hQ.push({t:'back',n});hRun()}
+function hSheet(open){
+  if(open){if(!shOpen){shOpen=true;hPush()}}
+  else if(shOpen){shOpen=false;if(!inPop)hBack(1)}
+}
+function histSync(){ // al final de render(): ¿cambió la vista?
+  const l=histLoc();if(l===hLoc)return;
+  hLoc=l;if(inPop)return;
+  if(l)hPush();else if(hd>0)hBack(hd);
+}
+function histReset(){hLoc='';shOpen=false;if(hd>0)hBack(hd)}
+function histPop(){
+  if(hBusy){hBusy=false;clearTimeout(hTimer);hRun();return}      // popstate de una operación nuestra
+  const n=(history.state&&history.state.hd)||0;
+  if(n>hd){hd=n;hBack(1);return}                                   // «adelante» del navegador: se deshace
+  hd=n;
+  inPop=true;
+  try{
+    if(shOpen){shOpen=false;closeSheet()}                          // 1) cierra la hoja abierta
+    else{const bk=document.querySelector('#app .back');if(bk)goBack(bk)} // 2) si no, sube un nivel como ‹ (con restore de scroll)
+  }finally{inPop=false}
+}
+function histInit(){try{history.replaceState({hd:0},'')}catch(e){}window.addEventListener('popstate',histPop)}
+// ==HIST-END==
+histInit();
+function goBack(bk){const t=backTarget(bk.dataset);S.depFrom='';if(t.tab)tab=t.tab;stackView=t.sv;render();restoreScroll()}
 const goTop=()=>window.scrollTo(0,0);
 // Baja suave a la lista de salidas (primera fila filtrada) tras tocar un aviso o un filtro del resumen del día
 const goList=()=>requestAnimationFrame(()=>{const el=document.querySelector('.list.deps')||document.querySelector('.dsum');if(el)el.scrollIntoView({behavior:'smooth',block:'start'})});
@@ -2513,7 +2556,7 @@ document.addEventListener('click',e=>{
   const mdp=on('[data-mvdep]');if(mdp){const a=mdp.dataset.mvdep.split('|');openDepFrom(a[0],a[1]);return}
   const mja=on('[data-mvaj]');if(mja){openAjDetail(mja.dataset.mvaj);return}
   const b=on('[data-tab]');if(b){tab=b.dataset.tab;stackView=null;S.depFrom='';render();goTop();if(tab==='ev'&&S.evp)evFetch();return}
-  const bk=on('[data-back]');if(bk){S.depFrom='';if(bk.dataset.back)tab=bk.dataset.back;stackView=bk.dataset.backview?{name:bk.dataset.backview}:null;render();restoreScroll();return}
+  const bk=on('[data-back]');if(bk){if(hd>0)history.back();else goBack(bk);return}
   const vw=on('[data-view]');if(vw){stackView={name:vw.dataset.view};render();goTop();if(vw.dataset.view==='usuarios')usersFetch();return}
   const mv=on('[data-movs]');if(mv){stackView={name:'movs'};render();goTop();return}
   const ed=on('[data-edit]');if(ed){openProducto(ed.dataset.edit);return}

@@ -31,7 +31,7 @@ test('round 22: filter row (icon + "Filtrar", "Filtro: … · quitar" at the lef
   assert.ok(/if\(!ds\.length(&&[^)]*\))?\)return h\+fr\+/.test(op) || op.indexOf('if(!ds.length&&') > 0, 'also on days without departures');
 });
 test('round 22: scroll targets account for the sticky height (--stk, scroll-margin-top); light and dark share the same variables', () => {
-  assert.ok(/function stkSync\(\)\{[^\n]*--stk/.test(html) && /stkSync\(\);\n/.test(html));
+  assert.ok(/function stkSync\(\)\{[^\n]*--stk/.test(html) && /stkSync\(\);(histSync\(\);)?\n/.test(html));
   assert.ok(/\.list\.deps,[^\n]*scroll-margin-top:calc\(var\(--stk,100px\) \+ 12px\)/.test(html));
   assert.ok(/\.drow\.hl/.test(html));
 });

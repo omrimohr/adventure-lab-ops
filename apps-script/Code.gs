@@ -1373,6 +1373,45 @@ function migrateHoraExtra20261126_(ss) {
   return { found: true, changed: plan.change };
 }
 
+const MIG_R26_PROP = 'MIG_R26_PERS';
+const PERSONAS_PRIVADO_PKS = ['1939722', '1939723']; // "personas para el privado SUP" / "… Kayak" (item 243654 Private Paddleboard Tour)
+/** Pure (round 26): Campos rows + pks already migrated → [{pk, row (sheet row), change (Uso is 'ignorar')}] for the target pks found in the sheet */
+function planPersonasPrivado_(cfRows, donePks) {
+  const done = donePks || [], out = [];
+  PERSONAS_PRIVADO_PKS.forEach(pk => {
+    if (done.indexOf(pk) >= 0) return;
+    const i = (cfRows || []).findIndex(r => String(r[0]) === pk);
+    if (i < 0) return;
+    out.push({ pk, row: i + 2, change: String(cfRows[i][2] === null || cfRows[i][2] === undefined ? '' : cfRows[i][2]).toLowerCase().trim() === 'ignorar' });
+  });
+  return out;
+}
+/** One time per pk (script property MIG_R26_PERS = migrated pks): Campos 1939722 / 1939723 Uso 'ignorar' → 'personas', Estado OK, Notas "Round 26"; any other Uso is never touched. Retries each run until both rows exist. Sets REBUILD_PENDING when it changed anything. */
+function migratePersonasPrivado20261127_(ss) {
+  const props = PropertiesService.getScriptProperties();
+  const done = String(props.getProperty(MIG_R26_PROP) || '').split(',').filter(Boolean);
+  if (PERSONAS_PRIVADO_PKS.every(pk => done.indexOf(pk) >= 0)) return { skipped: true };
+  const sh = ss.getSheetByName(CF_TAB);
+  if (!sh) return { found: false };
+  const n = sh.getLastRow() - 1;
+  const rows = n >= 1 ? sh.getRange(2, 1, n, CF_HEADERS.length).getValues() : [];
+  const plan = planPersonasPrivado_(rows, done);
+  let changed = 0;
+  plan.forEach(p => {
+    if (p.change) {
+      sh.getRange(p.row, 3).setValue('personas');
+      sh.getRange(p.row, 5).setValue(ESTADO_OK);
+      const old = String(rows[p.row - 2][8] || '').trim();
+      sh.getRange(p.row, 9).setValue(old ? old + ' | Round 26' : 'Round 26');
+      changed++;
+    }
+    done.push(p.pk);
+  });
+  if (plan.length) props.setProperty(MIG_R26_PROP, done.join(','));
+  if (changed) setRebuildPending_();
+  return { found: plan.length, changed };
+}
+
 /** Pure (round 21): is this Bitácora row a ticked checkbox? Cantidad > 0 or Texto true/yes/sí/checked/x/1. */
 function checkTicked_(b) { return horaExtraQty_(b) > 0; }
 /**
@@ -1672,6 +1711,7 @@ function rebuildFinanzas() {
   try { ensureStaffMeals_(ss); } catch (e) { logError_(ss, 'ensureStaffMeals_', e, ''); }
   try { migrateTrasladoCampos20261126_(ss); } catch (e) { logError_(ss, 'migrateTrasladoCampos20261126_', e, ''); } // round 21: Campos 2026466/2026467 → 'traslado'
   try { migrateTrasladoTarifas20261126_(ss); } catch (e) { logError_(ss, 'migrateTrasladoTarifas20261126_', e, ''); } // round 21: Tarifas traslado·barco rows
+  try { migratePersonasPrivado20261127_(ss); } catch (e) { logError_(ss, 'migratePersonasPrivado20261127_', e, ''); } // round 26: Campos 1939722/1939723 → 'personas'
   try { migrateHoraExtra20261126_(ss); } catch (e) { logError_(ss, 'migrateHoraExtra20261126_', e, ''); } // round 20: Campos 2021180 → 'hora extra' (sets REBUILD_PENDING when it changes)
   if (seeded || isRebuildPending_()) {
     const lock = LockService.getScriptLock();
@@ -2306,4 +2346,4 @@ function sheet_(ss, name, headers) {
 if (typeof module !== 'undefined') module.exports = { ctKey_, cfKey_, roleKey_, guessCtype_, guessFieldUso_, guessRolTarifa_, camposMap_, typeUso_, fieldUso_, bitUso_, crewTarifa_,
   reportFileName_, archiveReport_, mapeosFromRows_, observe_, collectUnknowns_, seedMapeos_, validateMapeo_, toursFromRows_, tourEstado_, TOURS_SEED_ROWS: TOURS_SEED, USOS_CT, USOS_CF,
   CT_HEADERS, CF_HEADERS, ROL_HEADERS, CREW_HEADERS, BIT_HEADERS, ESTADO_NUEVO, ESTADO_OK, rawRowFor_, doPost, rebuildFinanzas, rebuildAll, ensureMapeos_, loadMapeos_,
-  registerUnknowns_, prepararMapeos, isoOf_, keptAmount_, cancelNetEstimate_, cancelIncome_, cancelAtOf_, cancelCells_, RES_KEPT, RES_CNET, RES_CSRC, RES_CTC, SAL_CANC, SAL_CCOBRO, SAL_CHORA, SAL_CMIN, parseCostos_, externoNota_, barcoNota_, exactNet_, costoAdicionalText_, EXT_HEADERS, COSTO_HEADERS, observeNames_, mergeResNames_, applyResNames_, registerNames_, resName_, RECURSOS_HEADERS, RECURSOS_TAB, bitacoraNoAplica_, bitacoraRuleStale_, markBitacoraSi_, BITACORA_RULE_V, checkinOf_, checkinSummary_, checkinText_, parseCheckin_, camposText_, phoneOf_, reservaRow_, importReport_, horaExtraQty_, planHoraExtraMigration_, checkTicked_, trasladoWays_, trasladoRate_, planTrasladoCampos_, planTrasladoTarifas_, migrateTrasladoCampos20261126_, migrateTrasladoTarifas20261126_, TRASLADO_FIELDS, TRASLADO_TAR_SEED, migrateHoraExtra20261126_, ajustesActivos_, ajustesPorSalida_, ajusteEvRows_, AJS_HEADERS, CONC_HEADERS, CONC_SEED, EV_HEADERS, loadIngresos_, moneyCells_, pricedFields_, descuentosText_, cargosText_, pagosText_, reembolsadoTotal_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payDow_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };
+  registerUnknowns_, prepararMapeos, isoOf_, keptAmount_, cancelNetEstimate_, cancelIncome_, cancelAtOf_, cancelCells_, RES_KEPT, RES_CNET, RES_CSRC, RES_CTC, SAL_CANC, SAL_CCOBRO, SAL_CHORA, SAL_CMIN, parseCostos_, externoNota_, barcoNota_, exactNet_, costoAdicionalText_, EXT_HEADERS, COSTO_HEADERS, observeNames_, mergeResNames_, applyResNames_, registerNames_, resName_, RECURSOS_HEADERS, RECURSOS_TAB, bitacoraNoAplica_, bitacoraRuleStale_, markBitacoraSi_, BITACORA_RULE_V, checkinOf_, checkinSummary_, checkinText_, parseCheckin_, camposText_, phoneOf_, reservaRow_, importReport_, horaExtraQty_, planHoraExtraMigration_, checkTicked_, trasladoWays_, trasladoRate_, planTrasladoCampos_, planTrasladoTarifas_, migrateTrasladoCampos20261126_, migrateTrasladoTarifas20261126_, TRASLADO_FIELDS, TRASLADO_TAR_SEED, migrateHoraExtra20261126_, migratePersonasPrivado20261127_, planPersonasPrivado_, PERSONAS_PRIVADO_PKS, ajustesActivos_, ajustesPorSalida_, ajusteEvRows_, AJS_HEADERS, CONC_HEADERS, CONC_SEED, EV_HEADERS, loadIngresos_, moneyCells_, pricedFields_, descuentosText_, cargosText_, pagosText_, reembolsadoTotal_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payDow_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };
