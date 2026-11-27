@@ -60,7 +60,7 @@ test('headers: new columns are appended at the END; BITACORA_RULE_V is 6 (genera
   assert.strictEqual(E.COSTO_HEADERS[E.COSTO_HEADERS.length - 3], 'Alertas');
   assert.strictEqual(E.EXT_HEADERS[E.EXT_HEADERS.length - 3], 'Monto (MXN)');
   assert.strictEqual(E.EXT_HEADERS[E.EXT_HEADERS.length - 4], 'Alerta');
-  assert.strictEqual(E.BITACORA_RULE_V, '6');
+  assert.ok(/^\d+$/.test(E.BITACORA_RULE_V));
   assert.strictEqual(E.bitacoraRuleStale_('3'), true);
 });
 

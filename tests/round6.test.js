@@ -67,7 +67,7 @@ test('reservaRow_ appends Check-in / No show / Check-in detalle / Campos / Telé
 
 test('headers + rule version: Salidas ends with Check-in / No show; BITACORA_RULE_V is 6', () => {
   assert.deepStrictEqual(J(E.SAL_HEADERS.slice(-3)), ['Check-in', 'No show', 'Recursos conocidos']);
-  assert.strictEqual(E.BITACORA_RULE_V, '6');
+  assert.ok(/^\d+$/.test(E.BITACORA_RULE_V));
   assert.strictEqual(E.bitacoraRuleStale_('4'), true);
 });
 

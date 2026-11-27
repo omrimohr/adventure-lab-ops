@@ -47,7 +47,7 @@ const CTRL_HEADERS = ['Fecha', 'Día', 'Salidas', 'Reservas activas', 'Ingreso e
 const CTRL_FROM = '2026-11-16';
 const REPORTS_FOLDER = 'Adventure Lab Ops – Reportes';
 const BIT_HEADERS = ['Availability pk', 'Fecha', 'Hora', 'Item', 'Booking pk', 'Tipo', 'Campo', 'Field pk',
-  'Cantidad', 'Texto'];
+  'Cantidad', 'Texto', 'Customer pk'];
 const CREW_HEADERS = ['Availability pk', 'Fecha', 'Hora', 'Item', 'Rol', 'Nombre', 'Usuario', 'Nota', 'Rol clave'];
 const TOURS_HEADERS = ['Item pk', 'Item', 'Tipo (compartido/privado/renta/otro)', 'Campo personas (field pks, coma)',
   'Lleva bitácora (sí/no)', 'Notas'];
@@ -291,8 +291,10 @@ function cfvNumber_(v) {
 function allCfvs_(b, M) {
   const out = (b.custom_field_values || []).map(v => ({ v: v, level: 'booking', ctype: '', ops: false }));
   (b.customers || []).forEach(c => {
-    const ops = typeUso_(M, c) !== 'pax';
-    (c.custom_field_values || []).forEach(v => out.push({ v: v, level: 'customer', ctype: custType_(c), ops: ops }));
+    const uso = typeUso_(M, c), ops = uso !== 'pax';
+    // round 23: side comes from the CUSTOMER's type (one OPS booking may carry an OPS · Salida and an OPS · Regreso customer)
+    const side = uso === 'ops salida' ? 'Salida' : uso === 'ops regreso' ? 'Regreso' : '';
+    (c.custom_field_values || []).forEach(v => out.push({ v: v, level: 'customer', ctype: custType_(c), ops: ops, side: side, cpk: String(c.pk === undefined || c.pk === null ? '' : c.pk) }));
   });
   return out;
 }
@@ -389,8 +391,9 @@ function bitacoraNoAplica_(tipo, barco) { return String(tipo || '').toLowerCase(
 // General HISTORY-VERSION flag (the name is historical; it is no longer only about bitácora): bump it whenever history must be recalculated from Raw once.
 // '4' (25 Nov 2026): Costos adicionales amounts (Costos salida col S, Externos col I) and the Bitácora text of costo adicional/extras fields.
 // '5' (26 Nov 2026): check-in / no-show (Reservas + Salidas columns, alert "No show: N"), Reservas Campos / Teléfono.
+// '7' (26 Nov 2026): Bitácora Salida/Regreso per CUSTOMER type (one OPS booking with two customers); Bitácora gets column 'Customer pk'.
 // '6' (26 Nov 2026): Ingreso neto = Net Revenue Collected + Processing Fees (exactNet_); Externos amount from the Capitán Externo crew note (externoNota_), Costos salida counts it once.
-const BITACORA_RULE_V = '6';
+const BITACORA_RULE_V = '7';
 // Items that got OPS · Salida/Regreso bitácora fields in FareHarbor on 24 Nov 2026 → Tours "Lleva bitácora" = sí (sheet record only)
 const BITACORA_SI_20261124 = [244134, 398421, 243654, 398153, 337343, 337931, 398154, 703654, 689738, 185852, 703536, 770935];
 function markBitacoraSi_(ss) {
@@ -509,14 +512,15 @@ function computeSalida_(avPk, list, tours, now, ing, M) {
   // Bitácora lines
   const bit = [];
   opsBk.forEach(x => {
-    const tipo = /Salida/.test(opsType_(x.b, M)) ? 'Salida' : 'Regreso';
+    const bookingTipo = /Salida/.test(opsType_(x.b, M)) ? 'Salida' : 'Regreso';
     allCfvs_(x.b, M).forEach(c => {
       if (c.level !== 'customer' || !c.ops) return;
+      const tipo = c.side || bookingTipo; // round 23: per customer; 'no cuenta' customers fall back to the booking's kind
       const n = cfvNumber_(c.v);
       const txt = (c.v.display_value !== undefined && c.v.display_value !== null) ? String(c.v.display_value) : String(c.v.value || '');
       if (n === null && !txt) return;
       const row = [avPk, fecha, hora, item.name || '', x.b.pk, tipo, cfName_(c.v), cfPk_(c.v),
-        n === null ? '' : n, n === null ? txt : ''];
+        n === null ? '' : n, n === null ? txt : '', c.cpk];
       // free text with digits ("Barco externo San Ángel: $2,500") must not be reduced to its first number (num_ → 2)
       if (n !== null && txt && txt.trim() !== String(n) && /^(costo adicional|extras)$/.test(bitUso_(row, M).uso)) row[9] = txt;
       bit.push(row);
