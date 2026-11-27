@@ -1087,12 +1087,21 @@ const PAGO_HEADERS = ['Semana', 'Nombre', 'Monto (MXN)', 'Fecha pago', 'Por', 'N
 const STOCK_HEADERS = ['Producto ID', 'Producto', 'Unidad', 'Compras', 'Consumo', 'Ajustes', 'Stock', 'Mínimo', 'Alerta',
   'Costo unitario (MXN)', 'Valor (MXN)'];
 const EV_HEADERS = ['Semana (inicio)', 'Fecha', 'Hora', 'Item', 'Availability pk', 'Nombre', 'Usuario', 'Rol', 'Barco',
-  'Duración (h)', 'Tarifa (MXN)', 'Factor', 'Horas extra', 'Hora extra (MXN)', 'Total (MXN)', 'Regla', 'Alerta'];
+  'Duración (h)', 'Tarifa (MXN)', 'Factor', 'Horas extra', 'Hora extra (MXN)', 'Total (MXN)', 'Regla', 'Alerta', 'Ajuste ID']; // round 20: last column = ID of a manual pay adjustment (Ajustes salida); '' on tour-pay rows
 const RESUMEN_HEADERS = ['Semana (inicio)', 'Nombre', 'Salidas', 'Total (MXN)', 'Pagado (MXN)', 'Pendiente (MXN)', 'Alertas'];
 const EXT_HEADERS = ['Fecha', 'Hora', 'Item', 'Availability pk', 'Rol', 'Nombre', 'A quién se debe (nota)', 'Alerta', 'Monto (MXN)', 'Barco', 'Persona'];
 const COSTO_HEADERS = ['Availability pk', 'Fecha', 'Hora', 'Item', 'Barco', 'Pax', 'Ingreso neto (MXN)', 'Fuente ingreso',
   'Bebidas (MXN)', 'Hielo (MXN)', 'Gasolina (MXN)', 'Fruta (MXN)', 'Desayuno (MXN)', 'Tripulación (MXN)', 'Costo total (MXN)',
-  'Costo %', 'Detalle consumo', 'Alertas', 'Costos adicionales (MXN)'];
+  'Costo %', 'Detalle consumo', 'Alertas', 'Costos adicionales (MXN)', 'Ajustes (MXN)']; // round 20: last = manual pay adjustments + extra costs of the departure (signed total)
+// Round 20: manual pay adjustments and extra departure costs (append-only; annulled with a reason, never deleted)
+const AJS_TAB = 'Ajustes salida', CONC_TAB = 'Conceptos';
+const AJS_HEADERS = ['ID', 'Creado', 'Availability pk', 'Fecha salida', 'Item', 'Tipo (pago/costo)', 'Persona', 'Concepto', 'Monto (MXN)', 'Motivo', 'Por',
+  'Anulado (sí)', 'Motivo anulación', 'Anulado por', 'ID cliente'];
+const CONC_HEADERS = ['Concepto', 'Tipo (pago/costo)', 'Monto sugerido', 'Activo'];
+const CONC_SEED = [['Día festivo', 'pago', 150, 'sí'], ['Cancelación 50%', 'pago', '', 'sí'], ['Bono', 'pago', '', 'sí'], ['Descuento', 'pago', '', 'sí'], ['Otro', 'pago', '', 'sí'],
+  ['Hielo extra', 'costo', '', 'sí'], ['Gasolina extra', 'costo', '', 'sí'], ['Comida tripulación', 'costo', '', 'sí'], ['Reparación', 'costo', '', 'sí'], ['Otro', 'costo', '', 'sí']];
+const HX_FIELD_PK = '2021180'; // Campos Clave "Hora extra (staff)"
+const MIG_R20_PROP = 'MIG_R20_HX';
 
 // ----- pure helpers -----
 function norm_(s) {
@@ -1224,6 +1233,81 @@ function externoNota_(note) {
   return { barco: barco, persona: persona, monto: monto };
 }
 
+/**
+ * Pure (round 20): hours of "hora extra" in one Bitácora row. The field may be a number of hours (Cantidad) or a checkbox
+ * (Cantidad empty, Texto "true" / "Yes" / "Sí" / "checked"… = 1 hour; "false" / "No" / empty = 0).
+ */
+function horaExtraQty_(b) {
+  const q = b[8];
+  if (q !== '' && q !== null && q !== undefined && !isNaN(Number(q))) return Math.max(0, Number(q));
+  const t = String(b[9] === null || b[9] === undefined ? '' : b[9]).trim().toLowerCase();
+  return /^(s[ií]|yes|true|checked|check|x|on|1|✓|✔)$/.test(t) ? 1 : 0;
+}
+/** Pure (round 20): Campos rows → what the one-time migration must do for Clave 2021180 ("Hora extra (staff)"): {found, row (sheet row), change (Uso is 'ignorar')} */
+function planHoraExtraMigration_(cfRows) {
+  const i = (cfRows || []).findIndex(r => String(r[0]) === HX_FIELD_PK);
+  if (i < 0) return { found: false, change: false, row: 0 };
+  return { found: true, change: String(cfRows[i][2] === null || cfRows[i][2] === undefined ? '' : cfRows[i][2]).toLowerCase().trim() === 'ignorar', row: i + 2 };
+}
+/** One time (script property MIG_R20_HX): Campos 2021180 Uso 'ignorar' → 'hora extra', Estado OK, Notas "Round 20: activado", REBUILD_PENDING. Retries on later runs until the row exists. */
+function migrateHoraExtra20261126_(ss) {
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty(MIG_R20_PROP) === '1') return { skipped: true };
+  const sh = ss.getSheetByName(CF_TAB);
+  if (!sh) return { found: false };
+  const n = sh.getLastRow() - 1;
+  const rows = n >= 1 ? sh.getRange(2, 1, n, CF_HEADERS.length).getValues() : [];
+  const plan = planHoraExtraMigration_(rows);
+  if (!plan.found) return { found: false };
+  if (plan.change) {
+    sh.getRange(plan.row, 3).setValue('hora extra');
+    sh.getRange(plan.row, 5).setValue(ESTADO_OK);
+    const old = String(rows[plan.row - 2][8] || '').trim();
+    sh.getRange(plan.row, 9).setValue(old ? old + ' | Round 20: activado' : 'Round 20: activado');
+    setRebuildPending_();
+  }
+  props.setProperty(MIG_R20_PROP, '1');
+  return { found: true, changed: plan.change };
+}
+
+// ---------- Ajustes de salida (round 20) ----------
+/** Pure: Ajustes salida rows → active (not annulled) adjustments [{id, creado, av, fecha, item, tipo, persona, concepto, monto, motivo, por, cid}] */
+function ajustesActivos_(rows) {
+  const out = [];
+  (rows || []).forEach(r => {
+    if (r[0] === '' || r[0] === null || r[0] === undefined) return;
+    if (/^s/i.test(String(r[11] || ''))) return; // annulled
+    const tipo = String(r[5] || '').toLowerCase().trim() === 'costo' ? 'costo' : 'pago', monto = Number(r[8]);
+    if (!isFinite(monto) || monto === 0) return;
+    out.push({ id: String(r[0]), creado: r[1] instanceof Date ? fmtDate_(r[1], 'yyyy-MM-dd HH:mm') : String(r[1] || ''), av: String(r[2]), fecha: ymd_(r[3]), item: String(r[4] || ''),
+      tipo: tipo, persona: String(r[6] || ''), concepto: String(r[7] || ''), monto: Math.round(monto * 100) / 100, motivo: String(r[9] || ''), por: String(r[10] || ''), cid: String(r[14] || '') });
+  });
+  return out;
+}
+/** Pure: active adjustments → {av: {pago, costo, total}} (signed sums) */
+function ajustesPorSalida_(ajs) {
+  const m = {};
+  (ajs || []).forEach(a => {
+    const o = m[a.av] = m[a.av] || { pago: 0, costo: 0, total: 0 };
+    o[a.tipo === 'costo' ? 'costo' : 'pago'] += a.monto; o.total += a.monto;
+  });
+  Object.keys(m).forEach(k => { m[k].pago = r2_(m[k].pago); m[k].costo = r2_(m[k].costo); m[k].total = r2_(m[k].total); });
+  return m;
+}
+/**
+ * Pure: pay adjustments (tipo pago) → Eventuales rows (EV_HEADERS, 18 columns). They belong to the pay week of the DEPARTURE date, exactly like the tour pay,
+ * and keep the departure context (date, hour, item, availability pk). Rol = 'Ajuste'; Regla = 'Ajuste: <concepto>'; last column = adjustment ID.
+ * salByAv: {av: Salidas row} (to take the hour). Only departures up to `today`.
+ */
+function ajusteEvRows_(ajs, salByAv, payDow, today) {
+  const out = [];
+  (ajs || []).forEach(a => {
+    if (a.tipo !== 'pago' || !a.persona || (today && a.fecha > today)) return;
+    const s = (salByAv || {})[a.av], hora = s ? fmtDate_(s[6], 'HH:mm') : '';
+    out.push([weekStart_(a.fecha, payDow), a.fecha, hora, (s && s[2]) || a.item, a.av, a.persona, '', 'Ajuste', '', '', '', '', '', '', a.monto, 'Ajuste: ' + a.concepto, '', a.id]);
+  });
+  return out;
+}
 /** Eventuales for one departure. sal: Salidas row (array), crew: rows, bitRows: rows of that departure */
 function payForSalida_(sal, crew, bitRows, rules, barco, M, now, payDow) {
   const out = [], ext = [];
@@ -1232,7 +1316,7 @@ function payForSalida_(sal, crew, bitRows, rules, barco, M, now, payDow) {
   const factorCancel = ruleValue_(rules, 'cancelado', 0.5);
   const extraRate = ruleValue_(rules, 'hora extra', 100);
   let horasExtra = 0;
-  bitRows.forEach(b => { if (bitUso_(b, M).uso === 'hora extra' && b[8] !== '') horasExtra += Number(b[8]) || 0; });
+  bitRows.forEach(b => { if (bitUso_(b, M).uso === 'hora extra') horasExtra += horaExtraQty_(b); }); // number of hours OR a checkbox (= 1 h), round 20
   crew.forEach(c => {
     const rol = c[4], nombre = c[5], usuario = c[6];
     const rolT = crewTarifa_(c, M); // Rol tarifa: mapped by role pk (Roles tab)
@@ -1383,6 +1467,7 @@ function rebuildFinanzas() {
     else if (rsv && rsv.getMaxColumns() < RES_HEADERS.length) setRebuildPending_();
   } catch (e) {}
   try { ensureStaffMeals_(ss); } catch (e) { logError_(ss, 'ensureStaffMeals_', e, ''); }
+  try { migrateHoraExtra20261126_(ss); } catch (e) { logError_(ss, 'migrateHoraExtra20261126_', e, ''); } // round 20: Campos 2021180 → 'hora extra' (sets REBUILD_PENDING when it changes)
   if (seeded || isRebuildPending_()) {
     const lock = LockService.getScriptLock();
     const had = lock.hasLock();
@@ -1413,6 +1498,9 @@ function rebuildFinanzas_() {
   const salidas = readTab_(ss, 'Salidas', SAL_HEADERS).filter(r => r[0] !== '');
   const crew = readTab_(ss, 'Tripulación', CREW_HEADERS);
   const bit = readTab_(ss, 'Bitácora', BIT_HEADERS);
+  const ajs = ajustesActivos_(readTab_(ss, AJS_TAB, AJS_HEADERS)); // round 20: manual pay adjustments / extra costs (not annulled)
+  const ajBy = ajustesPorSalida_(ajs);
+  const salByAv = {}; salidas.forEach(s => { salByAv[String(s[0])] = s; });
 
   // Unit cost: latest purchase price, else Productos cost
   const lastCost = {};
@@ -1441,7 +1529,7 @@ function rebuildFinanzas_() {
     const barco = barcos[String(s[1])] || '';
     const b = bitBy[pk] || [];
     const p = payForSalida_(s, crewBy[pk] || [], b, rules, barco, M, new Date(), payDow);
-    p.pay.forEach(x => ev.push(x)); p.ext.forEach(x => ext.push(x));
+    p.pay.forEach(x => { x.length = EV_HEADERS.length; x[17] = ''; ev.push(x); }); p.ext.forEach(x => ext.push(x));
     const cons = consumoSalida_(b, productos, M);
     Object.keys(cons).forEach(id => { consumoTot[id] = (consumoTot[id] || 0) + cons[id]; });
     let beb = 0, hie = 0, gas = 0; const det = [];
@@ -1459,14 +1547,15 @@ function rebuildFinanzas_() {
     // external boat cost counted once: non-external items + the Externos amount (crew note wins over the bitácora "barco externo" lines)
     const otros = Math.round(cos.items.filter(x => !x.ext).reduce((a, x) => a + x.amount, 0) * 100) / 100;
     const costoAd = Math.round((otros + (p.extMonto || 0)) * 100) / 100;
-    const total = beb + hie + gas + fru + desayuno + trip + costoAd;
+    const aj = (ajBy[pk] || {}).total || 0; // round 20: pay adjustments + extra costs of this departure (signed)
+    const total = beb + hie + gas + fru + desayuno + trip + costoAd + aj;
     const ingreso = Number(s[17]) || 0;
     const alerts = [];
     if (/sin bit/i.test(String(s[11])) || /falta/i.test(String(s[11]))) alerts.push('Bitácora: ' + s[11]);
     p.pay.forEach(x => { if (x[16]) alerts.push(x[5] + ': ' + x[16]); });
     if (cos.unparsed) alerts.push('Costo adicional sin monto: ' + cos.rest.join(' · '));
     costos.push([pk, fmtDate_(s[6], 'yyyy-MM-dd'), fmtDate_(s[6], 'HH:mm'), s[2], barco, s[9], ingreso, s[18] || '', r2_(beb), r2_(hie), r2_(gas), r2_(fru), r2_(desayuno),
-      r2_(trip), r2_(total), ingreso ? Math.round(total / ingreso * 1000) / 10 : '', det.join(', '), alerts.join(' | '), costoAd]);
+      r2_(trip), r2_(total), ingreso ? Math.round(total / ingreso * 1000) / 10 : '', det.join(', '), alerts.join(' | '), costoAd, r2_(aj)]);
   });
 
   // Stock
@@ -1478,12 +1567,16 @@ function rebuildFinanzas_() {
     return [p.id, p.nombre, p.unidad, comp, con, aj, st, p.min, st < 0 ? '⚠️ Negativo' : (st < p.min ? 'Bajo mínimo' : ''), cost(p.id), r2_(st * cost(p.id))];
   });
 
+  // Pay adjustments join the Eventuales as their own lines (same pay week as the departure date)
+  ajusteEvRows_(ajs, salByAv, payDow, today).forEach(x => ev.push(x));
+
   // Weekly summary
   const sum = {};
   ev.forEach(x => {
     const k = x[0] + '|' + x[5];
     const o = sum[k] = sum[k] || { w: x[0], n: x[5], s: 0, t: 0, a: [] };
-    o.s++; o.t += Number(x[14]) || 0; if (x[16]) o.a.push(x[1] + ' ' + x[16]);
+    if (!x[17]) o.s++; // adjustment lines are not departures
+    o.t += Number(x[14]) || 0; if (x[16]) o.a.push(x[1] + ' ' + x[16]);
   });
   const paid = {};
   // A payment keeps its stored week start; if the pay-week setting changed it is attached to the (new) week that contains that date, and shown even without earnings there
@@ -1929,4 +2022,4 @@ function sheet_(ss, name, headers) {
 if (typeof module !== 'undefined') module.exports = { ctKey_, cfKey_, roleKey_, guessCtype_, guessFieldUso_, guessRolTarifa_, camposMap_, typeUso_, fieldUso_, bitUso_, crewTarifa_,
   reportFileName_, archiveReport_, mapeosFromRows_, observe_, collectUnknowns_, seedMapeos_, validateMapeo_, toursFromRows_, tourEstado_, TOURS_SEED_ROWS: TOURS_SEED, USOS_CT, USOS_CF,
   CT_HEADERS, CF_HEADERS, ROL_HEADERS, CREW_HEADERS, BIT_HEADERS, ESTADO_NUEVO, ESTADO_OK, rawRowFor_, doPost, rebuildFinanzas, rebuildAll, ensureMapeos_, loadMapeos_,
-  registerUnknowns_, prepararMapeos, parseCostos_, externoNota_, barcoNota_, exactNet_, costoAdicionalText_, EXT_HEADERS, COSTO_HEADERS, bitacoraNoAplica_, bitacoraRuleStale_, markBitacoraSi_, BITACORA_RULE_V, checkinOf_, checkinSummary_, checkinText_, parseCheckin_, camposText_, phoneOf_, reservaRow_, importReport_, loadIngresos_, moneyCells_, pricedFields_, descuentosText_, cargosText_, pagosText_, reembolsadoTotal_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payDow_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };
+  registerUnknowns_, prepararMapeos, parseCostos_, externoNota_, barcoNota_, exactNet_, costoAdicionalText_, EXT_HEADERS, COSTO_HEADERS, bitacoraNoAplica_, bitacoraRuleStale_, markBitacoraSi_, BITACORA_RULE_V, checkinOf_, checkinSummary_, checkinText_, parseCheckin_, camposText_, phoneOf_, reservaRow_, importReport_, horaExtraQty_, planHoraExtraMigration_, migrateHoraExtra20261126_, ajustesActivos_, ajustesPorSalida_, ajusteEvRows_, AJS_HEADERS, CONC_HEADERS, CONC_SEED, EV_HEADERS, loadIngresos_, moneyCells_, pricedFields_, descuentosText_, cargosText_, pagosText_, reembolsadoTotal_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payDow_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };

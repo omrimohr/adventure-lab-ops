@@ -26,6 +26,7 @@ const PERM_SEED = [
   ['ajuste', 'Ajustar inventario', 'sí', 'no'],
   ['editar', 'Editar o anular compras', 'sí', 'no'],
   ['comida', 'Registrar comida de empleado', 'sí', 'sí'],
+  ['ajustes', 'Ajustes de pago y costos de salida', 'sí', 'sí'],
   ['config', 'Configuración (productos, tarifas, tours y permisos)', 'sí', 'no']
 ];
 const BARCO_LABEL = { ponton: 'Pontón', catamaran: 'Catamarán', monocasco: 'Monocasco', hobie: 'Hobie', sup: 'Tablas SUP', kayak: 'Kayaks', otro: 'Otro' };
@@ -43,7 +44,8 @@ function apiResponse_(p) {
   const map = { login: login, getData: getData, addCompra: addCompra, anularCompra: anularCompra, editCompra: editCompra,
     addAjuste: addAjuste, addConteo: addConteo, addComida: addComida, markPaid: markPaid, markRev: markRev,
     saveProducto: saveProducto, saveTarifa: saveTarifa, savePerm: savePerm, saveTourBarco: saveTourBarco, setMapeo: setMapeo, refreshFin: refreshFin, stockReport: stockReport,
-    addFeedback: addFeedback, setFeedbackEstado: setFeedbackEstado, eventualesReport: eventualesReport, listUsers: listUsers, saveUser: saveUser };
+    addFeedback: addFeedback, setFeedbackEstado: setFeedbackEstado, eventualesReport: eventualesReport, listUsers: listUsers, saveUser: saveUser,
+    addAjusteSalida: addAjusteSalida, anularAjusteSalida: anularAjusteSalida, saveConcepto: saveConcepto };
   let out;
   try {
     const f = map[String(p.fn)];
@@ -344,14 +346,15 @@ function buildDeps_(inp) {
     (resBy[k] = resBy[k] || []).push(r); disp[String(r[0])] = String(r[1] || r[0]); urls[String(r[0])] = String(r[32] || '');
   });
   const crewBy = group(inp.crew, 0), bitBy = group(inp.bit, 0), evBy = {}, extBy = {};
-  inp.ev.forEach(r => { evBy[String(r[4]) + '|' + String(r[5])] = r; });
+  inp.ev.forEach(r => { if (!r[17]) evBy[String(r[4]) + '|' + String(r[5])] = r; }); // r[17] = Ajuste ID: manual adjustment lines are not the crew member's tour pay
   inp.ext.forEach(r => { extBy[String(r[3]) + '|' + String(r[5])] = r; });
   const costBy = {}; inp.costos.forEach(r => { costBy[String(r[0])] = r; });
+  const ajBy = {}; (inp.ajs || []).forEach(a => { (ajBy[String(a.av)] = ajBy[String(a.av)] || []).push(a); }); // round 20: active manual adjustments per departure
   const ids = list => String(list || '').split(',').map(x => x.trim()).filter(String);
   return wins.map(s => {
     const pk = String(s[0]), bits = bitBy[pk] || [], bq = bitQty_(bits, inp.productos, inp.M), st = String(s[11] || '');
     const hasOut = /^(Completa|Falta regreso)$/.test(st), hasBack = /^(Completa|Falta salida)$/.test(st);
-    let hx = 0; bits.forEach(b => { if (bitUso_(b, inp.M).uso === 'hora extra' && b[8] !== '') hx += Number(b[8]) || 0; });
+    let hx = 0; bits.forEach(b => { if (bitUso_(b, inp.M).uso === 'hora extra') hx += horaExtraQty_(b); }); // hours or a checkbox (= 1 h)
     const crew = (crewBy[pk] || []).map(c => {
       const n = String(c[5] || c[6] || ''), e = evBy[pk + '|' + String(c[5])], x = extBy[pk + '|' + String(c[5])];
       const nt = String(c[7] || ''); // crew Note in FareHarbor, e.g. "Barco: El Cormoran" (externo: "San Ángel – Juan Pérez")
@@ -376,7 +379,8 @@ function buildDeps_(inp) {
       boat: BARCO_LABEL[barco] || '', barco: barco, tipo: String(s[3] || ''), crew: crew, bookings: bookings,
       out: hasOut ? bq.out : null, back: hasBack ? bq.back : null, extras: extrasText_(bits, inp.M, true), ca: parseCostos_(costoAdicionalText_(bits, inp.M)), hx: hx,
       rev: inp.revs[pk] || null, bit: st, alerts: String(s[15] || ''), netSource: String(s[18] || ''),
-      costs: k ? { b: r2_(k[8]), g: r2_(k[10]), h: r2_(k[9]), f: r2_(k[11]), des: r2_(k[12]), ev: r2_(k[13]), tot: r2_(k[14]), pct: k[15] === '' ? null : Number(k[15]), ca: r2_(k[18]) } : null,
+      costs: k ? { b: r2_(k[8]), g: r2_(k[10]), h: r2_(k[9]), f: r2_(k[11]), des: r2_(k[12]), ev: r2_(k[13]), tot: r2_(k[14]), pct: k[15] === '' ? null : Number(k[15]), ca: r2_(k[18]), aj: r2_(k[19]) } : null,
+      aj: (ajBy[pk] || []).map(a => ({ id: a.id, tipo: a.tipo, persona: a.persona, concepto: a.concepto, monto: a.monto, motivo: a.motivo, por: a.por, creado: a.creado, cid: a.cid })),
       ci: (k => k ? { in: k.in, n: k.n, ns: Number(s[22]) || 0 } : null)(parseCheckin_(s[21])),
       paxTxt: String(s[9]), salidaUrl: firstUrl(ids(s[12])), regresoUrl: firstUrl(ids(s[13])), salidaPk: ids(s[12]).join(', '), regresoPk: ids(s[13]).join(', '),
       salidaId: ids(s[12]).map(x => disp[x] || x).join(', '), regresoId: ids(s[13]).map(x => disp[x] || x).join(', ')
@@ -629,9 +633,12 @@ function getData(pin, desde, hasta) {
 
   const reservas = readTab_(ss, 'Reservas', RES_HEADERS);
   const extRows = readTab_(ss, 'Externos', EXT_HEADERS); // read once: used by the departures and by the Eventuales list
+  const ajRows = ajustesActivos_(readTab_(ss, AJS_TAB, AJS_HEADERS));
+  const crewRows = readTab_(ss, 'Tripulación', CREW_HEADERS);
   const deps = buildDeps_({
+    ajs: ajRows,
     desde: desde, hasta: hasta, salidas: salidas, bit: bit, barcos: barcos, productos: productos, M: M,
-    reservas: reservas, crew: readTab_(ss, 'Tripulación', CREW_HEADERS),
+    reservas: reservas, crew: crewRows,
     ev: readTab_(ss, 'Eventuales', EV_HEADERS), ext: extRows, costos: readTab_(ss, 'Costos salida', COSTO_HEADERS),
     revs: latestRevs_(readTab_(ss, 'Revisiones', REV_HEADERS), today)
   });
@@ -663,7 +670,8 @@ function getData(pin, desde, hasta) {
     ok: true, user: { nombre: u.nombre, rol: u.rol }, perms: perms, today: today, now: now, desde: desde, hasta: hasta,
     items: items, purchases: compras, moves: moves, priceLog: priceLogFrom_(compras), deps: deps,
     rates: buildRates_(readTab_(ss, 'Tarifas', TAR_HEADERS)), paid: paid, weekly: weekly, externos: externos, control: control,
-    tours: tours, comidas: comidas, fh: fh, pend: u.rol === 'admin' ? pend : [], salud: salud, feedback: feedbackData_(ss, u), fhOk: fhOk, config: readConfig_(ss), stale: stale, rebuildPending: isRebuildPending_()
+    tours: tours, conceptos: conceptosFromRows_(readTab_(seedTab_(ss, CONC_TAB, CONC_HEADERS, CONC_SEED).getParent(), CONC_TAB, CONC_HEADERS), u.rol === 'admin'), staff: staffFromCrew_(crewRows, today, 90),
+    comidas: comidas, fh: fh, pend: u.rol === 'admin' ? pend : [], salud: salud, feedback: feedbackData_(ss, u), fhOk: fhOk, config: readConfig_(ss), stale: stale, rebuildPending: isRebuildPending_()
   };
 }
 
@@ -920,8 +928,8 @@ function eventualesReport_(evRows, pagoRows, desde, hasta) {
   (evRows || []).forEach(r => {
     const n = String(r[5] === undefined || r[5] === null ? '' : r[5]).trim(), d = ymd_(r[1]);
     if (!n || !d || d < desde || d > hasta) return;
-    const o = get(n); o.dates[d] = 1; o.av[String(r[4]) || (d + ' ' + String(r[2]))] = 1;
-    if (r[7]) o.roles[String(r[7])] = 1;
+    const o = get(n);
+    if (!r[17]) { o.dates[d] = 1; o.av[String(r[4]) || (d + ' ' + String(r[2]))] = 1; if (r[7]) o.roles[String(r[7])] = 1; } // r[17] = manual adjustment: earns money, is not a day/departure worked
     o.ganado += Number(r[14]) || 0;
   });
   (pagoRows || []).forEach(r => {
@@ -1208,6 +1216,108 @@ function migrate20261124() {
   });
 }
 
+// ---------------- Ajustes de salida (round 20): pago (a una persona) o costo (de la salida). Append-only; se anulan con motivo, nunca se borran ----------------
+/** Pure: validates the payload of addAjusteSalida → {av, tipo, persona, concepto, monto, motivo}. Throws Spanish errors. tipo pago needs persona; monto is a signed non-zero number. */
+function normAjusteSalida_(p) {
+  p = p || {};
+  const av = clean_(p.av, 40); if (!av) throw new Error('Falta la salida');
+  const t = String(p.tipo === undefined || p.tipo === null ? '' : p.tipo).toLowerCase().trim();
+  if (t !== 'pago' && t !== 'costo') throw new Error('Tipo inválido');
+  const concepto = clean_(p.concepto, 80); if (!concepto) throw new Error('Elige el concepto');
+  const persona = clean_(p.persona, 80);
+  if (t === 'pago' && !persona) throw new Error('Elige la persona');
+  const raw = typeof p.monto === 'string' ? p.monto.replace(/[$\s,]/g, '').replace(/^−/, '-') : p.monto;
+  const monto = (raw === '' || raw === null || raw === undefined) ? NaN : Number(raw);
+  if (!isFinite(monto) || monto === 0) throw new Error('El monto debe ser un número distinto de 0');
+  if (Math.abs(monto) > 1000000) throw new Error('El monto es demasiado grande');
+  return { av: av, tipo: t, persona: t === 'pago' ? persona : '', concepto: concepto, monto: r2_(monto), motivo: clean_(p.motivo, 300) };
+}
+/** Pure: Conceptos rows → [{n, t, m (suggested amount | null), a (active)}]. Non-admins only get the active ones. */
+function conceptosFromRows_(rows, admin) {
+  const out = [];
+  (rows || []).forEach(r => {
+    const n = String(r[0] === undefined || r[0] === null ? '' : r[0]).trim(); if (!n) return;
+    const t = String(r[1] || '').toLowerCase().trim() === 'costo' ? 'costo' : 'pago', a = notNo_(r[3]);
+    if (!a && !admin) return;
+    out.push({ n: n, t: t, m: (r[2] === '' || r[2] === null || r[2] === undefined || isNaN(Number(r[2]))) ? null : Number(r[2]), a: a });
+  });
+  return out;
+}
+/** Pure: validates saveConcepto's payload against the existing rows. p = {concepto, tipo, monto ('' = none), activo, original?: {concepto, tipo}}.
+ *  → {row (sheet row to update, or 0 = append), values [Concepto, Tipo, Monto sugerido, Activo]}. Unique per tipo (case-insensitive). Idempotent when retried. */
+function validateConcepto_(p, rows) {
+  p = p || {};
+  const n = clean_(p.concepto, 60); if (!n) throw new Error('Escribe el nombre del concepto');
+  const t = String(p.tipo === undefined || p.tipo === null ? '' : p.tipo).toLowerCase().trim();
+  if (t !== 'pago' && t !== 'costo') throw new Error('Tipo inválido');
+  let m = '';
+  if (p.monto !== '' && p.monto !== null && p.monto !== undefined) {
+    const x = Number(typeof p.monto === 'string' ? p.monto.replace(/[$\s,]/g, '').replace(/^−/, '-') : p.monto);
+    if (!isFinite(x) || x === 0) throw new Error('El monto sugerido debe ser un número distinto de 0 (o déjalo vacío)');
+    m = r2_(x);
+  }
+  const act = p.activo === undefined ? true : (p.activo === true || yes_(p.activo));
+  const key = (r) => String(r[1] || '').toLowerCase().trim() + '|' + String(r[0] || '').trim().toLowerCase();
+  const find = (tt, nn) => (rows || []).findIndex(r => key(r) === tt + '|' + String(nn).trim().toLowerCase());
+  const o = p.original && typeof p.original === 'object' ? p.original : null;
+  let i = o ? find(String(o.tipo || '').toLowerCase().trim(), clean_(o.concepto, 60)) : -1;
+  const same = find(t, n);
+  if (i >= 0 && same >= 0 && same !== i) throw new Error('Ya existe ese concepto en ' + (t === 'pago' ? 'Pago' : 'Costo'));
+  if (i < 0 && same >= 0) { if (o) i = same; else throw new Error('Ya existe ese concepto en ' + (t === 'pago' ? 'Pago' : 'Costo')); } // retry of an applied rename → update, never duplicate
+  return { row: i >= 0 ? i + 2 : 0, values: [n, t, m, act ? 'sí' : 'no'] };
+}
+/** Pure: distinct crew names (not externals) of the last `days` days, sorted → for picking a person who is not on the departure's crew */
+function staffFromCrew_(crewRows, today, days) {
+  const lo = addDays_(today, -(days || 90)), seen = {}, out = [];
+  (crewRows || []).forEach(r => {
+    const d = ymd_(r[1]), n = String(r[5] === undefined || r[5] === null ? '' : r[5]).trim();
+    if (!n || /extern/i.test(n + ' ' + String(r[6] || '')) || d < lo || d > today) return;
+    const k = n.toLowerCase(); if (!seen[k]) { seen[k] = 1; out.push(n); }
+  });
+  return out.sort((a, b) => a.localeCompare(b, 'es'));
+}
+/** Perm "ajustes" (admin and op by default). p = {av, fecha, item, tipo, persona, concepto, monto, motivo, cid}. The departure must exist (its date/item come from Salidas). Idempotent by cid (last column). */
+function addAjusteSalida(pin, p) {
+  const u = auth_(pin, 'ajustes'), f = normAjusteSalida_(p);
+  return withLock_(() => {
+    const ss = ss_(), sal = readTab_(ss, 'Salidas', SAL_HEADERS).find(r => String(r[0]) === f.av);
+    if (!sal) throw new Error('No encontré la salida');
+    const sh = sheet_(ss, AJS_TAB, AJS_HEADERS), cid = cidOf_((p || {}).cid);
+    ensureCidCol_(sh, AJS_HEADERS);
+    const r0 = cidRow_(sh, AJS_HEADERS.length, cid);
+    if (r0) return { ok: true, id: String(sh.getRange(r0, 1).getValue()), dup: true };
+    const now = new Date(), id = 'AS' + now.getTime().toString(36) + Math.random().toString(36).slice(2, 5);
+    sh.appendRow([id, now, f.av, fmtDate_(sal[6], 'yyyy-MM-dd') || ymd_(sal[4]), String(sal[2] || ''), f.tipo, f.persona, f.concepto, f.monto, f.motivo, u.nombre, '', '', '', cid]);
+    rebuildFin_();
+    return { ok: true, id: id };
+  });
+}
+/** Perm "ajustes". Annuls (never deletes): marks Anulado = sí with the reason and who. The reason is required. Annulling twice is a no-op. */
+function anularAjusteSalida(pin, id, motivo) {
+  const u = auth_(pin, 'ajustes'), why = clean_(motivo, 300);
+  if (!why) throw new Error('Escribe el motivo de la anulación');
+  return withLock_(() => {
+    const ss = ss_(), sh = sheet_(ss, AJS_TAB, AJS_HEADERS), r = cidRow_(sh, 1, String(id || ''));
+    if (!r) throw new Error('No encontré el ajuste');
+    if (yes_(sh.getRange(r, 12).getValue())) return { ok: true, dup: true };
+    sh.getRange(r, 12, 1, 3).setValues([['sí', why, u.nombre]]);
+    rebuildFin_();
+    return { ok: true };
+  });
+}
+/** Admin ROLE only: adds or edits a concept of tab Conceptos (name, tipo, suggested amount, active). Nothing is deleted: use Activo = no. */
+function saveConcepto(pin, p) {
+  const u = auth_(pin);
+  if (u.rol !== 'admin') throw new Error('Solo el admin puede editar los conceptos');
+  return withLock_(() => {
+    const ss = ss_(), sh = seedTab_(ss, CONC_TAB, CONC_HEADERS, CONC_SEED), n = sh.getLastRow() - 1;
+    const rows = n >= 1 ? sh.getRange(2, 1, n, CONC_HEADERS.length).getValues() : [];
+    const v = validateConcepto_(p, rows);
+    if (v.row) sh.getRange(v.row, 1, 1, CONC_HEADERS.length).setValues([v.values]); else sh.appendRow(v.values);
+    return { ok: true, conceptos: conceptosFromRows_(readTab_(ss, CONC_TAB, CONC_HEADERS), true) };
+  });
+}
+
 // ---------------- Feedback ("Reportar": errores y sugerencias) ----------------
 /** Pure: validates the payload of addFeedback. Throws a Spanish error. */
 function normFeedback_(p) {
@@ -1280,5 +1390,6 @@ if (typeof module !== 'undefined') module.exports = {
   pinStr_, findUser_, permsFromRows_, permOk_, guessIcon_, buildItems_, groupCompras_, lastCostFrom_, priceLogFrom_, buildMoves_, stockMap_, countDiffs_,
   cleanLines_, slugId_, rateLabel_, buildRates_, latestRevs_, roleLabel_, bitQty_, extrasText_, ciFrom_, buildDeps_, moneyFrom_, buildPend_, fieldsFromBookings_, saludAlerts_, setMapeo, planTarifasMigration_, pluralEs_, appendNote_,
   login, getData, refreshFin, windowTest_, staleFin_, addCompra, anularCompra, editCompra, addAjuste, addConteo, addComida, markPaid, markRev, saveProducto, saveTarifa, savePerm, saveTourBarco, setConfig, validateConfig_, configFromRows_, migrate20261124, stockReport_, stockReport, loadMoves_, cidRow_, cidOf_, ensureCidCol_,
-  eventualesReport_, eventualesReport, usersFromRows_, validateUser_, listUsers, saveUser, normFeedback_, feedbackFileName_, feedbackFromRows_, validEstado_, addFeedback, setFeedbackEstado, FEEDBACK_HEADERS
+  eventualesReport_, eventualesReport, usersFromRows_, validateUser_, listUsers, saveUser, normFeedback_, feedbackFileName_, feedbackFromRows_, validEstado_, addFeedback, setFeedbackEstado, FEEDBACK_HEADERS,
+  normAjusteSalida_, conceptosFromRows_, validateConcepto_, staffFromCrew_, addAjusteSalida, anularAjusteSalida, saveConcepto
 };

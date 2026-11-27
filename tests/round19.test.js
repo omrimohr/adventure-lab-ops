@@ -45,7 +45,7 @@ test('Externos: fallback to bitácora "barco externo" lines when the note has no
 
 test('Costos salida counts the external cost once (note wins; bitácora non-external items kept)', () => {
   const src = fs.readFileSync(path.join(ROOT, 'apps-script/Code.gs'), 'utf8');
-  assert.ok(/costoAd = Math\.round\(\(otros \+ \(p\.extMonto/.test(src) && /\+ trip \+ costoAd/.test(src) && /alerts\.join\(' \| '\), costoAd\]/.test(src));
+  assert.ok(/costoAd = Math\.round\(\(otros \+ \(p\.extMonto/.test(src) && /\+ trip \+ costoAd/.test(src) && /alerts\.join\(' \| '\), costoAd, r2_\(aj\)\]/.test(src));
   assert.ok(!/trip \+ cos\.total/.test(src), 'cos.total (which includes the external lines) is no longer added');
 });
 
@@ -63,6 +63,6 @@ test('app: crew bc in getData source, boat shown in departure detail, no pull-to
   assert.ok((app.match(/bc: (String\(x\[9\] \|\| ''\) \|\| )?barcoNota_\(nt\)/g) || []).length === 3);
   assert.ok(/html,body\{[^}]*overscroll-behavior-y:none/.test(html) && /\.sheet,\.srwrap\{overscroll-behavior-y:none/.test(html));
   assert.ok(!/touchmove|touchstart/.test(html) && html.includes('data-refresh'));
-  assert.ok(html.includes("const APP_VER='v16'") && sw.includes("'al-ops-v16'"));
+  assert.ok(sw.includes("'al-ops-" + /const APP_VER='(v\d+)'/.exec(html)[1] + "'")); // current version: round20.test.js
   assert.ok(!/Falta monto en Costos adicionales/.test(html + app + fs.readFileSync(path.join(ROOT, 'apps-script/Code.gs'), 'utf8')));
 });

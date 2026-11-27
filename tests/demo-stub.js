@@ -177,11 +177,21 @@ function init(){
   D.salud=[{nivel:'warn',tipo:'bitacora',texto:'Falta bitácora: '+addDays(-1)+' 14:00 Private Boat Tour',rol:'todos',fecha:addDays(-1),av:(D.deps.find(x=>x.date===addDays(-1)&&x.time==='14:00')||D.deps[0]||{}).id},
            {nivel:'warn',tipo:'reporte',texto:'Falta reporte de Comercial del '+addDays(-1),rol:'admin'},
            {nivel:'warn',tipo:'config',texto:'1 cosa por configurar desde hace más de 2 días',rol:'admin'}];
-  D.perms={admin:{compras:true,revisar:true,pagar:true,inventario:true,ajuste:true,editar:true,comida:true,config:true},
-           op:{compras:true,revisar:true,pagar:false,inventario:false,ajuste:false,editar:false,comida:true,config:false}};
+  D.perms={admin:{compras:true,revisar:true,pagar:true,inventario:true,ajuste:true,editar:true,comida:true,ajustes:true,config:true},
+           op:{compras:true,revisar:true,pagar:false,inventario:false,ajuste:false,editar:false,comida:true,ajustes:true,config:false}};
   D.feedback=[
    {id:'F1',cid:'d1',fecha:addDays(-1)+' 18:42',usuario:'Jesús',tipo:'Error',texto:'Al abrir la bitácora de la salida de las 14:00 la lista de tripulación aparece vacía hasta que actualizo la pantalla dos veces.',pantalla:'Detalle de salida',fechaApp:addDays(-1),version:'v12',url:'https://drive.google.com/demo-captura',estado:'Nuevo',notas:''},
    {id:'F2',cid:'d2',fecha:addDays(-2)+' 09:15',usuario:'Edder',tipo:'Sugerencia',texto:'Sería útil poder filtrar las salidas por barco.',pantalla:'Operación',fechaApp:addDays(-2),version:'v12',url:'',estado:'En curso',notas:'Lo vemos en la próxima ronda'}];
+  // round 20: conceptos, personal (staff) y ajustes de ejemplo (un festivo, una cancelación, un descuento y un costo "Hielo extra")
+  D.conceptos=[{n:'Día festivo',t:'pago',m:150,a:true},{n:'Cancelación 50%',t:'pago',m:null,a:true},{n:'Bono',t:'pago',m:null,a:true},{n:'Descuento',t:'pago',m:null,a:true},{n:'Otro',t:'pago',m:null,a:true},
+    {n:'Hielo extra',t:'costo',m:null,a:true},{n:'Gasolina extra',t:'costo',m:null,a:true},{n:'Comida tripulación',t:'costo',m:null,a:true},{n:'Reparación',t:'costo',m:null,a:true},{n:'Otro',t:'costo',m:null,a:true},{n:'Propina vieja',t:'pago',m:null,a:false}];
+  D.staff=['Ana Rosado','Carlos Pech','Diego May','Ignacio Arceo','Juan Pérez','Luis Martínez','Mauricio Canul','Pedro Chan','Rafael Tun'];
+  const sumAj=l=>Math.round(l.reduce((a,x)=>a+x.monto,0)*100)/100;
+  D.deps.forEach(d=>{d.aj=[]});
+  const d0=D.deps.find(x=>x.id==='9000'),d3=D.deps.find(x=>x.id==='9003'),mkAj=(id,tipo,persona,concepto,monto,motivo,por,at)=>({id:id,tipo:tipo,persona:persona,concepto:concepto,monto:monto,motivo:motivo,por:por,creado:addDays(-1)+' '+at,cid:id});
+  d0.aj.push(mkAj('AS1','pago',d0.crew[0].n,'Día festivo',150,'Fin de semana largo','Jesús','18:10'),mkAj('AS2','costo','','Hielo extra',90,'2 bolsas más para la fiesta','Jesús','18:12'));
+  d3.aj.push(mkAj('AS3','pago',d3.crew[0].n,'Cancelación 50%',225,'Tour cancelado por lluvia, se paga la mitad','Jesús','17:40'),mkAj('AS4','pago',d3.crew[1].n,'Descuento',-50,'Llegó tarde','Omri','17:45'));
+  D.deps.forEach(d=>{const t=sumAj(d.aj);if(d.costs&&t){d.costs.tot=Math.round((d.costs.tot+t)*100)/100;d.costs.aj=t}else if(d.costs)d.costs.aj=0});
   D.calls=0;D.staleOnce=true;D.config={semana_inicio:'jueves',semana_pago:'jueves'};
 }
 init();
@@ -204,8 +214,8 @@ function evReport(desde,hasta){
   if(hasta<desde){const t=desde;desde=hasta;hasta=t}
   const R=n=>Math.round(n*100)/100,by={},get=n=>by[n]||(by[n]={n:n,roles:{},dates:{},av:{},ganado:0,pagado:0});
   const rows=D.evHist.slice();
-  D.deps.forEach(dep=>{if(dep.date>addDays(0))return;dep.crew.forEach(c=>{if(c.ext||!c.pay.tot)return;rows.push({d:dep.date,av:dep.id,n:c.n,r:c.r,tot:c.pay.tot})})});
-  rows.forEach(e=>{if(e.d<desde||e.d>hasta)return;const o=get(e.n);o.dates[e.d]=1;o.av[e.av]=1;if(e.r)o.roles[e.r]=1;o.ganado+=e.tot});
+  D.deps.forEach(dep=>{if(dep.date>addDays(0))return;dep.crew.forEach(c=>{if(c.ext||!c.pay.tot)return;rows.push({d:dep.date,av:dep.id,n:c.n,r:c.r,tot:c.pay.tot})});(dep.aj||[]).forEach(a=>{if(a.tipo==='pago')rows.push({d:dep.date,av:dep.id,n:a.persona,r:'',tot:a.monto,adj:true})})});
+  rows.forEach(e=>{if(e.d<desde||e.d>hasta)return;const o=get(e.n);if(!e.adj){o.dates[e.d]=1;o.av[e.av]=1;if(e.r)o.roles[e.r]=1}o.ganado+=e.tot});
   D.pagos.forEach(p=>{if(p.d<desde||p.d>hasta)return;get(p.n).pagado+=p.m});
   const out=Object.keys(by).map(n=>{const o=by[n];return {n:n,roles:Object.keys(o.roles),dias:Object.keys(o.dates).length,salidas:Object.keys(o.av).length,ganado:R(o.ganado),pagado:R(o.pagado),pendiente:R(o.ganado-o.pagado)}}).sort((a,b)=>b.ganado-a.ganado||a.n.localeCompare(b.n));
   const t={personas:out.length,salidas:0,ganado:0,pagado:0,pendiente:0};out.forEach(r=>{t.salidas+=r.salidas;t.ganado+=r.ganado;t.pagado+=r.pagado;t.pendiente+=r.pendiente});
@@ -220,7 +230,7 @@ const API={
    const stale=D.staleOnce;D.staleOnce=false;
    return JSON.parse(JSON.stringify({ok:true,user:{nombre:me.nombre,rol:me.rol},perms:D.perms,today:today,now:hm(),desde:from||addDays(-21),hasta:to||addDays(7),
      items:D.items,purchases:D.purchases,moves:D.moves,priceLog:D.priceLog,deps:D.deps,rates:D.rates,paid:D.paid,weekly:D.weekly,externos:D.externos,control:D.control,
-     tours:D.tours,comidas:D.comidas,fh:D.fh,pend:D.pend,salud:D.salud,feedback:D.feedback,fhOk:true,config:D.config,stale:stale,rebuildPending:false}));
+     tours:D.tours,conceptos:me.rol==='admin'?D.conceptos:D.conceptos.filter(c=>c.a),staff:D.staff,comidas:D.comidas,fh:D.fh,pend:D.pend,salud:D.salud,feedback:D.feedback,fhOk:true,config:D.config,stale:stale,rebuildPending:false}));
  },
  refreshFin:()=>({ran:true}),
  eventualesReport:(pin,a,b)=>evReport(a,b),
@@ -265,9 +275,17 @@ const API={
  addFeedback:(pin,p)=>{if(!p.texto||!String(p.texto).trim())throw new Error('Escribe qué pasó');const dup=D.feedback.find(x=>p.cid&&x.cid===p.cid);if(dup)return {ok:true,id:dup.id,dup:true};
    const id='F'+(D.feedback.length+1)+Date.now()%1000;D.feedback.unshift({id:id,cid:p.cid||'',fecha:addDays(0)+' '+hm(),usuario:who(pin).nombre,tipo:p.tipo,texto:p.texto,pantalla:p.pantalla,fechaApp:p.fecha,version:p.version,url:p.img?'https://drive.google.com/demo-captura':'',estado:'Nuevo',notas:''});return {ok:true,id:id}},
  setFeedbackEstado:(pin,id,est,nota)=>{const r=D.feedback.find(x=>x.id===id);if(!r)throw new Error('No encontré el reporte');r.estado=est;if(typeof nota==='string')r.notas=nota;return {ok:true,estado:est}},
+ addAjusteSalida:(pin,p)=>{const d=D.deps.find(x=>x.id===String(p.av));if(!d)throw new Error('No encontré la salida');d.aj=d.aj||[];if(p.cid&&d.aj.some(x=>x.cid===p.cid))return {ok:true,dup:true};
+   const m=Number(p.monto);if(!isFinite(m)||m===0)throw new Error('El monto debe ser un número distinto de 0');if(p.tipo==='pago'&&!p.persona)throw new Error('Elige la persona');if(!p.concepto)throw new Error('Elige el concepto');
+   const id='AS'+Date.now().toString(36);d.aj.push({id:id,tipo:p.tipo,persona:p.tipo==='pago'?p.persona:'',concepto:p.concepto,monto:m,motivo:p.motivo||'',por:who(pin).nombre,creado:addDays(0)+' '+hm(),cid:p.cid||''});
+   if(d.costs){d.costs.tot=Math.round((d.costs.tot+m)*100)/100;d.costs.aj=Math.round(((d.costs.aj||0)+m)*100)/100}return {ok:true,id:id}},
+ anularAjusteSalida:(pin,id,motivo)=>{if(!String(motivo||'').trim())throw new Error('Escribe el motivo de la anulación');let hit=false;D.deps.forEach(d=>{const i=(d.aj||[]).findIndex(x=>x.id===id);if(i<0)return;hit=true;const m=d.aj[i].monto;d.aj.splice(i,1);if(d.costs){d.costs.tot=Math.round((d.costs.tot-m)*100)/100;d.costs.aj=Math.round(((d.costs.aj||0)-m)*100)/100}});if(!hit)throw new Error('No encontré el ajuste');return {ok:true}},
+ saveConcepto:(pin,p)=>{if(who(pin).rol!=='admin')throw new Error('Solo el admin puede editar los conceptos');const low=x=>String(x==null?'':x).trim().toLowerCase(),n=String(p.concepto||'').trim();if(!n)throw new Error('Escribe el nombre del concepto');
+   let i=p.original?D.conceptos.findIndex(c=>c.t===p.original.tipo&&low(c.n)===low(p.original.concepto)):-1;const same=D.conceptos.findIndex(c=>c.t===p.tipo&&low(c.n)===low(n));if(same>=0&&same!==i){if(i>=0||!p.original)throw new Error('Ya existe ese concepto');i=same}
+   const row={n:n,t:p.tipo,m:p.monto===''||p.monto==null?null:Number(p.monto),a:p.activo!==false};if(i>=0)D.conceptos[i]=row;else D.conceptos.push(row);return {ok:true}},
  setMapeo:(pin,kind,clave)=>{D.pend=D.pend.filter(x=>!(x.kind===kind&&x.clave===clave));return {ok:true,rebuildPending:false}}
 };
-const WRITES={saveUser:1,addFeedback:1,setFeedbackEstado:1,addCompra:1,addAjuste:1,addConteo:1,markRev:1,markPaid:1,setMapeo:1};
+const WRITES={saveUser:1,addFeedback:1,setFeedbackEstado:1,addCompra:1,addAjuste:1,addConteo:1,markRev:1,markPaid:1,setMapeo:1,addAjusteSalida:1,anularAjusteSalida:1,saveConcepto:1};
 window.fetch=function(url,opts){
   let delay=350,fail='';try{delay=Number(localStorage.getItem('demo_delay'))||350;fail=localStorage.getItem('demo_fail')||''}catch(e){}   // demo_delay (ms) / demo_fail ('net' | 'final') para ver "guardando…" y el error
   return new Promise((res,rej)=>setTimeout(()=>{

@@ -60,7 +60,7 @@ test('round 18: old header pieces are gone, new ones wired', () => {
   ['data-evpill', 'data-evpick', 'data-evm', 'data-evinfo', "svgI('down'", "svgI('info'"].forEach(k => assert.ok(c.indexOf(k) >= 0, k));
   assert.ok(/EV_INFO/.test(c) && U.EV_INFO.indexOf('pagado de más') >= 0);
 });
-test('round 18: APP_VER v16 = sw.js CACHE', () => {
-  assert.ok(/const APP_VER='v16'/.test(html));
-  assert.ok(fs.readFileSync(path.join(__dirname, '..', 'docs', 'sw.js'), 'utf8').indexOf("const CACHE = 'al-ops-v16'") >= 0);
+test('round 18: APP_VER = sw.js CACHE suffix (bumped together each round; current value checked in round20.test.js)', () => {
+  const v = /const APP_VER='(v\d+)'/.exec(html)[1];
+  assert.ok(fs.readFileSync(path.join(__dirname, '..', 'docs', 'sw.js'), 'utf8').indexOf("const CACHE = 'al-ops-" + v + "'") >= 0);
 });

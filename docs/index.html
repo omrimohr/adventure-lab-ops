@@ -341,6 +341,12 @@ button.live{width:100%;background:none;border:0;font:inherit;font-size:12px;colo
 .cbtns .gbtn{flex:1;display:flex;align-items:center;justify-content:center;text-decoration:none}
 .bknote{white-space:pre-wrap;overflow-wrap:anywhere}
 .sn{font-size:12px;color:var(--ink2);margin-top:2px}
+.gh .tlink{margin:-12px 0 -12px auto;font-size:14px}
+.cell.aj{padding-left:calc(var(--px) + 16px)}.cell.aj .t{font-size:14px}.cell.aj .v{font-size:14px;font-weight:500}.dlist .cell.aj{min-height:34px;padding-top:5px;padding-bottom:5px}
+.cell.aj.flat{padding-left:var(--px)}.cell.aj.flat .t{font-size:16px}
+.cell.who .t{color:var(--ink2);font-weight:400}
+.cell.crow{cursor:pointer}
+.ajsg{width:62%;flex:none}.field .seg button{font-size:14px}
 .rb{display:inline-block;font-size:12px;font-weight:500;padding:0 8px;border-radius:99px;background:var(--acc-soft);color:var(--acc);margin-right:4px}
 .gh{display:flex;align-items:center;gap:8px}
 .gh .gi{flex:none;width:16px;height:16px}
@@ -532,10 +538,10 @@ const TYPES=[['ponton','Pontón'],['catamaran','Catamarán'],['monocasco','Monoc
 const RB={'Capitán':'Cap.','Marinero':'Mar.','Instructor':'Inst.','Auxiliar':'Aux.','Guía':'Guía'};
 const rb=r=>RB[r]||(r.length>5?r.slice(0,4)+'.':r);
 const S={role:'op',realRole:'op',user:'',date:'',wk:'',
-  perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},pend:[],salud:[],feedback:[],fbf:'nuevo',fbEdit:null,evp:null,users:null,usersErr:'',rebuildPending:false,fhOk:true,offline:false,dataAt:0,
+  perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},pend:[],salud:[],feedback:[],conceptos:[],staff:[],fbf:'nuevo',fbEdit:null,evp:null,users:null,usersErr:'',rebuildPending:false,fhOk:true,offline:false,dataAt:0,
   win:{from:'',to:''},fetchedAt:'',q:'',filter:'todas',fopen:false,config:{semana_inicio:'jueves',semana_pago:'jueves'}};
 let PIN='';
-const APP_VER='v16';   // = sufijo de CACHE en docs/sw.js ('al-ops-v16'); se manda con cada reporte
+const APP_VER='v17';   // = sufijo de CACHE en docs/sw.js ('al-ops-v17'); se manda con cada reporte
 
 // ===== Servidor =====
 // Servidor: Apps Script web app (misma URL que el webhook de FareHarbor). POST text/plain = sin preflight CORS.
@@ -567,7 +573,7 @@ function flushRender(){if(pendingRender)softRender()}
 let lastLoad=Date.now(),finBusy=false,finLast=0;
 function applyData(d,at){lastLoad=Date.now();S.dataAt=at||Date.now();S.fhOk=d.fhOk!==false;
   ['items','purchases','moves','priceLog','deps','rates','paid','weekly','externos','control','tours','comidas','fh','pend','salud','rebuildPending'].forEach(k=>{S[k]=d[k]});
-  S.pend=d.pend||[];S.salud=d.salud||[];S.feedback=d.feedback||[];S.config=Object.assign({semana_inicio:'jueves',semana_pago:'jueves'},d.config||{});S.rebuildPending=!!d.rebuildPending;
+  S.pend=d.pend||[];S.salud=d.salud||[];S.feedback=d.feedback||[];S.conceptos=d.conceptos||[];S.staff=d.staff||[];S.config=Object.assign({semana_inicio:'jueves',semana_pago:'jueves'},d.config||{});S.rebuildPending=!!d.rebuildPending;
   S.perms=d.perms;S.realRole=d.user.rol;S.user=d.user.nombre;
   if(S.realRole!=='admin'||!S.date)S.role=S.realRole;
   TODAY=d.today;NOW=d.now;S.clk={today:d.today,now:d.now,at:Date.now()};S.fetchedAt=d.now;S.win={from:d.desde,to:d.hasta};
@@ -730,7 +736,7 @@ const IC={
  bell:'<path d="M6 16v-5a6 6 0 1112 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 004 0"/>'};
 const svgI=(k,sz)=>`<svg class="gi" viewBox="0 0 24 24" width="${sz||16}" height="${sz||16}" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${IC[k]}</svg>`;
 const WI=svgI('alert',14).replace('class="gi"','class="wi"');   // aviso inline (sin emoji)
-const gh=(k,t)=>`<div class="ghead gh">${svgI(k)}<span>${t}</span></div>`;   // encabezado de sección: ícono (mismo color que el texto) + palabra
+const gh=(k,t,link)=>`<div class="ghead gh">${svgI(k)}<span>${t}</span>${link||''}</div>`;   // encabezado de sección: ícono (mismo color que el texto) + palabra
 const chev='<svg class="chev" viewBox="0 0 8 13"><path d="M1 1l6 5.5L1 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
 const cap=s=>s?s.charAt(0).toUpperCase()+s.slice(1):s;
 const plural=s=>/[aeiouáéíóú]$/i.test(s)?s+'s':/s$/i.test(s)?s:s+'es';
@@ -924,7 +930,7 @@ const Q_DELAYS=[2,5,15,30,60];                         // segundos entre reinten
 const qBackoff=n=>(Q_DELAYS[Math.min(Math.max(n,1),Q_DELAYS.length)-1])*1000;
 const Q_MAX=Q_DELAYS.length+1;                        // intentos antes de avisar "No se guardó"
 const qClass=m=>/PIN incorrecto|Demasiados intentos/.test(m)?'auth':/Sin conexi|Servidor \d|Failed|Network|timed? ?out|Lock|Exception|Service|Intenta de nuevo/i.test(m)?'retry':'final';
-const Q_LABEL={addCompra:'Compra',addAjuste:'Ajuste',addConteo:'Inventario',markRev:'Revisión',markPaid:'Pago',setMapeo:'Configuración',addFeedback:'Reporte',setFeedbackEstado:'Estado de reporte'};
+const Q_LABEL={addCompra:'Compra',addAjuste:'Ajuste',addConteo:'Inventario',markRev:'Revisión',markPaid:'Pago',setMapeo:'Configuración',addFeedback:'Reporte',setFeedbackEstado:'Estado de reporte',addAjusteSalida:'Ajuste de salida',anularAjusteSalida:'Anulación de ajuste',saveConcepto:'Concepto'};
 // Efecto optimista de una escritura en el estado S (mismo resultado que verá el servidor). q={id,fn,args,fail}; ctx={today,hm,user}. Idempotente: si los datos ya traen ese id no hace nada.
 function optApply(S,q,ctx){
   const mark=q.fail?'no se guardó':'guardando…',a=q.args||[],has=k=>S.moves.some(m=>m.k===k||(m.k||'').indexOf(k+'.')===0);
@@ -953,6 +959,20 @@ function optApply(S,q,ctx){
     if(!S.feedback.some(x=>x.cid===q.id))S.feedback.unshift({id:'q:'+q.id,cid:q.id,fecha:ctx.today+' '+ctx.hm,usuario:ctx.user,tipo:p.tipo==='Sugerencia'?'Sugerencia':'Error',texto:p.texto||'',pantalla:p.pantalla||'',fechaApp:p.fecha||'',version:p.version||'',url:'',estado:'Nuevo',notas:'',img:!!p.img,pend:mark,pf:!!q.fail});
   }else if(q.fn==='setFeedbackEstado'){
     const r=(S.feedback||[]).find(x=>x.id===String(a[0]));if(r){r.estado=a[1];if(typeof a[2]==='string')r.notas=a[2];r.pend=mark;r.pf=!!q.fail}
+  }else if(q.fn==='addAjusteSalida'){
+    // cuenta al instante: renglón en la salida + total de costos; si el servidor ya trae ese id (cid) no hace nada
+    const p=a[0]||{},d=S.deps.find(x=>x.id===String(p.av));if(!d)return;d.aj=d.aj||[];if(d.aj.some(x=>x.cid===q.id))return;
+    const m=Number(p.monto)||0;
+    d.aj.push({id:'q:'+q.id,tipo:p.tipo,persona:p.persona||'',concepto:p.concepto,monto:m,motivo:p.motivo||'',por:ctx.user,creado:ctx.today+' '+ctx.hm,cid:q.id,pend:mark,pf:!!q.fail});
+    if(d.costs){d.costs.tot=r2c(d.costs.tot+m);d.costs.aj=r2c((d.costs.aj||0)+m)}
+  }else if(q.fn==='anularAjusteSalida'){
+    S.deps.forEach(d=>{const i=(d.aj||[]).findIndex(x=>x.id===String(a[0]));if(i<0)return;const m=d.aj[i].monto;d.aj.splice(i,1);if(d.costs){d.costs.tot=r2c(d.costs.tot-m);d.costs.aj=r2c((d.costs.aj||0)-m)}});
+  }else if(q.fn==='saveConcepto'){
+    const p=a[0]||{},o=p.original,low=x=>String(x==null?'':x).trim().toLowerCase();S.conceptos=S.conceptos||[];
+    let i=o?S.conceptos.findIndex(c=>c.t===o.tipo&&low(c.n)===low(o.concepto)):-1;
+    if(i<0)i=S.conceptos.findIndex(c=>c.t===p.tipo&&low(c.n)===low(p.concepto));
+    const row={n:String(p.concepto||'').trim(),t:p.tipo,m:(p.monto===''||p.monto==null)?null:Number(p.monto),a:p.activo!==false,pend:mark,pf:!!q.fail};
+    if(i>=0)S.conceptos[i]=row;else S.conceptos.push(row);
   }
 }
 // Cambia la etiqueta ("guardando…" ↔ "no se guardó") de lo que ya se pintó de forma optimista
@@ -965,6 +985,8 @@ function optMark(S,q){
   if(q.fn==='setMapeo')(S.pend||[]).forEach(x=>{if(x.pend&&x.kind===a[0]&&String(x.clave)===String(a[1])){x.pend=mark;x.pf=pf}});
   if(q.fn==='addFeedback')(S.feedback||[]).forEach(x=>{if(x.pend&&x.cid===q.id){x.pend=mark;x.pf=pf}});
   if(q.fn==='setFeedbackEstado')(S.feedback||[]).forEach(x=>{if(x.pend&&x.id===String(a[0])){x.pend=mark;x.pf=pf}});
+  if(q.fn==='addAjusteSalida')S.deps.forEach(d=>(d.aj||[]).forEach(x=>{if(x.pend&&x.cid===q.id){x.pend=mark;x.pf=pf}}));
+  if(q.fn==='saveConcepto')(S.conceptos||[]).forEach(c=>{if(c.pend){c.pend=mark;c.pf=pf}});
 }
 // Notificaciones del sistema: [{id, kind, text, go}] (go: {t:'dep',date,av} | {t:'pend'} | {t:'fh'} | null). Para sumar otra clase de aviso, agrega aquí un push con su {kind,text,go}.
 function notifBuild(salud,pend,role,fb){
@@ -1036,7 +1058,73 @@ function userCheck(p,users,orig){
   if((!orig||pin)&&!/^\d{4}$/.test(pin))return {f:'pin',m:'El PIN debe tener 4 dígitos'};
   return null;
 }
-const SCREENS={usuarios:'Usuarios',dep:'Detalle de salida',pend:'Por configurar',fh:'Conexión FareHarbor',feedback:'Feedback',fbd:'Reporte',productos:'Productos',tarifas:'Tarifas eventuales',tours:'Items',permisos:'Permisos',ajustes:'Ajustes',item:'Producto',purchase:'Compra',movs:'Movimientos',person:'Eventual',role:'Permisos'};
+// --- Ajustes de salida (ronda 20): pagos manuales a una persona (tipo pago) y costos extra de la salida (tipo costo). Sumas y restas se cuentan al instante. ---
+const rateAlert=x=>/pendiente|sin tarifa/i.test(x.alert||'');
+const payLine=(d,c)=>c.pay||{base:0,hx:0,tot:0};   // sueldo por salida: lo calcula el servidor (hoja Eventuales)
+const r2c=x=>Math.round((Number(x)||0)*100)/100;
+const ajPago=d=>(d.aj||[]).filter(a=>a.tipo==='pago');
+const ajCosto=d=>(d.aj||[]).filter(a=>a.tipo==='costo');
+const ajSum=l=>r2c(l.reduce((s,a)=>s+(Number(a.monto)||0),0));
+const ajOf=(d,n)=>ajPago(d).filter(a=>a.persona===n);
+const ajClr=m=>m<0?'var(--red)':'var(--orange)';                       // + café-naranja, − rojo
+const ajMoney=m=>(m<0?'−':'+')+fmt(Math.abs(m));                   // «+$150» / «−$40»
+const wdd=d=>WD3[pd(d).getDay()].replace('.','')+' '+pd(d).getDate();   // «jue 26»
+// Horas de la salida (de la hora de inicio a la de fin); 0 si no se sabe
+function durH(d){
+  const m=/^(\d{4}-\d{2}-\d{2}) (\d{2}):(\d{2})$/.exec(String(d.end||'')),t=/^(\d{2}):(\d{2})$/.exec(String(d.time||''));if(!m||!t)return 0;
+  const days=Math.round((pd(m[1])-pd(d.date))/864e5),h=(days*1440+(+m[2])*60+(+m[3])-((+t[1])*60+(+t[2])))/60;return h>0&&h<24?Math.round(h*10)/10:0;
+}
+// Personas de una semana de pago: tripulación de las salidas + quien solo tiene ajustes. tot = sueldo + ajustes (con signo).
+function weekPeopleOf(deps,ws,today){
+  const we=addD(ws,6),map={},get=n=>map[n]||(map[n]={n:n,roles:new Set(),lines:[],adj:[],tot:0,hx:0,miss:false,rate:false});
+  deps.filter(d=>d.date>=ws&&d.date<=we&&d.date<=today).forEach(d=>{
+    d.crew.forEach(c=>{
+      if(c.ext)return; // externos se pagan aparte
+      const p=get(c.n),pl=payLine(d,c);
+      if(c.r)p.roles.add(c.r);else p.miss=true;
+      if(rateAlert(c))p.rate=true;
+      p.lines.push({d,c,pl});p.tot+=pl.tot;if(pl.hx)p.hx+=d.hx;
+    });
+    ajPago(d).forEach(a=>{const p=get(a.persona);p.adj.push({d,a});p.tot+=Number(a.monto)||0});
+  });
+  const out=Object.values(map);out.forEach(p=>{p.tot=r2c(p.tot)});
+  return out.sort((a,b)=>b.tot-a.tot||a.n.localeCompare(b.n));
+}
+const byDt=(a,b)=>(a.d.date+a.d.time)<(b.d.date+b.d.time)?-1:(a.d.date+a.d.time)>(b.d.date+b.d.time)?1:0;
+// Texto del recibo de pago para compartir (una persona, una semana)
+function paySlipText(p,label){
+  const L=['Eventuales · '+p.n,label,''];
+  p.lines.slice().sort(byDt).forEach(l=>L.push([wdd(l.d.date)+' '+l.d.time,l.d.item,l.c.r||'',fmt(l.pl.tot)+(l.pl.hx?' (incluye hora extra '+fmt(l.pl.hx)+')':'')].filter(Boolean).join(' · ')));
+  p.adj.slice().sort(byDt).forEach(x=>L.push(['Ajuste · '+x.a.concepto,wdd(x.d.date)+' '+x.d.item,x.a.motivo?'('+x.a.motivo+')':'',ajMoney(x.a.monto)].filter(Boolean).join(' · ')));
+  L.push('','Total: '+fmt(p.tot));
+  return L.join('\n');
+}
+// Hoja «Ajuste» / «Costo»: lo que falta para poder guardar (null = listo). a = {tipo, persona, concepto, monto (valor absoluto escrito)}
+function ajCheck(a){
+  if(a.tipo==='pago'&&!String(a.persona||'').trim())return 'Elige la persona';
+  if(!String(a.concepto||'').trim())return 'Elige el concepto';
+  const m=Number(a.monto);if(!isFinite(m)||m===0||String(a.monto).trim()==='')return 'Escribe el monto';
+  return null;
+}
+// Monto con signo que se manda: pago usa el signo elegido (+/−); costo siempre positivo
+const ajMonto=a=>r2c((a.tipo==='pago'?(a.sign<0?-1:1):1)*Math.abs(Number(a.monto)||0));
+// Signo que sugiere un concepto: negativo si su monto sugerido es negativo o se llama «Descuento»
+const ajSignOf=c=>c&&(c.m<0||/^descuento/i.test(c.n))?-1:1;
+const conceptosOf=(list,tipo)=>(list||[]).filter(c=>c.t===tipo&&c.a!==false);
+// Personas para el selector: tripulación de la salida primero, luego el resto del personal (sin repetir)
+function ajPeople(d,staff,extra){
+  const seen={},crew=[],otros=[],add=(arr,n)=>{n=String(n||'').trim();const k=n.toLowerCase();if(!n||seen[k])return;seen[k]=1;arr.push(n)};
+  d.crew.filter(c=>!c.ext).forEach(c=>add(crew,c.n));add(crew,extra);(staff||[]).forEach(n=>add(otros,n));
+  return {crew,otros};
+}
+// Conceptos (Más › Conceptos): lo que falta para guardar; list = conceptos actuales, orig = {concepto, tipo} si se edita
+function concCheck(c,list,orig){
+  const n=String(c.nombre||'').replace(/\s+/g,' ').trim();if(!n)return 'Escribe el nombre del concepto';
+  if((list||[]).some(x=>x.t===c.tipo&&x.n.toLowerCase()===n.toLowerCase()&&!(orig&&orig.tipo===c.tipo&&String(orig.concepto).toLowerCase()===n.toLowerCase())))return 'Ya existe ese concepto en '+(c.tipo==='pago'?'Pago':'Costo');
+  const m=String(c.monto===undefined||c.monto===null?'':c.monto).trim();if(m!==''&&(!isFinite(Number(m))||Number(m)===0))return 'El monto sugerido debe ser distinto de 0 (o déjalo vacío)';
+  return null;
+}
+const SCREENS={conceptos:'Conceptos',usuarios:'Usuarios',dep:'Detalle de salida',pend:'Por configurar',fh:'Conexión FareHarbor',feedback:'Feedback',fbd:'Reporte',productos:'Productos',tarifas:'Tarifas eventuales',tours:'Items',permisos:'Permisos',ajustes:'Ajustes',item:'Producto',purchase:'Compra',movs:'Movimientos',person:'Eventual',role:'Permisos'};
 const screenName=(tab,view,tabs)=>view?(SCREENS[view]||view):((tabs||{})[tab]||tab);
 const fbContext=(screen,date,user,ver)=>'Se envía con: pantalla '+screen+' · '+date+' · '+user+' · versión '+ver;
 function fbPayload(f,ctx){return {cid:ctx.cid,tipo:f.tipo==='Sugerencia'?'Sugerencia':'Error',texto:String(f.texto||'').trim(),pantalla:ctx.screen,fecha:ctx.date,version:ctx.ver,img:f.img||''}}
@@ -1057,8 +1145,6 @@ function status(d){
 const okish=d=>{const s=status(d);return s==='ok'||s==='na'};
 const needBit=d=>{const s=status(d);return s==='none'||s==='sal'||s==='fsal'};
 const missingRole=d=>d.crew.filter(c=>!c.r&&!c.ext);
-const rateAlert=x=>/pendiente|sin tarifa/i.test(x.alert||'');
-const payLine=(d,c)=>c.pay||{base:0,hx:0,tot:0};   // sueldo por salida: lo calcula el servidor (hoja Eventuales)
 const cost=d=>okish(d)?d.costs:null;                // costos de la hoja "Costos salida"
 const netOf=d=>d.bookings.some(b=>b.net===null)?null:d.bookings.reduce((a,b)=>a+b.net,0);
 const paxOf=d=>d.bookings.reduce((a,b)=>a+b.pax,0);
@@ -1075,16 +1161,7 @@ function faltan(){
     if(st==='none')out.push({d,t:'Sin bitácora'});else if(st==='sal')out.push({d,t:'Falta regreso'});else if(st==='fsal')out.push({d,t:'Falta salida'});else if((st==='ok'||st==='na')&&!d.rev)out.push({d,t:'Por revisar'})});
   return out.sort((a,b)=>(a.d.date+a.d.time)<(b.d.date+b.d.time)?1:-1);
 }
-function weekPeople(ws){
-  const we=addD(ws,6),map={};
-  S.deps.filter(d=>d.date>=ws&&d.date<=we&&d.date<=TODAY).forEach(d=>d.crew.forEach(c=>{
-    if(c.ext)return; // externos se pagan aparte
-    const p=map[c.n]||(map[c.n]={n:c.n,roles:new Set(),lines:[],tot:0,hx:0,miss:false,rate:false}),pl=payLine(d,c);
-    if(c.r)p.roles.add(c.r);else p.miss=true;
-    if(rateAlert(c))p.rate=true;
-    p.lines.push({d,c,pl});p.tot+=pl.tot;if(pl.hx)p.hx+=d.hx}));
-  return Object.values(map).sort((a,b)=>b.tot-a.tot||a.n.localeCompare(b.n));
-}
+const weekPeople=ws=>weekPeopleOf(S.deps,ws,TODAY);
 
 // Modo caja/unidad y tamaño de caja por producto (localStorage es opcional)
 let prefs={};
@@ -1228,21 +1305,23 @@ dep(id){
     ${d.bookings.length?`<div class="cell tot"><span class="main t"><b>Total · ${personasTxt(paxOf(d))}</b></span><span class="v">${money2(d.gross,fut?undefined:n,est)}</span></div>`:''}</div></div>`;
   h+=`<div class="group">${gh('resources','Resources')}<div class="list">${(d.res||[]).map(r=>`<div class="cell c"><span class="main t">${esc(r.name)}</span><span class="v">${num(r.n)}</span></div>`).join('')||'<div class="empty">Sin resources asignados.</div>'}</div></div>`;
   h+=bitSection(d,fut);
-  h+=`<div class="group">${gh('crew','Crew')}<div class="list dlist">${d.crew.map(x=>{const p=payLine(d,x);
-    return `<div class="cell"><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${x.ext?'<span class="rb">Ext.</span>Externo'+(x.note?' · '+esc(x.note):''):x.r?`<span class="rb">${esc(rb(x.r))}</span>${esc(x.r)}`:WI+'Falta rol'}${p.hx?` · hora extra ${fmt(p.hx)}`:''}</div>${!x.ext&&(x.bc||x.nt)?`<div class="sn">${x.bc?'Barco: '+esc(x.bc):esc(x.nt)}</div>`:''}${x.alert?`<div class="s" style="color:var(--orange)">${WI}${esc(x.alert)}</div>`:''}</span>${x.ext?(x.monto?`<span class="v">${fmt(x.monto)}</span>`:''):!x.r?'':`<span class="v">${fmt(p.tot)}</span>`}</div>`}).join('')||'<div class="empty">Sin tripulación asignada.</div>'}${miss.length?`<div class="cell"><span class="main"><span class="t" style="color:var(--orange)">${WI}Falta rol en FareHarbor</span></span></div>`:''}</div>
+  const ajOk=can('ajustes')&&!fut;
+  h+=`<div class="group">${gh('crew','Crew',ajOk?`<button type="button" class="tlink" data-ajnew="${esc(d.id)}|pago|" aria-label="Agregar un ajuste de pago">+ Ajuste</button>`:'')}<div class="list dlist">${d.crew.map(x=>{const p=payLine(d,x),own=ajOf(d,x.n),tapA=ajOk&&!x.ext;
+    return `<div class="cell${tapA?' tap crow':''}"${tapA?` role="button" tabindex="0" data-ajnew="${esc(d.id)}|pago|${esc(x.n)}" aria-label="Agregar un ajuste a ${esc(x.n)}"`:''}><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${x.ext?'<span class="rb">Ext.</span>Externo'+(x.note?' · '+esc(x.note):''):x.r?`<span class="rb">${esc(rb(x.r))}</span>${esc(x.r)}`:WI+'Falta rol'}${p.hx?` · hora extra ${fmt(p.hx)}`:''}</div>${!x.ext&&(x.bc||x.nt)?`<div class="sn">${x.bc?'Barco: '+esc(x.bc):esc(x.nt)}</div>`:''}${x.alert?`<div class="s" style="color:var(--orange)">${WI}${esc(x.alert)}</div>`:''}</span>${x.ext?(x.monto?`<span class="v">${fmt(x.monto)}</span>`:''):!x.r?'':`<span class="v">${fmt(p.tot)}</span>`}</div>`+own.map(a=>ajRow(d,a,true)).join('')}).join('')||'<div class="empty">Sin tripulación asignada.</div>'}${ajOtros(d)}${miss.length?`<div class="cell"><span class="main"><span class="t" style="color:var(--orange)">${WI}Falta rol en FareHarbor</span></span></div>`:''}</div>
 </div>`;
-  if(c)h+=`<div class="group">${gh('costos','Costos')}<div class="list dlist">
+  const costoLink=ajOk?`<button type="button" class="tlink" data-ajnew="${esc(d.id)}|costo|" aria-label="Agregar un costo a la salida">+ Agregar</button>`:'',cAj=ajCosto(d).map(a=>ajRow(d,a,false)).join(''),pAj=ajSum(ajPago(d));
+  if(c)h+=`<div class="group">${gh('costos','Costos',costoLink)}<div class="list dlist">
     <div class="cell"><span class="main t">Bebidas</span><span class="v">${fmt(c.b)}</span></div>
     <div class="cell"><span class="main t">Gasolina</span><span class="v">${fmt(c.g)}</span></div>
     <div class="cell"><span class="main t">Hielo</span><span class="v">${fmt(c.h)}</span></div>
     ${c.f?`<div class="cell"><span class="main t">Fruta</span><span class="v">${fmt(c.f)}</span></div>`:''}${c.des?`<div class="cell"><span class="main t">Desayuno</span><span class="v">${fmt(c.des)}</span></div>`:''}
-    <div class="cell"><span class="main t">Eventuales</span><span class="v">${fmt(c.ev)}</span></div>
-    ${caRows(d)}
+    <div class="cell"><span class="main"><span class="t">Eventuales</span>${pAj?`<div class="sn">incluye ajustes ${ajMoney(pAj)}</div>`:''}</span><span class="v">${fmt(c.ev+pAj)}</span></div>
+    ${caRows(d)}${cAj}
     <div class="cell tot"><span class="main t"><b>Costo total</b></span><span class="big">${fmt(c.tot)}</span></div>
     <div class="cell"><span class="main t">Ingreso</span><span class="v">${money2(d.gross,n,est)}</span></div>
     <div class="cell"><span class="main t">Costo %</span><span class="v">${n?Math.round(c.tot/n*100)+'%':'—'}</span></div></div></div>`;
-  else if(caHas(d))h+=`<div class="group">${gh('costos','Costos')}<div class="list">${caRows(d)}</div></div>`;
-  else if(!fut)h+=`<div class="group">${gh('costos','Costos')}<div class="list"><div class="empty">El costo se calcula cuando la bitácora tiene salida y regreso.</div></div></div>`;
+  else if(caHas(d)||cAj)h+=`<div class="group">${gh('costos','Costos',costoLink)}<div class="list">${caRows(d)}${cAj}</div></div>`;
+  else if(!fut)h+=`<div class="group">${gh('costos','Costos',costoLink)}<div class="list"><div class="empty">El costo se calcula cuando la bitácora tiene salida y regreso.</div></div></div>`;
   if(!fut){
     if(d.rev)h+=`<div class="group"><div class="list"><div class="cell"><span class="main t okc">${svgI('okc',18).replace('class="gi"','class="wi"')}Revisado · ${esc(d.rev.by)} ${esc(revAt(d.rev))}${d.rev.pend?` <span class="sv${d.rev.pf?' bad':''}">${d.rev.pend}</span>`:''}</span></div></div></div>`;
     else if(okish(d)&&!miss.length&&can('revisar'))h+=`<div class="stack"><button class="btn" data-rev="${d.id}">Marcar revisado</button></div>`;
@@ -1256,7 +1335,7 @@ ev(){
   const ext=S.externos.filter(x=>x.d>=ws&&x.d<=we).sort((a,b)=>a.d<b.d?-1:1);
   let h=evHead();
   if(!ps.length&&!ext.length)return h+`<div class="group"><div class="list"><div class="empty">Sin salidas en esta semana.</div></div></div>`;
-  if(ps.length)h+=evSumLine(evSummary('week',{tot,n:ps.length,paid}))+`<div class="group"><div class="list">${ps.map(p=>{const pg=S.paid[ws+'|'+p.n];return `<button class="cell" data-person="${esc(p.n)}"><span class="main"><span class="t">${esc(p.n)}</span><div class="s">${[...p.roles].join(', ')||'Sin rol'} · ${p.lines.length} ${p.lines.length===1?'salida':'salidas'}${p.hx?` · ${p.hx} h extra`:''}</div>${p.miss?`<div class="s" style="color:var(--orange)">${WI}Falta rol en una salida</div>`:''}${p.rate?`<div class="s" style="color:var(--orange)">${WI}Tarifa pendiente o sin tarifa</div>`:''}</span><span class="v" style="text-align:right">${fmt(p.tot)}${pg?'<div class="s" style="color:var(--green)">Pagado</div>':''}</span>${chev}</button>`}).join('')}</div></div>`;
+  if(ps.length)h+=evSumLine(evSummary('week',{tot,n:ps.length,paid}))+`<div class="group"><div class="list">${ps.map(p=>{const pg=S.paid[ws+'|'+p.n];return `<button class="cell" data-person="${esc(p.n)}"><span class="main"><span class="t">${esc(p.n)}</span><div class="s">${[...p.roles].join(', ')||(p.adj.length&&!p.lines.length?'Solo ajustes':'Sin rol')} · ${p.lines.length} ${p.lines.length===1?'salida':'salidas'}${p.adj.length?' · '+pl(p.adj.length,'ajuste','ajustes'):''}${p.hx?` · ${p.hx} h extra`:''}</div>${p.miss?`<div class="s" style="color:var(--orange)">${WI}Falta rol en una salida</div>`:''}${p.rate?`<div class="s" style="color:var(--orange)">${WI}Tarifa pendiente o sin tarifa</div>`:''}</span><span class="v" style="text-align:right">${fmt(p.tot)}${pg?'<div class="s" style="color:var(--green)">Pagado</div>':''}</span>${chev}</button>`}).join('')}</div></div>`;
   if(ext.length)h+=`<div class="group">${gh('crew','Externos (se pagan aparte)')}<div class="list">${ext.map(x=>`<div class="cell"><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${sd(x.d)} · ${esc(x.time)} · ${esc(x.item)}</div>${x.note?`<div class="s">Se debe a: ${esc(x.note)}</div>`:`<div class="s" style="color:var(--orange)">${WI}Falta nota: ¿a quién se debe?</div>`}${extAlerts(x).map(a=>`<div class="s" style="color:var(--orange)">${WI}${esc(a)}</div>`).join('')}</span>${x.monto?`<span class="v">${fmt(x.monto)}</span>`:''}</div>`).join('')}</div></div>`;
   return h;
 },
@@ -1274,12 +1353,14 @@ person(name){
   const ws=S.wk,p=weekPeople(ws).find(x=>x.n===name);
   if(!p)return topBar(name,{back:'Eventuales',backTo:'ev'})+'<div class="empty">Sin salidas.</div>';
   const pg=S.paid[ws+'|'+name];
-  let h=topBar(name,{back:'Eventuales',backTo:'ev',lede:wkLabel(ws)})+`<div class="hero"><div class="n">${fmt(p.tot)}</div><div class="u">${p.lines.length} ${p.lines.length===1?'salida':'salidas'}${p.hx?` · ${p.hx} h extra`:''}</div></div>
-  <div class="group"><div class="list">${p.lines.sort((a,b)=>(a.d.date+a.d.time)<(b.d.date+b.d.time)?-1:1).map(l=>`<div class="cell"><span class="main"><span class="t">${sd(l.d.date)} · ${l.d.time}</span><div class="s">${esc(l.d.item)}</div><div class="s">${l.c.r?`${esc(l.c.r)} · tarifa ${fmt(l.pl.base)}`:WI+'Falta rol'}${l.pl.hx?` · hora extra ${fmt(l.pl.hx)}`:''}</div>${l.c.alert?`<div class="s" style="color:var(--orange)">${WI}${esc(l.c.alert)}</div>`:''}</span><span class="v">${fmt(l.pl.tot)}</span></div>`).join('')}
+  const hrs=l=>{const x=durH(l.d);return x?num(x)+' h':''},ext=l=>[l.pl.hx?'Hora extra '+fmt(l.pl.hx):'',l.pl.tr?'Traslado '+fmt(l.pl.tr):''].filter(Boolean).join(' · ');
+  let h=topBar(name,{back:'Eventuales',backTo:'ev',lede:wkLabel(ws)})+`<div class="hero"><div class="n">${fmt(p.tot)}</div><div class="u">${p.lines.length} ${p.lines.length===1?'salida':'salidas'}${p.adj.length?' · '+pl(p.adj.length,'ajuste','ajustes'):''}${p.hx?` · ${p.hx} h extra`:''}</div></div>
+  <div class="group"><div class="list evp">${p.lines.slice().sort(byDt).map(l=>`<button type="button" class="cell" data-evdep="${esc(l.d.date)}|${esc(l.d.id)}" aria-label="Abrir la salida del ${esc(sd(l.d.date))} a las ${esc(l.d.time)}"><span class="main"><span class="t">${wdd(l.d.date)} · ${l.d.time} ${esc(l.d.item)}</span><div class="s">#${esc(l.d.id)} · ${l.c.r?esc(l.c.r):WI+'Falta rol'}${hrs(l)?' · '+hrs(l):''}${ext(l)?' · '+ext(l):''}</div>${l.c.alert?`<div class="s" style="color:var(--orange)">${WI}${esc(l.c.alert)}</div>`:''}</span><span class="v">${fmt(l.pl.tot)}</span>${chev}</button>`).join('')}
+    ${p.adj.slice().sort(byDt).map(x=>`<button type="button" class="cell" data-ajd="${esc(x.d.id)}|${esc(x.a.id)}"><span class="main"><span class="t">Ajuste · ${esc(x.a.concepto)}</span><div class="s">${wdd(x.d.date)} · ${esc(x.d.item)}</div><div class="s">${esc(x.a.por||'')}${x.a.motivo?' · '+esc(x.a.motivo):''}${x.a.pend?` · <span class="sv${x.a.pf?' bad':''}">${x.a.pend}</span>`:''}</div></span><span class="v" style="color:${ajClr(x.a.monto)}">${ajMoney(x.a.monto)}</span>${chev}</button>`).join('')}
     <div class="cell"><span class="main t"><b>Total</b></span><span class="big">${fmt(p.tot)}</span></div></div></div>`;
-  if(pg){const pp=(S.paidPend||{})[ws+'|'+name];h+=`<div class="group"><div class="list"><div class="cell"><span class="main t"><span class="okc">${svgI('okc',18).replace('class="gi"','class="wi"')}Pagado · ${short(pg)}${pp?` <span class="sv${pp.pf?' bad':''}">${pp.pend}</span>`:''}</span></span></div></div></div>`}
-  else if(can('pagar')){const blk=p.miss||p.rate;h+=`<div class="stack"><button class="btn" data-pay="${esc(name)}" ${blk?'disabled':''}>Marcar pagado</button>${p.miss?'<div class="gfoot" style="margin:0">Asigna el rol faltante en FareHarbor antes de pagar.</div>':p.rate?'<div class="gfoot" style="margin:0">Falta una tarifa. Defínela en Más, Tarifas eventuales, antes de pagar.</div>':''}</div>`}
-  else h+=`<div class="group"><div class="list"><div class="cell"><span class="main t mut">Tu rol no puede marcar pagos.</span></div></div></div>`;
+  if(pg){const pp=(S.paidPend||{})[ws+'|'+name];h+=`<div class="group"><div class="list"><div class="cell"><span class="main t"><span class="okc">${svgI('okc',18).replace('class="gi"','class="wi"')}Pagado · ${short(pg)}${pp?` <span class="sv${pp.pf?' bad':''}">${pp.pend}</span>`:''}</span></span></div></div></div><div class="stack"><button class="btn" data-share="${esc(name)}">Compartir</button></div>`}
+  else if(can('pagar')){const blk=p.miss||p.rate;h+=`<div class="stack"><button class="btn" data-pay="${esc(name)}" ${blk?'disabled':''}>Marcar pagado</button><button class="btn plain" data-share="${esc(name)}">Compartir</button>${p.miss?'<div class="gfoot" style="margin:0">Asigna el rol faltante en FareHarbor antes de pagar.</div>':p.rate?'<div class="gfoot" style="margin:0">Falta una tarifa. Defínela en Más, Tarifas eventuales, antes de pagar.</div>':''}</div>`}
+  else h+=`<div class="group"><div class="list"><div class="cell"><span class="main t mut">Tu rol no puede marcar pagos.</span></div></div></div><div class="stack"><button class="btn" data-share="${esc(name)}">Compartir</button></div>`;
   return h;
 },
 stock(){
@@ -1360,6 +1441,7 @@ mas(){
     ${row('tours','boat','Items','Tipo de barco de cada item')}
     ${row('permisos','shield','Permisos',`${ROLES.length} roles`)}
     ${adm?row('usuarios','users','Usuarios',S.users?`${S.users.filter(u=>u.activo).length} activos`:'Agregar y editar quién entra'):''}
+    ${adm?row('conceptos','tag','Conceptos',`Ajustes de pago y costos de salida · ${(S.conceptos||[]).filter(c=>c.a).length} activos`):''}
     ${adm?row('ajustes','sliders','Ajustes',`Apariencia · semana de pago: ${payDayName(S.config.semana_pago)}`):''}
   </div></div>
   <div class="group"><div class="list">
@@ -1370,6 +1452,12 @@ mas(){
     <div class="cell"><span class="main t mut">QuickBooks</span></div>
   </div></div>
   <div class="group"><div class="list"><button class="cell" data-logout><span class="ic acc">${svgI('logout',20)}</span><span class="main"><span class="t">Cerrar sesión</span><div class="s">${esc(S.user)} · ${S.realRole==='admin'?'Admin':'Operación'}</div></span></button></div></div>`;
+},
+conceptos(){
+  if(S.role!=='admin')return topBar('Conceptos',{back:'Más',backTo:'mas'})+'<div class="empty">Solo el admin edita los conceptos.</div>';
+  const list=S.conceptos||[];
+  const grp=(t,l)=>{const x=list.filter(c=>c.t===t);return `<div class="group"><div class="ghead">${l}</div><div class="list">${x.map(c=>`<button type="button" class="cell" data-conc="${t}|${esc(c.n)}"><span class="main"><span class="t${c.a?'':' mut'}">${esc(c.n)}</span><div class="s">${c.m!==null&&c.m!==undefined?'Sugerido '+(t==='pago'?ajMoney(c.m):fmt(c.m)):'Sin monto sugerido'}${c.a?'':' · Inactivo'}${c.pend?` · <span class="sv${c.pf?' bad':''}">${c.pend}</span>`:''}</div></span>${chev}</button>`).join('')||'<div class="empty">Sin conceptos.</div>'}</div></div>`};
+  return topBar('Conceptos',{back:'Más',backTo:'mas',acts:[{k:'addconc',l:'Agregar concepto',s:'+'}],lede:'Opciones al agregar un ajuste de pago o un costo a una salida'})+grp('pago','Pago')+grp('costo','Costo');
 },
 ajustes(){
   const w=S.config.semana_inicio==='lunes'?'lunes':'jueves',adm=S.role==='admin',tm=window.getTheme?window.getTheme():'auto',pw=S.config.semana_pago||'jueves';
@@ -1733,6 +1821,16 @@ const nowKey=()=>TODAY+' '+NOW;
 let bitOpen=null; // salida cuya tabla de bitácora está abierta
 const BIT_T={done:['ok','Hecha'],late:['late','Falta'],wait:['','Por hacer']};
 // Bitácora: UNA sola sección con Ida y Regreso lado a lado (punto + estado). Al tocar se abre la tabla de productos.
+// Ajuste de salida como renglón: pago = sangrado bajo la persona; costo = línea normal de Costos. Se toca para ver el detalle (y anular).
+function ajRow(d,a,ind){
+  const pend=a.pend?` · <span class="sv${a.pf?' bad':''}">${a.pend}</span>`:'';
+  return `<button type="button" class="cell aj${ind?'':' flat'}" data-ajd="${esc(d.id)}|${esc(a.id)}"><span class="main"><span class="t">${esc(a.concepto)}</span><div class="s">${esc(a.por||'')}${a.motivo?' · '+esc(a.motivo):''}${pend}</div></span><span class="v"${ind||a.monto<0?` style="color:${ajClr(a.monto)}"`:''}>${ind?ajMoney(a.monto):fmt(a.monto)}</span></button>`;
+}
+// Ajustes de pago de personas que no están en la tripulación de esta salida (se eligieron del personal)
+function ajOtros(d){
+  const names=[...new Set(ajPago(d).map(a=>a.persona))].filter(n=>!d.crew.some(c=>c.n===n));
+  return names.map(n=>`<div class="cell who"><span class="main t">${esc(n)} · fuera de la tripulación</span></div>`+ajOf(d,n).map(a=>ajRow(d,a,true)).join('')).join('');
+}
 // Costos adicionales: cada renglón leído del texto (etiqueta + monto); lo que no tiene monto se muestra tal cual con aviso
 function caRows(d){
   if(!caHas(d))return '';const ca=d.ca;
@@ -1862,6 +1960,94 @@ function openTour(pk){
   const t=S.tours.find(x=>x.pk===pk);if(!t)return;const ro=!can('config');
   sheet('Tipo de barco',`<div class="group"><div class="ghead">${esc(t.name)}</div><div class="list">${TYPES.map(x=>`<button class="cell" data-tt="${x[0]}" data-ttn="${esc(pk)}"><span class="main t">${x[1]}</span>${t.barco===x[0]?`<span class="check">${svgI('check',18)}</span>`:''}</button>`).join('')}</div>
     <div class="gfoot">${ro?'Tu rol no puede cambiar el tipo de barco.':'El tipo de barco decide cuánto se paga al capitán y al marinero.'}</div></div>`,{closeLabel:'Cerrar'});
+}
+
+// --- Ajustes de salida (ronda 20): hoja «Ajuste» (pago a una persona) / «Costo» (de la salida). El modo viene de donde se abrió. ---
+let aj=null;
+function ajRead(){
+  if(!aj)return;
+  aj.persona=$('ajP')?$('ajP').value:'';aj.concepto=$('ajC').value;aj.monto=$('ajM').value;aj.motivo=$('ajR').value;
+  const er=ajCheck(aj),ok=$('sheetOk');if(ok)ok.disabled=!!er;
+}
+function ajInput(e){
+  const t=e.target;if(!aj)return;
+  if(t.id==='ajC'&&e.type==='change'){
+    const c=conceptosOf(S.conceptos,aj.tipo).find(x=>x.n===t.value);
+    if(c){if(c.m!==null&&c.m!==undefined)$('ajM').value=Math.abs(c.m);
+      if(aj.tipo==='pago'){aj.sign=ajSignOf(c);document.querySelectorAll('[data-ajsg]').forEach(b=>b.setAttribute('aria-pressed',(+b.dataset.ajsg)===aj.sign))}}
+  }
+  ajRead();
+}
+function openAj(av,tipo,persona){
+  const d=S.deps.find(x=>x.id===String(av));if(!d||!can('ajustes'))return;
+  const pago=tipo==='pago',cs=conceptosOf(S.conceptos,tipo),pp=ajPeople(d,S.staff,persona),opt=(v,sel)=>`<option value="${esc(v)}"${sel?' selected':''}>${esc(v)}</option>`;
+  aj={av:d.id,tipo:tipo,persona:persona||'',concepto:'',sign:1,monto:'',motivo:''};
+  sheet(pago?'Ajuste':'Costo',`<div class="group"><div class="ghead">${esc(d.time)} · ${esc(d.item)} · ${fd(d.date)}</div><div class="list">
+    ${pago?`<div class="field"><label for="ajP">Persona</label><select id="ajP" aria-label="Persona"><option value=""${persona?'':' selected'}>Elegir…</option>${pp.crew.length?`<optgroup label="Esta salida">${pp.crew.map(n=>opt(n,n===persona)).join('')}</optgroup>`:''}${pp.otros.length?`<optgroup label="Otras personas">${pp.otros.map(n=>opt(n,false)).join('')}</optgroup>`:''}</select></div>`:''}
+    <div class="field"><label for="ajC">Concepto</label><select id="ajC" aria-label="Concepto"><option value="" selected>Elegir…</option>${cs.map(c=>`<option value="${esc(c.n)}">${esc(c.n)}${c.m!==null&&c.m!==undefined?' · '+fmt(Math.abs(c.m)):''}</option>`).join('')}</select></div>
+    ${pago?`<div class="field"><span class="lab" id="ajSL">Signo</span><div class="seg ajsg" role="group" aria-labelledby="ajSL"><button type="button" data-ajsg="1" aria-pressed="true">+ Suma</button><button type="button" data-ajsg="-1" aria-pressed="false">− Resta</button></div></div>`:''}
+    <div class="field"><label for="ajM">Monto</label><input id="ajM" type="number" inputmode="decimal" min="0" step="any" placeholder="$0" autocomplete="off"></div>
+    <div class="field"><label for="ajR">Motivo<div class="s">Opcional</div></label><input id="ajR" maxlength="300" autocomplete="off" placeholder="Por qué"></div></div>
+    <div class="gfoot">${pago?'Cuenta de inmediato en el pago de esa semana.':'Cuenta de inmediato en el costo de la salida.'} Si te equivocas, tócalo y anúlalo con un motivo.</div></div>`,
+    {ok:saveAj,okLabel:'Guardar',disabled:true,input:ajInput});
+}
+function saveAj(){
+  if(!aj||ajCheck(aj))return;
+  const d=S.deps.find(x=>x.id===aj.av);if(!d)return;
+  const p={av:d.id,fecha:d.date,item:d.item,tipo:aj.tipo,persona:aj.tipo==='pago'?aj.persona:'',concepto:aj.concepto,monto:ajMonto(aj),motivo:(aj.motivo||'').trim(),cid:uuid()},t=aj.tipo;
+  aj=null;closeSheet();enqueue('addAjusteSalida',[p]);toast(t==='pago'?'Ajuste guardado':'Costo guardado');
+}
+// Detalle de un ajuste: datos + «Anular» (pide motivo; nunca se borra)
+function openAjS(av,id){
+  const d=S.deps.find(x=>x.id===String(av)),a=d&&(d.aj||[]).find(x=>x.id===id);if(!a)return;
+  sheet(a.tipo==='pago'?'Ajuste':'Costo',`<div class="group"><div class="list">
+    <div class="cell"><span class="main t">Concepto</span><span class="v">${esc(a.concepto)}</span></div>
+    ${a.tipo==='pago'?`<div class="cell"><span class="main t">Persona</span><span class="v">${esc(a.persona)}</span></div>`:''}
+    <div class="cell"><span class="main t">Monto</span><span class="v" style="color:${ajClr(a.monto)}">${ajMoney(a.monto)}</span></div>
+    <div class="cell"><span class="main t">Salida</span><span class="v" style="text-align:right">${wdd(d.date)} · ${esc(d.time)}<div class="s">${esc(d.item)}</div></span></div>
+    <div class="cell"><span class="main t">Por</span><span class="v">${esc(a.por||'—')}</span></div>
+    ${a.creado?`<div class="cell"><span class="main t">Registrado</span><span class="v">${esc(fdt(a.creado))}</span></div>`:''}
+    ${a.pend?`<div class="cell"><span class="main t">Estado</span><span class="v">${a.pend}</span></div>`:''}</div></div>
+    ${a.motivo?`<div class="group"><div class="ghead">Motivo</div><div class="list"><div class="cell"><span class="main t" style="white-space:normal">${esc(a.motivo)}</span></div></div></div>`:''}
+    ${can('ajustes')&&!a.pend?`<div class="group"><button type="button" class="btn plain" style="color:var(--red)" data-ajan="${esc(d.id)}|${esc(a.id)}">Anular</button></div>`:''}`,{closeLabel:'Cerrar'});
+}
+function ajAnular(av,id){
+  const d=S.deps.find(x=>x.id===String(av)),a=d&&(d.aj||[]).find(x=>x.id===id);if(!a)return;
+  sheet('Anular',`<div class="group"><div class="list"><div class="cell"><span class="main"><span class="t">${esc(a.concepto)}${a.tipo==='pago'?' · '+esc(a.persona):''}</span><div class="s">${wdd(d.date)} ${esc(d.time)} · ${esc(d.item)}</div></span><span class="v" style="color:${ajClr(a.monto)}">${ajMoney(a.monto)}</span></div></div></div>
+    <div class="group"><div class="ghead">Motivo (obligatorio)</div>${noteBox('anM','Por qué se anula')}<div id="anErr" class="ferr" role="alert" hidden>Escribe el motivo</div><div class="gfoot">El ajuste se queda en la hoja marcado como anulado; ya no cuenta.</div></div>`,
+    {okLabel:'Anular',disabled:true,input:()=>{$('sheetOk').disabled=!$('anM').value.trim()},ok:()=>{
+      const note=$('anM').value.trim();if(!note){$('anErr').hidden=false;return}
+      closeSheet();enqueue('anularAjusteSalida',[id,note]);toast('Ajuste anulado')}});
+}
+// Recibo de pago de una persona (semana mostrada): menú de compartir del teléfono; si no hay, se copia
+async function shareSlip(name){
+  const p=weekPeople(S.wk).find(x=>x.n===name);if(!p)return;const t=paySlipText(p,wkLabel(S.wk));
+  if(navigator.share){try{await navigator.share({title:'Eventuales · '+name,text:t});return}catch(e){if(e&&e.name==='AbortError')return}}
+  try{await navigator.clipboard.writeText(t);toast('Copiado')}
+  catch(e){const ta=document.createElement('textarea');ta.value=t;ta.style.cssText='position:fixed;opacity:0';document.body.appendChild(ta);ta.select();let ok=false;try{ok=document.execCommand('copy')}catch(e2){}ta.remove();toast(ok?'Copiado':'No pude copiar',ok?'':'err')}
+}
+// --- Conceptos (Más › Conceptos, admin): opciones de la hoja Ajuste / Costo ---
+let cc=null;
+function openConc(t,n){
+  if(S.role!=='admin')return;
+  const c=t?(S.conceptos||[]).find(x=>x.t===t&&x.n===n):null;
+  cc={orig:c?{concepto:c.n,tipo:c.t}:null,tipo:c?c.t:'pago',sign:c&&c.m<0?-1:1,activo:c?c.a:true};
+  sheet(c?esc(c.n):'Nuevo concepto',`<div class="group"><div class="list">
+    <div class="field"><label for="cN">Nombre</label><input id="cN" maxlength="60" autocomplete="off" value="${esc(c?c.n:'')}" placeholder="Ej. Propina"></div>
+    <div class="field"><span class="lab" id="cTL">Tipo</span><div class="seg ajsg" role="group" aria-labelledby="cTL">${[['pago','Pago'],['costo','Costo']].map(([k,l])=>`<button type="button" data-cct="${k}" aria-pressed="${cc.tipo===k}">${l}</button>`).join('')}</div></div>
+    <div class="field" id="cSgR" ${cc.tipo==='pago'?'':'hidden'}><span class="lab" id="cSL">Signo</span><div class="seg ajsg" role="group" aria-labelledby="cSL"><button type="button" data-ccsg="1" aria-pressed="${cc.sign>0}">+ Suma</button><button type="button" data-ccsg="-1" aria-pressed="${cc.sign<0}">− Resta</button></div></div>
+    <div class="field"><label for="cM">Monto sugerido<div class="s">Opcional</div></label><input id="cM" type="number" inputmode="decimal" min="0" step="any" placeholder="Sin monto" autocomplete="off" value="${c&&c.m!==null&&c.m!==undefined?Math.abs(c.m):''}"></div>
+    ${c?`<div class="field"><span class="lab">Activo</span><button type="button" class="sw" role="switch" aria-checked="${cc.activo}" aria-label="Activo" data-ccact><i></i></button></div>`:''}</div>
+    <div id="cErr" class="ferr" role="alert" hidden></div><div class="gfoot">Un concepto no se borra: desactívalo y deja de salir en la lista.</div></div>`,
+    {ok:saveConc,okLabel:'Guardar',disabled:!c,input:()=>{if(!cc||!$('sheetOk'))return;const bad=concCheck({nombre:$('cN').value,tipo:cc.tipo,monto:$('cM').value},S.conceptos,cc.orig),er=$('cErr');$('sheetOk').disabled=!!bad;if(bad&&/^Ya existe|^El monto/.test(bad)){er.textContent=bad;er.hidden=false}else er.hidden=true}});
+}
+function saveConc(){
+  if(!cc)return;const nm=($('cN').value||'').replace(/\s+/g,' ').trim(),mv=$('cM').value.trim(),er=$('cErr');
+  const bad=concCheck({nombre:nm,tipo:cc.tipo,monto:mv},S.conceptos,cc.orig);
+  if(bad){er.textContent=bad;er.hidden=false;return}
+  const monto=mv===''?'':r2c((cc.tipo==='pago'&&cc.sign<0?-1:1)*Math.abs(Number(mv)));
+  const p={concepto:nm,tipo:cc.tipo,monto:monto,activo:cc.activo,original:cc.orig,cid:uuid()};
+  cc=null;closeSheet();enqueue('saveConcepto',[p]);toast('Concepto guardado');
 }
 // --- Por configurar: una pregunta por cosa nueva, con opciones de un toque ---
 let pc=null;
@@ -2117,14 +2303,16 @@ function openNotifs(){
   sheet('Notificaciones',`<div class="group"><div class="list">${l.map(n=>{const ic=n.kind==='pend'?'inbox':n.kind==='feedback'?'report':'alert',inner=`<span class="ic acc">${svgI(ic,20)}</span><span class="main t" style="white-space:normal">${esc(n.text)}</span>`;
     return n.go?`<button class="cell" data-notif="${esc(n.id)}">${inner}${chev}</button>`:`<div class="cell">${inner}</div>`}).join('')||'<div class="empty">Sin notificaciones</div>'}</div></div>`,{closeLabel:'Cerrar'});
 }
+// Operación en ese día, con la salida resaltada (notificaciones y Eventuales)
+async function goDep(date,av){
+  tab='op';stackView=null;S.depFrom='';S.fopen=false;S.filter='todas';S.date=date;
+  if(date<S.win.from||date>S.win.to){try{await ensureRange(date,date)}catch(e){}}
+  render();flashDep(av);
+}
 async function notifGo(id){
   const n=notifList().find(x=>x.id===id);if(!n||!n.go)return;
   closeSheet();const g=n.go;
-  if(g.t==='dep'){
-    tab='op';stackView=null;S.fopen=false;S.filter='todas';S.date=g.date;
-    if(g.date<S.win.from||g.date>S.win.to){try{await ensureRange(g.date,g.date)}catch(e){}}
-    render();flashDep(g.av);return;
-  }
+  if(g.t==='dep'){await goDep(g.date,g.av);return}
   if(g.t==='pend'){tab='mas';stackView={name:'pend'};render();goTop();return}
   if(g.t==='fb'){tab='mas';stackView={name:'feedback'};render();goTop();return}
   if(g.t==='fh'){tab='mas';stackView={name:'fh'};render();goTop()}
@@ -2142,6 +2330,8 @@ document.addEventListener('change',e=>{if(inFn)inFn(e)});
 document.addEventListener('keydown',e=>{
   const bk=e.target&&e.target.closest&&e.target.closest('[data-bk]');
   if(bk&&(e.key==='Enter'||e.key===' ')&&e.target===bk){e.preventDefault();const a=bk.dataset.bk.split('|');openBooking(a[0],a[1]);return}
+  const an=e.target&&e.target.closest&&e.target.closest('[data-ajnew]');
+  if(an&&an.matches('.cell')&&(e.key==='Enter'||e.key===' ')&&e.target===an){e.preventDefault();const a=an.dataset.ajnew.split('|');openAj(a[0],a[1],a[2]||'');return}
   if($('pin').hidden)return;
   if(/^\d$/.test(e.key))pinKey(e.key);else if(e.key==='Backspace')pinKey('del');
 });
@@ -2184,6 +2374,11 @@ document.addEventListener('click',e=>{
     const sn=on('[data-scnav]');if(sn&&sc){sc.m+=+sn.dataset.scnav;if(sc.m<0){sc.m=11;sc.y--}if(sc.m>11){sc.m=0;sc.y++}paintSrCal();return}
     if(on('[data-scok]')){srApply();return}
     const ep=on('[data-evpick]');if(ep){closeSheet();if(ep.dataset.evpick==='fechas')openSrCal('ev');else evPick(ep.dataset.evpick);return}
+    const asg=on('[data-ajsg]');if(asg&&aj){aj.sign=+asg.dataset.ajsg;document.querySelectorAll('[data-ajsg]').forEach(b=>b.setAttribute('aria-pressed',b===asg));return}
+    const ban=on('[data-ajan]');if(ban){const a=ban.dataset.ajan.split('|');closeSheet();ajAnular(a[0],a[1]);return}
+    const cct=on('[data-cct]');if(cct&&cc){cc.tipo=cct.dataset.cct;document.querySelectorAll('[data-cct]').forEach(b=>b.setAttribute('aria-pressed',b===cct));$('cSgR').hidden=cc.tipo!=='pago';if(cc.orig)$('sheetOk').disabled=false;return}
+    const csg=on('[data-ccsg]');if(csg&&cc){cc.sign=+csg.dataset.ccsg;document.querySelectorAll('[data-ccsg]').forEach(b=>b.setAttribute('aria-pressed',b===csg));if(cc.orig)$('sheetOk').disabled=false;return}
+    const cca=on('[data-ccact]');if(cca&&cc){cc.activo=!cc.activo;cca.setAttribute('aria-checked',cc.activo);return}
     const ur=on('[data-urol]');if(ur&&uu&&!ur.disabled){uu.rol=ur.dataset.urol;document.querySelectorAll('[data-urol]').forEach(b=>b.setAttribute('aria-pressed',b===ur));return}
     const ua=on('[data-uact]');if(ua&&uu&&!ua.disabled){uu.activo=!uu.activo;ua.setAttribute('aria-checked',uu.activo);return}
     if(on('[data-upin]')&&uu){$('uPinBox').hidden=false;$('uPinRow').hidden=true;$('uPin').focus();return}
@@ -2242,6 +2437,11 @@ document.addEventListener('click',e=>{
   if(on('[data-cal]')){cal={y:pd(S.date).getFullYear(),m:pd(S.date).getMonth()};calMonth();return}
   const rv2=on('[data-rev]');if(rv2){doRev(rv2.dataset.rev);return}
   const bkr=on('[data-bk]');if(bkr){const a=bkr.dataset.bk.split('|');openBooking(a[0],a[1]);return}
+  const ajd=on('[data-ajd]');if(ajd){const a=ajd.dataset.ajd.split('|');openAjS(a[0],a[1]);return}
+  const ajn=on('[data-ajnew]');if(ajn){const a=ajn.dataset.ajnew.split('|');openAj(a[0],a[1],a[2]||'');return}
+  const evd=on('[data-evdep]');if(evd){const a=evd.dataset.evdep.split('|');goDep(a[0],a[1]);return}
+  const cnc=on('[data-conc]');if(cnc){const a=cnc.dataset.conc.split('|');openConc(a[0],a.slice(1).join('|'));return}
+  const shr=on('[data-share]');if(shr){shareSlip(shr.dataset.share);return}
   const dp=on('[data-dep]');if(dp){S.depFrom='';stackView={name:'dep',arg:dp.dataset.dep};render();goTop();return}
   const wk=on('[data-wk]');if(wk){setWk(addD(S.wk,7*(+wk.dataset.wk)));return}
   const pe2=on('[data-person]');if(pe2){stackView={name:'person',arg:pe2.dataset.person};render();goTop();return}
@@ -2252,6 +2452,7 @@ document.addEventListener('click',e=>{
   const a=on('[data-act]');if(!a)return;const act2=a.dataset.act,pre=a.dataset.pre;
   if(act2==='compra'&&can('compras'))openCompra(pre);
   if(act2==='sreport')openReport();
+  if(act2==='addconc')openConc();
   if(act2==='addprod'&&can('config'))openProducto();
   if(act2==='menu'&&menuOk())openMenu(pre);
   if(act2==='pmenu'&&can('editar'))openPMenu(pre);
