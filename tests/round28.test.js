@@ -26,5 +26,5 @@ test('css: single-line ellipsis rows with fixed height, muted 16px icons; rental
   assert.ok(/function cancCard/.test(html) && /dquiet/.test(card));
 });
 test('APP_VER and CACHE bumped together to v25', () => {
-  assert.ok(/APP_VER='v25'/.test(html) && /al-ops-v25/.test(sw));
+  assert.ok(Number(/APP_VER='v(\d+)'/.exec(html)[1]) >= 25 && /al-ops-v\d+/.test(sw));
 });

@@ -553,7 +553,7 @@ const S={role:'op',realRole:'op',user:'',date:'',wk:'',
   perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},pend:[],salud:[],feedback:[],conceptos:[],staff:[],cfgAv:false,cfg:{tok:'',exp:0,est:null,d:null,next:null},fbf:'nuevo',fbEdit:null,evp:null,users:null,usersErr:'',rebuildPending:false,fhOk:true,offline:false,dataAt:0,
   win:{from:'',to:''},fetchedAt:'',q:'',filter:'todas',fopen:false,canc:'dinero',czero:'',config:{semana_inicio:'jueves',semana_pago:'jueves'}};
 let PIN='';
-const APP_VER='v25';   // = sufijo de CACHE en docs/sw.js ('al-ops-v25'); se manda con cada reporte
+const APP_VER='v26';   // = sufijo de CACHE en docs/sw.js ('al-ops-v26'); se manda con cada reporte
 
 // ===== Servidor =====
 // Servidor: Apps Script web app (misma URL que el webhook de FareHarbor). POST text/plain = sin preflight CORS.
@@ -859,11 +859,12 @@ const fhA=(url,text,{gray,label}={})=>`<a class="fhl${gray?' gray':''}" href="${
 const isRenta=d=>String((d&&d.tipo)||'').toLowerCase().trim()==='renta';
 const isPase=d=>String((d&&d.barco)||'').toLowerCase().trim()==='otro'; // day passes: no cuentan en Tours, Rentas ni pax del día
 // "Sin recurso": salida con reservas activas de clientes y ningún recurso (se calcula aquí también, así no espera al recálculo del servidor)
-const noRes=d=>!!(((d&&d.bookings)||[]).length&&!((d&&d.res)||[]).length&&(d&&d.resKnown)!==false); // resKnown=false: early short-form import without resource_uses → no se sabe, no se avisa
+const noRes=d=>!isPase(d)&&!!(((d&&d.bookings)||[]).length&&!((d&&d.res)||[]).length&&(d&&d.resKnown)!==false); // resKnown=false: early short-form import without resource_uses → no se sabe, no se avisa
 // Falta bitácora: misma regla que los puntos rojos (ida vencida al empezar, regreso vencido al terminar). Sin nowKey no se evalúa. No aplica / sin reservas / aún no toca: nada.
 const bitAlert=(d,nowKey)=>{if(!d||!nowKey)return '';const p=bitParts(d,nowKey);if(p.na)return '';const a=p.ida==='late',r=p.reg==='late';return a&&r?'Falta bitácora de ida y regreso':a?'Falta bitácora de ida':r?'Falta bitácora de regreso':''};
-const depAlerts=(d,nowKey)=>isCanc(d)?String(d.alerts||'').split(' | ').filter(a=>a&&!/^Sin recurso asignado|^Costo adicional sin monto/.test(a)).concat(cancPend(d)?[cancAlertText(d)]:[]):String((d&&d.alerts)||'').split(' | ').filter(a=>a&&!/^Sin recurso asignado|^Costo adicional sin monto/.test(a)).concat(noRes(d)?['Sin recurso asignado']:[]).concat(bitAlert(d,nowKey)||[]).concat(d&&d.ca&&d.ca.unparsed?['Costo adicional sin monto']:[]);
-const depAlertN=(d,nowKey)=>depAlerts(d,nowKey).length+(d.crew||[]).filter(c=>(!c.r&&!c.ext)||c.alert).length;
+const PASE_X=/^Sin recurso asignado|^Falta rol|^Cancelada con tripulación/; // round 30: day passes are just a sale
+const depAlerts=(d,nowKey)=>isPase(d)?String((d&&d.alerts)||'').split(' | ').filter(a=>a&&!PASE_X.test(a)&&!/^Costo adicional sin monto/.test(a)).concat(d&&d.ca&&d.ca.unparsed?['Costo adicional sin monto']:[]):isCanc(d)?String(d.alerts||'').split(' | ').filter(a=>a&&!/^Sin recurso asignado|^Costo adicional sin monto/.test(a)).concat(cancPend(d)?[cancAlertText(d)]:[]):String((d&&d.alerts)||'').split(' | ').filter(a=>a&&!/^Sin recurso asignado|^Costo adicional sin monto/.test(a)).concat(noRes(d)?['Sin recurso asignado']:[]).concat(bitAlert(d,nowKey)||[]).concat(d&&d.ca&&d.ca.unparsed?['Costo adicional sin monto']:[]);
+const depAlertN=(d,nowKey)=>depAlerts(d,nowKey).length+(isPase(d)?[]:(d.crew||[]).filter(c=>(!c.r&&!c.ext)||c.alert)).length;
 // Costos adicionales (texto libre ya leído por el servidor: ca = {items:[{label,amount,ext}], total, unparsed, rest:[..], raw})
 // Alertas de un externo sin la de nota (esa se pinta aparte)
 const extAlerts=x=>String((x&&x.alert)||'').split(' | ').filter(a=>a&&!/^Falta nota/.test(a));
@@ -875,7 +876,7 @@ const hasBk=d=>!!(d&&d.bookings&&d.bookings.length);   // salida con reservas ac
 // --- Canceladas (ronda 24). d.cn = null | {all, n, bks[], kept, net, est, at, min, salio, need}: reservas de CLIENTES canceladas. El dinero cobrado sin reembolso cuenta como ingreso; nunca como pax, check-in ni salida.
 const isCanc=d=>!!(d&&d.cn&&d.cn.all);                                   // TODAS las reservas de clientes de la salida están canceladas
 const cancDec=a=>!!a&&(a.tipo==='decision'||(a.tipo==='pago'&&/^cancelaci[oó]n/i.test(String(a.concepto||''))));
-const cancPend=d=>isCanc(d)&&!!d.cn.need&&!(d.aj||[]).some(cancDec);      // con tripulación y sin bitácora de salida: ¿se paga? (sin decisión todavía)
+const cancPend=d=>isCanc(d)&&!isPase(d)&&!!d.cn.need&&!(d.aj||[]).some(cancDec);      // con tripulación y sin bitácora de salida: ¿se paga? (sin decisión todavía)
 function cancAntes(m){
   if(m===null||m===undefined||m===''||isNaN(Number(m)))return '';m=Number(m);
   if(m<0)return 'cancelada después de la hora de salida';
@@ -1179,6 +1180,8 @@ const fbContext=(screen,date,user,ver)=>'Se envía con: pantalla '+screen+' · '
 function fbPayload(f,ctx){return {cid:ctx.cid,tipo:f.tipo==='Sugerencia'?'Sugerencia':'Error',texto:String(f.texto||'').trim(),pantalla:ctx.screen,fecha:ctx.date,version:ctx.ver,img:f.img||''}}
 // Round 26: destino del botón ‹ (data-back / data-backview / data-backarg); la vista con id (p. ej. Eventuales › persona) recupera su id
 const backTarget=ds=>({tab:ds.back||'',sv:ds.backview?(ds.backarg!==undefined&&ds.backarg!==''?{name:ds.backview,arg:ds.backarg}:{name:ds.backview}):null});
+// Round 30: detalle de salida abierto desde Eventuales › persona ('ev|<persona>'): ‹ vuelve a esa persona con su id y su scroll
+const depBack=from=>{const f=String(from||'');if(f==='stock')return {back:'Stock',backTo:'stock'};if(f.indexOf('ev|')===0&&f.length>3)return {back:f.slice(3),backTo:'ev',backView:'person',backArg:f.slice(3)};return {back:'Operación',backTo:'op'}};
 // --- Configuración avanzada (ronda 27) ---
 const CFG_FIELD={tipos:'uso',roles:'tarifa',config:'valor'};
 const cfgCode6=c=>/^\d{6}$/.test(String(c==null?'':c));
@@ -1213,7 +1216,7 @@ function status(d){
 }
 const okish=d=>{const s=status(d);return s==='ok'||s==='na'||s==='canc'};
 const needBit=d=>{const s=status(d);return s==='none'||s==='sal'||s==='fsal'};
-const missingRole=d=>d.crew.filter(c=>!c.r&&!c.ext);
+const missingRole=d=>isPase(d)?[]:d.crew.filter(c=>!c.r&&!c.ext);
 const cost=d=>okish(d)?d.costs:null;                // costos de la hoja "Costos salida"
 const netOf=d=>d.bookings.some(b=>b.net===null)?null:d.bookings.reduce((a,b)=>a+b.net,0)+(d.cn?(Number(d.cn.net)||0):0);   // ronda 24: + ingreso de canceladas que se quedaron con dinero
 const paxOf=d=>d.bookings.reduce((a,b)=>a+b.pax,0);
@@ -1363,11 +1366,11 @@ op(){
 },
 dep(id){
   const d=S.deps.find(x=>x.id===id);
-  const fs=S.depFrom==='stock',bk=fs?{back:'Stock',backTo:'stock'}:{back:'Operación',backTo:'op'};
+  const bk=depBack(S.depFrom);
   if(!d)return topBar('Salida',bk)+'<div class="group"><div class="list"><div class="empty">No encontré esta salida.</div></div></div>';
   const st=status(d),c=cost(d),n=netOf(d),miss=missingRole(d),fut=st==='prog',est=d.netSource==='estimado';
   const avUrl=d.itemPk?fhAvailUrl(d.itemPk,d.id,d.date):'';
-  let h=topBar(d.item,{back:bk.back,backTo:bk.backTo,lede:[d.time,d.boat?esc(d.boat):'',fd(d.date),d.label?esc(d.label):'',avUrl?fhA(avUrl,'#'+d.id,{label:'Abrir la salida '+d.id+' en FareHarbor'}):''].filter(Boolean).join(' · ')});
+  let h=topBar(d.item,{back:bk.back,backTo:bk.backTo,backView:bk.backView,backArg:bk.backArg,lede:[d.time,d.boat?esc(d.boat):'',fd(d.date),d.label?esc(d.label):'',avUrl?fhA(avUrl,'#'+d.id,{label:'Abrir la salida '+d.id+' en FareHarbor'}):''].filter(Boolean).join(' · ')});
   const dal=depAlerts(d,nowKey()).filter(a=>!(isCanc(d)&&a===cancAlertText(d))),cq=cancPend(d)?cancQ(d):'';
   if(dal.length||cq)h+=`<div class="group">${gh('alert','Avisos')}<div class="list">${cq}${dal.map(a=>`<div class="cell ${/^No show/.test(a)?'w-red':'w-orange'}"><span class="main"><span class="s" style="margin:0">${esc(a)}</span></span></div>`).join('')}</div></div>`;
   const started=depStarted(d,nowKey());
@@ -1375,10 +1378,11 @@ dep(id){
     return `<div class="cell tap" role="button" tabindex="0" data-bk="${esc(d.id)}|${esc(b.pk)}" aria-label="Ver detalle de la reserva ${esc(hid(b.id))}"><span class="main"><span class="t">${esc(b.name||hid(b.id))}</span><div class="s">${b.url?fhA(fhBookUrl(b.url,d.date),hid(b.id),{label:'Abrir la reserva '+hid(b.id)+' en FareHarbor'}):avUrl?fhA(avUrl,hid(b.id),{gray:true,label:'Abrir la salida en FareHarbor (la reserva no tiene enlace)'}):esc(hid(b.id))} · ${b.paxQ?`<span class="pq">${personasTxt(b.pax,true)}</span>`:personasTxt(b.pax)}${tl?' · '+esc(tl):''}</div>${bst||b.note?`<div class="s bkx">${ciChip(b.ci,bst,b.ci&&b.ci.ns?' · No show':'')}${b.note?`<span class="ni" role="img" aria-label="Tiene nota">${svgI('note',16)}</span>`:''}</div>`:''}</span><span class="v">${money2(b.gross,fut?undefined:b.net,b.est)}</span></div>`}).join('')||'<div class="empty">Sin reservas activas.</div>'}
     ${d.bookings.length?`<div class="cell tot"><span class="main t"><b>Total · ${personasTxt(paxOf(d),depPax(d).q)}</b></span><span class="v">${money2(d.gross,fut?undefined:n,est)}</span></div>`:''}</div></div>`;
   h+=cancBooks(d);
-  if(!isCanc(d))h+=`<div class="group">${gh('resources','Resources')}<div class="list">${(d.res||[]).map(r=>`<div class="cell c"><span class="main t">${esc(r.name)}</span><span class="v">${num(r.n)}</span></div>`).join('')||'<div class="empty">Sin resources asignados.</div>'}</div></div>`;
-  h+=bitSection(d,fut);
+  const pase=isPase(d);
+  if(!isCanc(d)&&!pase)h+=`<div class="group">${gh('resources','Resources')}<div class="list">${(d.res||[]).map(r=>`<div class="cell c"><span class="main t">${esc(r.name)}</span><span class="v">${num(r.n)}</span></div>`).join('')||'<div class="empty">Sin resources asignados.</div>'}</div></div>`;
+  if(!pase)h+=bitSection(d,fut);
   const ajOk=can('ajustes')&&!fut;
-  h+=`<div class="group">${gh('crew','Tripulación',ajOk?`<button type="button" class="tlink" data-ajnew="${esc(d.id)}|pago|" aria-label="Agregar un ajuste de pago">+ Ajuste</button>`:'')}<div class="list dlist crewl">${d.crew.map(x=>{const p=payLine(d,x),own=ajOf(d,x.n),tapA=ajOk&&!x.ext;
+  if(!pase)h+=`<div class="group">${gh('crew','Tripulación',ajOk?`<button type="button" class="tlink" data-ajnew="${esc(d.id)}|pago|" aria-label="Agregar un ajuste de pago">+ Ajuste</button>`:'')}<div class="list dlist crewl">${d.crew.map(x=>{const p=payLine(d,x),own=ajOf(d,x.n),tapA=ajOk&&!x.ext;
     return `<div class="cell${tapA?' tap crow':''}"${tapA?` role="button" tabindex="0" data-ajnew="${esc(d.id)}|pago|${esc(x.n)}" aria-label="Agregar un ajuste a ${esc(x.n)}"`:''}><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${x.ext?'<span class="rb">Ext.</span>'+(extCompact(x.note)?esc(extCompact(x.note)):'Externo')+'</div><div class="sn">incluido en Renta de barco':x.r?`<span class="rb">${esc(rb(x.r))}</span>${esc(x.r)}`:WI+'Falta rol'}${p.hx?` · hora extra ${fmt(p.hx)}`:''}</div>${p.tr&&!x.ext?`<div class="sn">incl. ${esc(trTxt(p.tr,d.barco).toLowerCase())}</div>`:''}${!x.ext&&(x.bc||x.nt)?`<div class="sn">${x.bc?'Barco: '+esc(x.bc):esc(x.nt)}</div>`:''}${x.alert?`<div class="s" style="color:var(--orange)">${WI}${esc(x.alert)}</div>`:''}</span>${x.ext?`<span class="v">${fmt(0)}</span>`:!x.r?'':`<span class="v">${fmt(p.tot)}</span>`}</div>`+own.map(a=>ajRow(d,a,true)).join('')}).join('')||'<div class="empty">Sin tripulación asignada.</div>'}${ajOtros(d)}${cancDecRows(d)}${miss.length?`<div class="cell"><span class="main"><span class="t" style="color:var(--orange)">${WI}Falta rol en FareHarbor</span></span></div>`:''}</div>
 </div>`;
   const costoLink=ajOk?`<button type="button" class="tlink" data-ajnew="${esc(d.id)}|costo|" aria-label="Agregar un costo a la salida">+ Agregar</button>`:'',cAj=ajCosto(d).map(a=>ajRow(d,a,false)).join(''),pAj=ajSum(ajPago(d));
@@ -2786,7 +2790,7 @@ document.addEventListener('click',e=>{
   const bkr=on('[data-bk]');if(bkr){const a=bkr.dataset.bk.split('|');openBooking(a[0],a[1]);return}
   const ajd=on('[data-ajd]');if(ajd){const a=ajd.dataset.ajd.split('|');openAjS(a[0],a[1]);return}
   const ajn=on('[data-ajnew]');if(ajn){const a=ajn.dataset.ajnew.split('|');openAj(a[0],a[1],a[2]||'');return}
-  const evd=on('[data-evdep]');if(evd){const a=evd.dataset.evdep.split('|');goDep(a[0],a[1]);return}
+  const evd=on('[data-evdep]');if(evd){const a=evd.dataset.evdep.split('|');S.depFrom='ev|'+(stackView&&stackView.arg||'');stackView={name:'dep',arg:a[1]};render();goTop();return}
   const cnc=on('[data-conc]');if(cnc){const a=cnc.dataset.conc.split('|');openConc(a[0],a.slice(1).join('|'));return}
   const shr=on('[data-share]');if(shr){shareSlip(shr.dataset.share);return}
   const dp=on('[data-dep]');if(dp){S.depFrom='';stackView={name:'dep',arg:dp.dataset.dep};render();goTop();return}

@@ -414,7 +414,7 @@ function buildDeps_(inp) {
       const dt = fmtDate_(s[6], 'yyyy-MM-dd');
       return { all: all, n: bks.length, bks: bks, kept: r2_(bks.reduce((a, x) => a + x.kept, 0)), net: r2_(Number(s[SAL_CCOBRO]) || 0), est: bks.some(x => x.est),
         at: String(s[SAL_CHORA] || ''), min: isNaN(min) ? null : min, salio: salio,
-        need: all && !salio && crew.some(c => c.pay && c.pay.rate !== undefined) && (!inp.today || dt <= inp.today) };
+        need: all && !salio && (inp.barcos[String(s[1])] || '') !== 'otro' && crew.some(c => c.pay && c.pay.rate !== undefined) && (!inp.today || dt <= inp.today) };
     })() : null;
     const firstUrl = list => { for (let i = 0; i < list.length; i++) if (urls[list[i]]) return urls[list[i]]; return ''; };
     const k = costBy[pk];
