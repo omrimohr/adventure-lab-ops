@@ -346,6 +346,7 @@ button.live{width:100%;background:none;border:0;font:inherit;font-size:12px;colo
 .cell.aj.flat{padding-left:var(--px)}.cell.aj.flat .t{font-size:16px}
 .cell.who .t{color:var(--ink2);font-weight:400}
 .cell.crow{cursor:pointer}
+.dlist .cell .main{overflow-wrap:anywhere}.crewl .cell>.v{align-self:flex-start;flex:none}
 .ajsg{width:62%;flex:none}.field .seg button{font-size:14px}
 .rb{display:inline-block;font-size:12px;font-weight:500;padding:0 8px;border-radius:99px;background:var(--acc-soft);color:var(--acc);margin-right:4px}
 .gh{display:flex;align-items:center;gap:8px}
@@ -1124,6 +1125,11 @@ function concCheck(c,list,orig){
   const m=String(c.monto===undefined||c.monto===null?'':c.monto).trim();if(m!==''&&(!isFinite(Number(m))||Number(m)===0))return 'El monto sugerido debe ser distinto de 0 (o déjalo vacío)';
   return null;
 }
+// Nota del capitán externo en corto: «Barco: San Ángel (externo) – Juan Pérez – $3,500» → «Barco: San Ángel · Juan Pérez» (el monto ya sale a la derecha)
+function extCompact(note){
+  const parts=String(note||'').split(/\r?\n|\s*[–—]\s*|\s+-\s+|\s*-\s*(?=\$)/).map(x=>x.replace(/\(\s*extern[oa]\s*\)/ig,'').replace(/\s+/g,' ').trim()).filter(Boolean);
+  return parts.filter(x=>!(/\$|pesos|mxn/i.test(x)||/^[\d.,\s]+$/.test(x))).join(' · ');
+}
 const SCREENS={conceptos:'Conceptos',usuarios:'Usuarios',dep:'Detalle de salida',pend:'Por configurar',fh:'Conexión FareHarbor',feedback:'Feedback',fbd:'Reporte',productos:'Productos',tarifas:'Tarifas eventuales',tours:'Items',permisos:'Permisos',ajustes:'Ajustes',item:'Producto',purchase:'Compra',movs:'Movimientos',person:'Eventual',role:'Permisos'};
 const screenName=(tab,view,tabs)=>view?(SCREENS[view]||view):((tabs||{})[tab]||tab);
 const fbContext=(screen,date,user,ver)=>'Se envía con: pantalla '+screen+' · '+date+' · '+user+' · versión '+ver;
@@ -1306,8 +1312,8 @@ dep(id){
   h+=`<div class="group">${gh('resources','Resources')}<div class="list">${(d.res||[]).map(r=>`<div class="cell c"><span class="main t">${esc(r.name)}</span><span class="v">${num(r.n)}</span></div>`).join('')||'<div class="empty">Sin resources asignados.</div>'}</div></div>`;
   h+=bitSection(d,fut);
   const ajOk=can('ajustes')&&!fut;
-  h+=`<div class="group">${gh('crew','Crew',ajOk?`<button type="button" class="tlink" data-ajnew="${esc(d.id)}|pago|" aria-label="Agregar un ajuste de pago">+ Ajuste</button>`:'')}<div class="list dlist">${d.crew.map(x=>{const p=payLine(d,x),own=ajOf(d,x.n),tapA=ajOk&&!x.ext;
-    return `<div class="cell${tapA?' tap crow':''}"${tapA?` role="button" tabindex="0" data-ajnew="${esc(d.id)}|pago|${esc(x.n)}" aria-label="Agregar un ajuste a ${esc(x.n)}"`:''}><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${x.ext?'<span class="rb">Ext.</span>Externo'+(x.note?' · '+esc(x.note):''):x.r?`<span class="rb">${esc(rb(x.r))}</span>${esc(x.r)}`:WI+'Falta rol'}${p.hx?` · hora extra ${fmt(p.hx)}`:''}</div>${!x.ext&&(x.bc||x.nt)?`<div class="sn">${x.bc?'Barco: '+esc(x.bc):esc(x.nt)}</div>`:''}${x.alert?`<div class="s" style="color:var(--orange)">${WI}${esc(x.alert)}</div>`:''}</span>${x.ext?(x.monto?`<span class="v">${fmt(x.monto)}</span>`:''):!x.r?'':`<span class="v">${fmt(p.tot)}</span>`}</div>`+own.map(a=>ajRow(d,a,true)).join('')}).join('')||'<div class="empty">Sin tripulación asignada.</div>'}${ajOtros(d)}${miss.length?`<div class="cell"><span class="main"><span class="t" style="color:var(--orange)">${WI}Falta rol en FareHarbor</span></span></div>`:''}</div>
+  h+=`<div class="group">${gh('crew','Tripulación',ajOk?`<button type="button" class="tlink" data-ajnew="${esc(d.id)}|pago|" aria-label="Agregar un ajuste de pago">+ Ajuste</button>`:'')}<div class="list dlist crewl">${d.crew.map(x=>{const p=payLine(d,x),own=ajOf(d,x.n),tapA=ajOk&&!x.ext;
+    return `<div class="cell${tapA?' tap crow':''}"${tapA?` role="button" tabindex="0" data-ajnew="${esc(d.id)}|pago|${esc(x.n)}" aria-label="Agregar un ajuste a ${esc(x.n)}"`:''}><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${x.ext?'<span class="rb">Ext.</span>'+(extCompact(x.note)?esc(extCompact(x.note)):'Externo'):x.r?`<span class="rb">${esc(rb(x.r))}</span>${esc(x.r)}`:WI+'Falta rol'}${p.hx?` · hora extra ${fmt(p.hx)}`:''}</div>${!x.ext&&(x.bc||x.nt)?`<div class="sn">${x.bc?'Barco: '+esc(x.bc):esc(x.nt)}</div>`:''}${x.alert?`<div class="s" style="color:var(--orange)">${WI}${esc(x.alert)}</div>`:''}</span>${x.ext?(x.monto?`<span class="v">${fmt(x.monto)}</span>`:''):!x.r?'':`<span class="v">${fmt(p.tot)}</span>`}</div>`+own.map(a=>ajRow(d,a,true)).join('')}).join('')||'<div class="empty">Sin tripulación asignada.</div>'}${ajOtros(d)}${miss.length?`<div class="cell"><span class="main"><span class="t" style="color:var(--orange)">${WI}Falta rol en FareHarbor</span></span></div>`:''}</div>
 </div>`;
   const costoLink=ajOk?`<button type="button" class="tlink" data-ajnew="${esc(d.id)}|costo|" aria-label="Agregar un costo a la salida">+ Agregar</button>`:'',cAj=ajCosto(d).map(a=>ajRow(d,a,false)).join(''),pAj=ajSum(ajPago(d));
   if(c)h+=`<div class="group">${gh('costos','Costos',costoLink)}<div class="list dlist">

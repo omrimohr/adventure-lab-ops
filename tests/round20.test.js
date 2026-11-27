@@ -231,7 +231,7 @@ test('api map exposes the three new functions; app.gs exports', () => {
 // ---------- E. client (PURE block of docs/index.html) ----------
 const html = read('docs/index.html'), sw = read('docs/sw.js');
 const pm = /\/\/ ==PURE-BEGIN==[^\n]*\n([\s\S]*?)\/\/ ==PURE-END==/.exec(html);
-const U = vm.runInNewContext(pm[1] + '\n({weekPeopleOf,paySlipText,ajCheck,ajMonto,ajSignOf,ajPeople,concCheck,conceptosOf,durH,wdd,ajMoney,ajSum,optApply,optMark,screenName,SCREENS})', {});
+const U = vm.runInNewContext(pm[1] + '\n({extCompact,weekPeopleOf,paySlipText,ajCheck,ajMonto,ajSignOf,ajPeople,concCheck,conceptosOf,durH,wdd,ajMoney,ajSum,optApply,optMark,screenName,SCREENS})', {});
 const dep = (id, date, time, crew, aj, costs) => ({ id, date, time, end: date + ' ' + String(Number(time.slice(0, 2)) + 3).padStart(2, '0') + time.slice(2), item: 'Shared Sailing Tour', crew, aj: aj || [], costs: costs || null, hx: 0 });
 const cm = (n, tot, hx) => ({ n, r: 'Capitán', pay: { base: tot, hx: hx || 0, tot } });
 const A = (id, tipo, persona, concepto, monto) => ({ id, tipo, persona, concepto, monto, motivo: 'm', por: 'Jesús' });
@@ -285,4 +285,9 @@ test('client wiring: Crew "+ Ajuste" + tappable crew rows, Costos "+ Agregar", C
   assert.ok(!/srv\('addAjusteSalida'|act\('addAjusteSalida'/.test(html), 'writes only through the queue');
   assert.strictEqual(U.SCREENS.conceptos, 'Conceptos');
   assert.ok(html.includes("const APP_VER='v17'") && sw.includes("const CACHE = 'al-ops-v17'"));
+});
+test('client: crew label is Tripulación; externo note shown compactly (no amount, no "(externo)")', () => {
+  assert.strictEqual(U.extCompact('Barco: San Ángel (externo) – Juan Pérez – $3,500'), 'Barco: San Ángel · Juan Pérez');
+  assert.strictEqual(U.extCompact('San Ángel – Juan Pérez'), 'San Ángel · Juan Pérez'); assert.strictEqual(U.extCompact(''), '');
+  assert.ok(html.includes("gh('crew','Tripulación',") && !html.includes("gh('crew','Crew'"));
 });
