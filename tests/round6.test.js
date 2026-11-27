@@ -65,9 +65,9 @@ test('reservaRow_ appends Check-in / No show / Check-in detalle / Campos / Telé
   assert.deepStrictEqual(J(E.reservaRow_(none.booking, 'now', 5, { 258806: { tipo: 'compartido', fields: [] } }, {}, null)).slice(-12, -7), ['0 de 1', 0, 'Adult:pending', '', '']);
 });
 
-test('headers + rule version: Salidas ends with Check-in / No show; BITACORA_RULE_V is 5', () => {
+test('headers + rule version: Salidas ends with Check-in / No show; BITACORA_RULE_V is 6', () => {
   assert.deepStrictEqual(J(E.SAL_HEADERS.slice(-3)), ['Check-in', 'No show', 'Recursos conocidos']);
-  assert.strictEqual(E.BITACORA_RULE_V, '5');
+  assert.strictEqual(E.BITACORA_RULE_V, '6');
   assert.strictEqual(E.bitacoraRuleStale_('4'), true);
 });
 

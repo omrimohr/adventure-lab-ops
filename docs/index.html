@@ -70,7 +70,8 @@ img{max-width:100%}
   --scrim:rgba(0,0,0,.55); color-scheme:dark}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 [hidden]{display:none!important}
-html,body{background:var(--sand)}
+html,body{background:var(--sand);overscroll-behavior-y:none} /* round 19: no pull-to-refresh (el botón Actualizar de la barra superior sigue) */
+.sheet,.srwrap{overscroll-behavior-y:none}
 body{color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.4;margin:0;font-weight:400}
 b,strong{font-weight:500}
 .app{max-width:560px;margin:0 auto;padding:0 var(--px) 112px}
@@ -534,7 +535,7 @@ const S={role:'op',realRole:'op',user:'',date:'',wk:'',
   perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},pend:[],salud:[],feedback:[],fbf:'nuevo',fbEdit:null,evp:null,users:null,usersErr:'',rebuildPending:false,fhOk:true,offline:false,dataAt:0,
   win:{from:'',to:''},fetchedAt:'',q:'',filter:'todas',fopen:false,config:{semana_inicio:'jueves',semana_pago:'jueves'}};
 let PIN='';
-const APP_VER='v15';   // = sufijo de CACHE en docs/sw.js ('al-ops-v15'); se manda con cada reporte
+const APP_VER='v16';   // = sufijo de CACHE en docs/sw.js ('al-ops-v16'); se manda con cada reporte
 
 // ===== Servidor =====
 // Servidor: Apps Script web app (misma URL que el webhook de FareHarbor). POST text/plain = sin preflight CORS.
@@ -791,14 +792,14 @@ function bitParts(d,nowKey){
   const idaOk=/^(Completa|Falta regreso)$/.test(b),regOk=/^(Completa|Falta salida)$/.test(b);
   return {na,ida:idaOk?'done':nowKey>=start?'late':'wait',reg:regOk?'done':nowKey>end?'late':'wait'};
 }
-// Dinero: bruto (total del recibo de FareHarbor, verde) arriba y neto (Net Revenue Collected o estimado) abajo, más chico.
+// Dinero: bruto (total del recibo de FareHarbor, verde) arriba y neto (Net Revenue Collected + comisión de procesamiento, o estimado) abajo, más chico.
 // net: número | null (pendiente) | undefined (no mostrar). est: el neto es estimado.
 function money2(gross,net,est,big){
   const g=(gross===null||gross===undefined||gross==='')?'—':fmt(gross);
   const n=net===undefined?'':net===null?'<span class="mn pend">neto pendiente</span>':`<span class="mn"><small>neto</small> ${fmt(net)}${est?' <em>est.</em>':''}</span>`;
   return `<span class="m2${big?' big':''}"><span class="mg">${g}</span>${n}</span>`;
 }
-// Detalle de dinero de una reserva (como en FareHarbor; solo muestra, no cambia el neto). Valores desconocidos (null/undefined) se ocultan; '—' solo en Subtotal/IVA.
+// Detalle de dinero de una reserva (como en FareHarbor; el neto ya incluye la comisión de procesamiento que se ve en su propia línea). Valores desconocidos (null/undefined) se ocultan; '—' solo en Subtotal/IVA.
 const PAYT={card:'tarjeta',affiliate:'afiliado','in-store':'mostrador',cash:'efectivo',transfer:'transferencia',check:'cheque',other:'otro'};
 function moneyRows(b){
   const k=v=>v!==null&&v!==undefined&&v!==''&&isFinite(Number(v)),R=[];
@@ -1228,7 +1229,7 @@ dep(id){
   h+=`<div class="group">${gh('resources','Resources')}<div class="list">${(d.res||[]).map(r=>`<div class="cell c"><span class="main t">${esc(r.name)}</span><span class="v">${num(r.n)}</span></div>`).join('')||'<div class="empty">Sin resources asignados.</div>'}</div></div>`;
   h+=bitSection(d,fut);
   h+=`<div class="group">${gh('crew','Crew')}<div class="list dlist">${d.crew.map(x=>{const p=payLine(d,x);
-    return `<div class="cell"><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${x.ext?'<span class="rb">Ext.</span>Externo'+(x.note?' · '+esc(x.note):''):x.r?`<span class="rb">${esc(rb(x.r))}</span>${esc(x.r)}`:WI+'Falta rol'}${p.hx?` · hora extra ${fmt(p.hx)}`:''}</div>${!x.ext&&x.nt?`<div class="sn">${esc(x.nt)}</div>`:''}${x.alert?`<div class="s" style="color:var(--orange)">${WI}${esc(x.alert)}</div>`:''}</span>${x.ext?(x.monto?`<span class="v">${fmt(x.monto)}</span>`:''):!x.r?'':`<span class="v">${fmt(p.tot)}</span>`}</div>`}).join('')||'<div class="empty">Sin tripulación asignada.</div>'}${miss.length?`<div class="cell"><span class="main"><span class="t" style="color:var(--orange)">${WI}Falta rol en FareHarbor</span></span></div>`:''}</div>
+    return `<div class="cell"><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${x.ext?'<span class="rb">Ext.</span>Externo'+(x.note?' · '+esc(x.note):''):x.r?`<span class="rb">${esc(rb(x.r))}</span>${esc(x.r)}`:WI+'Falta rol'}${p.hx?` · hora extra ${fmt(p.hx)}`:''}</div>${!x.ext&&(x.bc||x.nt)?`<div class="sn">${x.bc?'Barco: '+esc(x.bc):esc(x.nt)}</div>`:''}${x.alert?`<div class="s" style="color:var(--orange)">${WI}${esc(x.alert)}</div>`:''}</span>${x.ext?(x.monto?`<span class="v">${fmt(x.monto)}</span>`:''):!x.r?'':`<span class="v">${fmt(p.tot)}</span>`}</div>`}).join('')||'<div class="empty">Sin tripulación asignada.</div>'}${miss.length?`<div class="cell"><span class="main"><span class="t" style="color:var(--orange)">${WI}Falta rol en FareHarbor</span></span></div>`:''}</div>
 </div>`;
   if(c)h+=`<div class="group">${gh('costos','Costos')}<div class="list dlist">
     <div class="cell"><span class="main t">Bebidas</span><span class="v">${fmt(c.b)}</span></div>

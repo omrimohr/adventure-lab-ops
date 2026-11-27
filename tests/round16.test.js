@@ -71,17 +71,17 @@ test('end to end: webhook fills the money columns; report fee lands in Reservas 
   const out = e.G.ex.importReport_(e.ss, '#,Net Revenue Collected,Processing Fees\n8001,800.64,33.60', 'a.csv');
   assert.strictEqual(out.ok, true);
   r = e.rows('Reservas').find(x => x[0] === 8001);
-  assert.strictEqual(r[col('Comisión procesamiento (MXN)')], 33.6); assert.strictEqual(r[col('Ingreso neto (MXN)')], 800.64);
+  assert.strictEqual(r[col('Comisión procesamiento (MXN)')], 33.6); assert.strictEqual(r[col('Ingreso neto (MXN)')], 834.24, 'neto = Net Revenue Collected + fee');
   const ing = e.rows('Ingresos'); assert.strictEqual(ing[0][6], 33.6);
   assert.strictEqual(e.ss.getSheetByName('Ingresos')._d.rows[0][6], 'Comisión procesamiento');
   e.G.ex.rebuildAll();
   r = e.rows('Reservas').find(x => x[0] === 8001);
   assert.strictEqual(r[col('Comisión procesamiento (MXN)')], 33.6, 'fee read back from Ingresos on a full rebuild');
-  assert.strictEqual(r[col('Ingreso neto (MXN)')], 800.64);
+  assert.strictEqual(r[col('Ingreso neto (MXN)')], 834.24);
   const out2 = e.G.ex.importReport_(e.ss, '#,Net Revenue Collected\n8001,801', 'b.csv');
   assert.strictEqual(out2.ok, true);
   r = e.rows('Reservas').find(x => x[0] === 8001);
-  assert.strictEqual(r[col('Ingreso neto (MXN)')], 801); assert.strictEqual(r[col('Comisión procesamiento (MXN)')], 33.6, 'no fee column in the new report: previous fee stays');
+  assert.strictEqual(r[col('Ingreso neto (MXN)')], 834.6); assert.strictEqual(r[col('Comisión procesamiento (MXN)')], 33.6, 'no fee column in the new report: previous fee stays');
   assert.notStrictEqual(net0, 801);
 });
 

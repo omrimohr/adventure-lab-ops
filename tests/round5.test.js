@@ -54,12 +54,12 @@ test('costoAdicionalText_: only fields with Uso costo adicional; text first, num
   assert.strictEqual(E.costoAdicionalText_([], null), '');
 });
 
-test('headers: new columns are appended at the END; BITACORA_RULE_V is 5 (general history version; one-time rebuild)', () => {
+test('headers: new columns are appended at the END; BITACORA_RULE_V is 6 (general history version; one-time rebuild)', () => {
   assert.strictEqual(E.COSTO_HEADERS[E.COSTO_HEADERS.length - 1], 'Costos adicionales (MXN)');
   assert.strictEqual(E.COSTO_HEADERS[E.COSTO_HEADERS.length - 2], 'Alertas');
-  assert.strictEqual(E.EXT_HEADERS[E.EXT_HEADERS.length - 1], 'Monto (MXN)');
-  assert.strictEqual(E.EXT_HEADERS[E.EXT_HEADERS.length - 2], 'Alerta');
-  assert.strictEqual(E.BITACORA_RULE_V, '5');
+  assert.strictEqual(E.EXT_HEADERS[E.EXT_HEADERS.length - 3], 'Monto (MXN)');
+  assert.strictEqual(E.EXT_HEADERS[E.EXT_HEADERS.length - 4], 'Alerta');
+  assert.strictEqual(E.BITACORA_RULE_V, '6');
   assert.strictEqual(E.bitacoraRuleStale_('3'), true);
 });
 
@@ -73,19 +73,19 @@ const costRow = t => ['9100', '', '', '', 1, 'Regreso', 'Costos adicionales', ''
 test('Externos: note = a quién se debe; amount = barco externo lines only; staff untouched', () => {
   const r = J(E.payForSalida_(sal, [ext1, staff], [costRow('Barco externo San Ángel – Juan Pérez: $2,500 · gasolina extra $300')], TAR, 'ponton', null, NOW_AFTER));
   assert.strictEqual(r.ext.length, 1); assert.strictEqual(r.pay.length, 1);
-  assert.deepStrictEqual(r.ext[0].slice(5), ['Capitan Externo', 'San Ángel – Juan Pérez', '', 2500]);
+  assert.deepStrictEqual(r.ext[0].slice(5), ['Capitan Externo', 'San Ángel – Juan Pérez', '', 2500, '', 'San Ángel']);
   assert.strictEqual(r.pay[0][5], 'Luis M');
 });
 test('Externos: empty note → "Falta nota"; no amount after the end → "Falta monto"; before the end → no alert', () => {
   const noNote = Object.assign([], ext1); noNote[7] = '';
   const r = J(E.payForSalida_(sal, [noNote], [costRow('gasolina $300')], TAR, 'ponton', null, NOW_AFTER));
-  assert.strictEqual(r.ext[0][7], 'Falta nota: ¿a quién se debe? | Falta monto en Costos adicionales'); assert.strictEqual(r.ext[0][8], '');
+  assert.strictEqual(r.ext[0][7], 'Falta nota: ¿a quién se debe? | Falta costo en la nota del Capitán Externo'); assert.strictEqual(r.ext[0][8], '');
   const early = J(E.payForSalida_(sal, [ext1], [], TAR, 'ponton', null, NOW_BEFORE));
   assert.strictEqual(early.ext[0][7], '', 'departure not ended yet → no missing-amount alert');
   const late = J(E.payForSalida_(sal, [ext1], [], TAR, 'ponton', null, NOW_AFTER));
-  assert.strictEqual(late.ext[0][7], 'Falta monto en Costos adicionales');
+  assert.strictEqual(late.ext[0][7], 'Falta costo en la nota del Capitán Externo');
   const unparsed = J(E.payForSalida_(sal, [ext1], [costRow('lo paga la oficina')], TAR, 'ponton', null, NOW_AFTER));
-  assert.strictEqual(unparsed.ext[0][7], 'Falta monto en Costos adicionales');
+  assert.strictEqual(unparsed.ext[0][7], 'Falta costo en la nota del Capitán Externo');
 });
 test('Externos: several externals → total on the first, alert "Varios externos: repartir"', () => {
   const ext2 = ['9100', '', '', '', 'Marinero', 'Marinero Externo', 'mar.externo', 'Lancha Bety – Beto', ''];
@@ -140,5 +140,5 @@ test('end to end: unparsed costo adicional → alert in Costos salida, total 0',
   const c = e.rows('Costos salida')[0], H = J(e.G.get('COSTO_HEADERS'));
   assert.ok(/Costo adicional sin monto: lo paga Omri/.test(c[H.indexOf('Alertas')]));
   assert.strictEqual(c[H.indexOf('Costos adicionales (MXN)')], 0);
-  assert.ok(e.rows('Externos')[0][7].indexOf('Falta monto en Costos adicionales') >= 0);
+  assert.ok(e.rows('Externos')[0][7].indexOf('Falta costo en la nota del Capitán Externo') >= 0);
 });

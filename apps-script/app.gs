@@ -355,9 +355,9 @@ function buildDeps_(inp) {
     const crew = (crewBy[pk] || []).map(c => {
       const n = String(c[5] || c[6] || ''), e = evBy[pk + '|' + String(c[5])], x = extBy[pk + '|' + String(c[5])];
       const nt = String(c[7] || ''); // crew Note in FareHarbor, e.g. "Barco: El Cormoran" (externo: "San Ángel – Juan Pérez")
-      if (e) return { n: n, r: roleLabel_(c[4]), nt: nt, pay: { base: r2_(Number(e[10]) * Number(e[11])), hx: r2_(e[13]), tot: r2_(e[14]) }, alert: String(e[16] || '') };
-      if (x) return { n: n, r: roleLabel_(c[4]), nt: nt, ext: true, note: String(x[6] || ''), monto: x[8] === '' || x[8] === undefined ? null : r2_(x[8]), pay: { base: 0, hx: 0, tot: 0 }, alert: String(x[7] || '') };
-      return { n: n, r: roleLabel_(c[4]), nt: nt, pay: { base: 0, hx: 0, tot: 0 }, alert: '' };
+      if (e) return { n: n, r: roleLabel_(c[4]), nt: nt, bc: barcoNota_(nt), pay: { base: r2_(Number(e[10]) * Number(e[11])), hx: r2_(e[13]), tot: r2_(e[14]) }, alert: String(e[16] || '') };
+      if (x) return { n: n, r: roleLabel_(c[4]), nt: nt, bc: String(x[9] || '') || barcoNota_(nt), who: String(x[10] || ''), ext: true, note: String(x[6] || ''), monto: x[8] === '' || x[8] === undefined ? null : r2_(x[8]), pay: { base: 0, hx: 0, tot: 0 }, alert: String(x[7] || '') };
+      return { n: n, r: roleLabel_(c[4]), nt: nt, bc: barcoNota_(nt), pay: { base: 0, hx: 0, tot: 0 }, alert: '' };
     });
     const bookings = (resBy[pk] || []).filter(r => r[3] === 'sí' && !r[13]).sort((a, b) => Number(a[0]) - Number(b[0])).map(r => Object.assign({
       id: String(r[1] || r[0]), name: String(r[17] || ''), pax: numOr_(r[14], 0), types: String(r[16] || ''),
