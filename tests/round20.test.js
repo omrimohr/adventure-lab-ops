@@ -40,7 +40,7 @@ function env() {
   fe.CacheService = { getScriptCache: () => ({ get: () => null, put() {} }) };
   const p2 = n => String(n).padStart(2, '0');
   fe.Utilities = { formatDate: (d, tz, pt) => { const x = new Date(new Date(d).getTime() - 5 * 3600000), P = { yyyy: x.getUTCFullYear(), MM: p2(x.getUTCMonth() + 1), dd: p2(x.getUTCDate()), HH: p2(x.getUTCHours()), mm: p2(x.getUTCMinutes()) }; return pt.replace(/yyyy|MM|dd|HH|mm/g, k => P[k]); },
-    DigestAlgorithm: { SHA_1: 'SHA_1' }, Charset: {}, computeDigest: () => [1, 2, 3], base64Decode: s => Buffer.from(s, 'base64'), newBlob: (b, mt, name) => ({ b, mt, name }) };
+    DigestAlgorithm: { SHA_1: 'SHA_1' }, Charset: {}, computeDigest: (alg, x) => Array.from(require('crypto').createHash('sha1').update(String(x), 'utf8').digest()).map(b => (b > 127 ? b - 256 : b)), base64Decode: s => Buffer.from(s, 'base64'), newBlob: (b, mt, name) => ({ b, mt, name }) };
   const G = loadNew(fe);
   const rows = name => { const sh = ss.getSheetByName(name); return sh ? sh._d.rows.slice(1).filter(r => r.some(v => v !== '')) : []; };
   return { ss, fe, G, rows, post: p => G.ex.doPost({ postData: { contents: JSON.stringify(p) } }) };
@@ -290,4 +290,21 @@ test('client: crew label is Tripulación; externo note shown compactly (no amoun
   assert.strictEqual(U.extCompact('Barco: San Ángel (externo) – Juan Pérez – $3,500'), 'Barco: San Ángel · Juan Pérez');
   assert.strictEqual(U.extCompact('San Ángel – Juan Pérez'), 'San Ángel · Juan Pérez'); assert.strictEqual(U.extCompact(''), '');
   assert.ok(html.includes("gh('crew','Tripulación',") && !html.includes("gh('crew','Crew'"));
+});
+
+// ---------- F. Renta de barco (external boat cost in Costos, not on the crew row) ----------
+test('getData costs.ext [{barco, persona, monto}] and costs.adic (Costos adicionales without the external cost); total unchanged; client renders Renta de barco', () => {
+  const e = env(), G = e.G.ex;
+  const crew2 = [F.crew(F.role(11, 'Capitan', 'Captain'), 'Capitan Externo', 'capitan.externo', 'Barco: San Ángel (externo) – Juan Pérez – $3,500'), F.crew(F.role(12, 'Marinero', 'Sailor'), 'Luis M', 'luis', 'Barco: El Cormoran')];
+  const mk2 = (pk, cust) => F.booking({ pk: pk, av: 9100, item: 258806, itemName: 'Bacalar Lagoon Boat Tour', start: '2026-03-10T14:00:00Z', end: '2026-03-10T17:00:00Z', paid: 250000, crew: crew2, customers: cust });
+  e.post(mk2(7100, [F.cust(100, 'Adult')])); e.post(mk2(7101, [F.cust(1331886, 'OPS · Salida', [F.cfv(2024601, 'Cerveza', '10')])]));
+  e.post(mk2(7102, [F.cust(1332005, 'OPS · Regreso', [F.cfv(2024601, 'Cerveza', '4'), F.cfv(2024642, 'Costos adicionales', 'gasolina extra $300')])]));
+  G.ensureMapeos_(e.ss); G.rebuildAll();
+  const d = J(G.getData('0000', '2026-03-01', '2026-03-31')).deps.find(x => x.id === '9100');
+  assert.deepStrictEqual(d.costs.ext, [{ barco: 'San Ángel', persona: 'Juan Pérez', monto: 3500 }]);
+  assert.strictEqual(d.costs.ca, 3800); assert.strictEqual(d.costs.adic, 300);
+  const row = e.rows('Costos salida')[0], H = J(N.get('COSTO_HEADERS'));
+  assert.strictEqual(row[H.indexOf('Costos adicionales (MXN)')], 3800, 'server total still counts the external once');
+  assert.ok(/function rbRows/.test(html) && /Renta de barco/.test(html) && /Falta costo/.test(html) && /incluido en Renta de barco/.test(html));
+  assert.ok(/caItems=d=>/.test(html) && /\$\{rbRows\(d\)\}\$\{caRows\(d\)\}/.test(html));
 });

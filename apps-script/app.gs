@@ -379,7 +379,9 @@ function buildDeps_(inp) {
       boat: BARCO_LABEL[barco] || '', barco: barco, tipo: String(s[3] || ''), crew: crew, bookings: bookings,
       out: hasOut ? bq.out : null, back: hasBack ? bq.back : null, extras: extrasText_(bits, inp.M, true), ca: parseCostos_(costoAdicionalText_(bits, inp.M)), hx: hx,
       rev: inp.revs[pk] || null, bit: st, alerts: String(s[15] || ''), netSource: String(s[18] || ''),
-      costs: k ? { b: r2_(k[8]), g: r2_(k[10]), h: r2_(k[9]), f: r2_(k[11]), des: r2_(k[12]), ev: r2_(k[13]), tot: r2_(k[14]), pct: k[15] === '' ? null : Number(k[15]), ca: r2_(k[18]), aj: r2_(k[19]) } : null,
+      costs: k ? { b: r2_(k[8]), g: r2_(k[10]), h: r2_(k[9]), f: r2_(k[11]), des: r2_(k[12]), ev: r2_(k[13]), tot: r2_(k[14]), pct: k[15] === '' ? null : Number(k[15]), ca: r2_(k[18]), aj: r2_(k[19]),
+        ext: crew.filter(c => c.ext).map(c => ({ barco: c.bc || '', persona: c.who || '', monto: c.monto === undefined ? null : c.monto })), // Renta de barco: one per external (amount from the crew note)
+        adic: r2_(k[18] - crew.filter(c => c.ext).reduce((a, c) => a + (Number(c.monto) || 0), 0)) } : null, // Costos adicionales without the external boat cost
       aj: (ajBy[pk] || []).map(a => ({ id: a.id, tipo: a.tipo, persona: a.persona, concepto: a.concepto, monto: a.monto, motivo: a.motivo, por: a.por, creado: a.creado, cid: a.cid })),
       ci: (k => k ? { in: k.in, n: k.n, ns: Number(s[22]) || 0 } : null)(parseCheckin_(s[21])),
       paxTxt: String(s[9]), salidaUrl: firstUrl(ids(s[12])), regresoUrl: firstUrl(ids(s[13])), salidaPk: ids(s[12]).join(', '), regresoPk: ids(s[13]).join(', '),

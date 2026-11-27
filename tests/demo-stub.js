@@ -192,6 +192,7 @@ function init(){
   d0.aj.push(mkAj('AS1','pago',d0.crew[0].n,'Día festivo',150,'Fin de semana largo','Jesús','18:10'),mkAj('AS2','costo','','Hielo extra',90,'2 bolsas más para la fiesta','Jesús','18:12'));
   d3.aj.push(mkAj('AS3','pago',d3.crew[0].n,'Cancelación 50%',225,'Tour cancelado por lluvia, se paga la mitad','Jesús','17:40'),mkAj('AS4','pago',d3.crew[1].n,'Descuento',-50,'Llegó tarde','Omri','17:45'));
   D.deps.forEach(d=>{const t=sumAj(d.aj);if(d.costs&&t){d.costs.tot=Math.round((d.costs.tot+t)*100)/100;d.costs.aj=t}else if(d.costs)d.costs.aj=0});
+  D.deps.forEach(d=>{if(d.costs){d.costs.ext=d.crew.filter(c=>c.ext).map(c=>({barco:c.bc||'',persona:c.who||'',monto:c.monto==null?null:c.monto}));d.costs.adic=Math.round((d.costs.ca-d.costs.ext.reduce((a,x)=>a+(x.monto||0),0))*100)/100}});
   D.calls=0;D.staleOnce=true;D.config={semana_inicio:'jueves',semana_pago:'jueves'};
 }
 init();

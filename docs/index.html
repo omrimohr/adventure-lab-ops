@@ -848,7 +848,8 @@ const depAlertN=(d,nowKey)=>depAlerts(d,nowKey).length+(d.crew||[]).filter(c=>(!
 // Costos adicionales (texto libre ya leído por el servidor: ca = {items:[{label,amount,ext}], total, unparsed, rest:[..], raw})
 // Alertas de un externo sin la de nota (esa se pinta aparte)
 const extAlerts=x=>String((x&&x.alert)||'').split(' | ').filter(a=>a&&!/^Falta nota/.test(a));
-const caHas=d=>!!(d&&d.ca&&(d.ca.items.length||d.ca.rest.length));
+const caItems=d=>d&&d.ca?d.ca.items.filter(x=>!x.ext):[];   // Costos adicionales sin el barco externo (ese va en «Renta de barco»)
+const caHas=d=>!!(d&&d.ca&&(caItems(d).length||d.ca.rest.length));
 // Por revisar: solo si el día ya terminó (fecha anterior a hoy) y nadie la marcó revisada
 const needsReview=(d,today)=>d.date<today&&!d.rev;
 const hasBk=d=>!!(d&&d.bookings&&d.bookings.length);   // salida con reservas activas (las canceladas no cuentan en ningún resumen)
@@ -1313,7 +1314,7 @@ dep(id){
   h+=bitSection(d,fut);
   const ajOk=can('ajustes')&&!fut;
   h+=`<div class="group">${gh('crew','Tripulación',ajOk?`<button type="button" class="tlink" data-ajnew="${esc(d.id)}|pago|" aria-label="Agregar un ajuste de pago">+ Ajuste</button>`:'')}<div class="list dlist crewl">${d.crew.map(x=>{const p=payLine(d,x),own=ajOf(d,x.n),tapA=ajOk&&!x.ext;
-    return `<div class="cell${tapA?' tap crow':''}"${tapA?` role="button" tabindex="0" data-ajnew="${esc(d.id)}|pago|${esc(x.n)}" aria-label="Agregar un ajuste a ${esc(x.n)}"`:''}><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${x.ext?'<span class="rb">Ext.</span>'+(extCompact(x.note)?esc(extCompact(x.note)):'Externo'):x.r?`<span class="rb">${esc(rb(x.r))}</span>${esc(x.r)}`:WI+'Falta rol'}${p.hx?` · hora extra ${fmt(p.hx)}`:''}</div>${!x.ext&&(x.bc||x.nt)?`<div class="sn">${x.bc?'Barco: '+esc(x.bc):esc(x.nt)}</div>`:''}${x.alert?`<div class="s" style="color:var(--orange)">${WI}${esc(x.alert)}</div>`:''}</span>${x.ext?(x.monto?`<span class="v">${fmt(x.monto)}</span>`:''):!x.r?'':`<span class="v">${fmt(p.tot)}</span>`}</div>`+own.map(a=>ajRow(d,a,true)).join('')}).join('')||'<div class="empty">Sin tripulación asignada.</div>'}${ajOtros(d)}${miss.length?`<div class="cell"><span class="main"><span class="t" style="color:var(--orange)">${WI}Falta rol en FareHarbor</span></span></div>`:''}</div>
+    return `<div class="cell${tapA?' tap crow':''}"${tapA?` role="button" tabindex="0" data-ajnew="${esc(d.id)}|pago|${esc(x.n)}" aria-label="Agregar un ajuste a ${esc(x.n)}"`:''}><span class="main"><span class="t">${esc(x.n)}</span><div class="s">${x.ext?'<span class="rb">Ext.</span>'+(extCompact(x.note)?esc(extCompact(x.note)):'Externo')+'</div><div class="sn">incluido en Renta de barco':x.r?`<span class="rb">${esc(rb(x.r))}</span>${esc(x.r)}`:WI+'Falta rol'}${p.hx?` · hora extra ${fmt(p.hx)}`:''}</div>${!x.ext&&(x.bc||x.nt)?`<div class="sn">${x.bc?'Barco: '+esc(x.bc):esc(x.nt)}</div>`:''}${x.alert?`<div class="s" style="color:var(--orange)">${WI}${esc(x.alert)}</div>`:''}</span>${x.ext?`<span class="v">${fmt(0)}</span>`:!x.r?'':`<span class="v">${fmt(p.tot)}</span>`}</div>`+own.map(a=>ajRow(d,a,true)).join('')}).join('')||'<div class="empty">Sin tripulación asignada.</div>'}${ajOtros(d)}${miss.length?`<div class="cell"><span class="main"><span class="t" style="color:var(--orange)">${WI}Falta rol en FareHarbor</span></span></div>`:''}</div>
 </div>`;
   const costoLink=ajOk?`<button type="button" class="tlink" data-ajnew="${esc(d.id)}|costo|" aria-label="Agregar un costo a la salida">+ Agregar</button>`:'',cAj=ajCosto(d).map(a=>ajRow(d,a,false)).join(''),pAj=ajSum(ajPago(d));
   if(c)h+=`<div class="group">${gh('costos','Costos',costoLink)}<div class="list dlist">
@@ -1322,11 +1323,11 @@ dep(id){
     <div class="cell"><span class="main t">Hielo</span><span class="v">${fmt(c.h)}</span></div>
     ${c.f?`<div class="cell"><span class="main t">Fruta</span><span class="v">${fmt(c.f)}</span></div>`:''}${c.des?`<div class="cell"><span class="main t">Desayuno</span><span class="v">${fmt(c.des)}</span></div>`:''}
     <div class="cell"><span class="main"><span class="t">Eventuales</span>${pAj?`<div class="sn">incluye ajustes ${ajMoney(pAj)}</div>`:''}</span><span class="v">${fmt(c.ev+pAj)}</span></div>
-    ${caRows(d)}${cAj}
+    ${rbRows(d)}${caRows(d)}${cAj}
     <div class="cell tot"><span class="main t"><b>Costo total</b></span><span class="big">${fmt(c.tot)}</span></div>
     <div class="cell"><span class="main t">Ingreso</span><span class="v">${money2(d.gross,n,est)}</span></div>
     <div class="cell"><span class="main t">Costo %</span><span class="v">${n?Math.round(c.tot/n*100)+'%':'—'}</span></div></div></div>`;
-  else if(caHas(d)||cAj)h+=`<div class="group">${gh('costos','Costos',costoLink)}<div class="list">${caRows(d)}${cAj}</div></div>`;
+  else if(caHas(d)||cAj||rbRows(d))h+=`<div class="group">${gh('costos','Costos',costoLink)}<div class="list">${rbRows(d)}${caRows(d)}${cAj}</div></div>`;
   else if(!fut)h+=`<div class="group">${gh('costos','Costos',costoLink)}<div class="list"><div class="empty">El costo se calcula cuando la bitácora tiene salida y regreso.</div></div></div>`;
   if(!fut){
     if(d.rev)h+=`<div class="group"><div class="list"><div class="cell"><span class="main t okc">${svgI('okc',18).replace('class="gi"','class="wi"')}Revisado · ${esc(d.rev.by)} ${esc(revAt(d.rev))}${d.rev.pend?` <span class="sv${d.rev.pf?' bad':''}">${d.rev.pend}</span>`:''}</span></div></div></div>`;
@@ -1839,10 +1840,16 @@ function ajOtros(d){
 }
 // Costos adicionales: cada renglón leído del texto (etiqueta + monto); lo que no tiene monto se muestra tal cual con aviso
 function caRows(d){
-  if(!caHas(d))return '';const ca=d.ca;
-  const lines=ca.items.map(x=>`<div class="sn">${x.ext?'<span class="rb">Ext.</span>':''}${esc(x.label||'Costo adicional')} · ${fmt(x.amount)}</div>`).join('');
+  if(!caHas(d))return '';const ca=d.ca,its=caItems(d),tot=ajSum(its.map(x=>({monto:x.amount})));
+  const lines=its.map(x=>`<div class="sn">${esc(x.label||'Costo adicional')} · ${fmt(x.amount)}</div>`).join('');
   const warn=ca.unparsed?`<div class="s" style="color:var(--orange)">${WI}Sin monto: ${esc(ca.rest.join(' · '))}</div>`:'';
-  return `<div class="cell"><span class="main"><span class="t">Costos adicionales</span>${lines}${warn}</span>${ca.items.length?`<span class="v">${fmt(ca.total)}</span>`:''}</div>`;
+  return `<div class="cell"><span class="main"><span class="t">Costos adicionales</span>${lines}${warn}</span>${its.length?`<span class="v">${fmt(tot)}</span>`:''}</div>`;
+}
+// Renta de barco: una línea por capitán externo (monto de su nota); si falta y la salida ya terminó, «Falta costo»
+function rbRows(d){
+  const ended=!!d.end&&d.end<nowKey();
+  return d.crew.filter(x=>x.ext).map(x=>{const sub=[x.bc,x.who].filter(Boolean).join(' · ');
+    return `<div class="cell"><span class="main"><span class="t">Renta de barco</span>${sub?`<div class="sn">${esc(sub)}</div>`:''}</span>${x.monto?`<span class="v">${fmt(x.monto)}</span>`:ended?`<span class="v" style="color:var(--orange)">Falta costo</span>`:''}</div>`}).join('');
 }
 function bitSection(d,fut){
   const bp=bitParts(d,nowKey()),avUrl=d.itemPk?fhAvailUrl(d.itemPk,d.id,d.date):'';
