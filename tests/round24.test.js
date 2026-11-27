@@ -117,7 +117,7 @@ test('client: pending alert counts in ⚠ and "Con advertencias"; cancelled neve
 test('UI wiring: 3 actions, Ajustes › Canceladas, cancelled strip, bookings split, sw CACHE = APP_VER v21', () => {
   ['data-cdec=\"${esc(d.id)}|50\"', '|100\"', '|0\"', 'Pagar 50%', 'Pagar completo', 'No pagar', 'data-canc-set', 'adv_ops_canc', 'data-czero', 'canceladas sin cobro', 'cuenta como ingreso', 'Cobrado sin reembolso', "key:'canc'"].forEach(k => assert.ok(html.indexOf(k) >= 0, k));
   assert.ok(/concepto:'Cancelación'/.test(html) && /Cancelada · decidido por /.test(html));
-  assert.ok(/const APP_VER='v21'/.test(html) && sw.indexOf("const CACHE = 'al-ops-v21'") >= 0);
+  assert.ok(/const APP_VER='v\d+'/.test(html) && /const CACHE = 'al-ops-v\d+'/.test(sw)); // generic: rounds bump it (round 25 test checks the pair)
   assert.ok(Number(E.BITACORA_RULE_V) >= 8);
 });
 

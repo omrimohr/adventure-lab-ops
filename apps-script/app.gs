@@ -265,6 +265,12 @@ function latestRevs_(rows, today) {
   Object.keys(out).forEach(k => { out[k] = { by: out[k].by, at: out[k].at, day: out[k].day, hm: out[k].hm }; }); // day/hm: the app formats the date itself
   return out;
 }
+/** round 25: current FareHarbor short name of a Tripulación row's role (Roles tab, by Rol clave); the stored payload name as fallback */
+function roleName_(row, M) {
+  const k = row[8] ? String(row[8]) : '';
+  const e = M && M.role && k ? M.role[k] : null;
+  return (e && e.nombre) || String(row[4] || '');
+}
 function roleLabel_(rol) {
   const n = norm_(rol);
   return ROL_LABEL[n] || (n ? String(rol).trim() : '');
@@ -385,12 +391,12 @@ function buildDeps_(inp) {
     const crew = (crewBy[pk] || []).map(c => {
       const n = String(c[5] || c[6] || ''), e = evBy[pk + '|' + String(c[5])], x = extBy[pk + '|' + String(c[5])];
       const nt = String(c[7] || ''); // crew Note in FareHarbor, e.g. "Barco: El Cormoran" (externo: "San Ángel – Juan Pérez")
-      if (e) return { n: n, r: roleLabel_(c[4]), nt: nt, bc: barcoNota_(nt), pay: { base: r2_(Number(e[10]) * Number(e[11])), rate: r2_(e[10]), hx: r2_(e[13]), tot: r2_(e[14]), tr: trFrom_(e) }, alert: String(e[16] || '') };
-      if (x) return { n: n, r: roleLabel_(c[4]), nt: nt, bc: String(x[9] || '') || barcoNota_(nt), who: String(x[10] || ''), ext: true, note: String(x[6] || ''), monto: x[8] === '' || x[8] === undefined ? null : r2_(x[8]), pay: { base: 0, hx: 0, tot: 0 }, alert: String(x[7] || '') };
-      return { n: n, r: roleLabel_(c[4]), nt: nt, bc: barcoNota_(nt), pay: { base: 0, hx: 0, tot: 0 }, alert: '' };
+      if (e) return { n: n, r: roleLabel_(roleName_(c, inp.M)), nt: nt, bc: barcoNota_(nt), pay: { base: r2_(Number(e[10]) * Number(e[11])), rate: r2_(e[10]), hx: r2_(e[13]), tot: r2_(e[14]), tr: trFrom_(e) }, alert: String(e[16] || '') };
+      if (x) return { n: n, r: roleLabel_(roleName_(c, inp.M)), nt: nt, bc: String(x[9] || '') || barcoNota_(nt), who: String(x[10] || ''), ext: true, note: String(x[6] || ''), monto: x[8] === '' || x[8] === undefined ? null : r2_(x[8]), pay: { base: 0, hx: 0, tot: 0 }, alert: String(x[7] || '') };
+      return { n: n, r: roleLabel_(roleName_(c, inp.M)), nt: nt, bc: barcoNota_(nt), pay: { base: 0, hx: 0, tot: 0 }, alert: '' };
     });
     const bookings = (resBy[pk] || []).filter(r => r[3] === 'sí' && !r[13]).sort((a, b) => Number(a[0]) - Number(b[0])).map(r => Object.assign({
-      id: String(r[1] || r[0]), name: String(r[17] || ''), pax: numOr_(r[14], 0), types: String(r[16] || ''),
+      id: String(r[1] || r[0]), name: String(r[17] || ''), pax: numOr_(r[14], 0), paxQ: r[14] === '' && Number(r[15]) > 0, types: String(r[16] || ''), // paxQ: private booking without a people count (shown as "? pax")
       gross: r2_(numOr_(r[22], 0)), // FareHarbor receipt total (Reservas 'Total (MXN)'); cancelled and OPS bookings are filtered out above
       net: r[30] === '' || r[30] === null ? null : Number(r[30]), est: r[31] === 'estimado', alert: String(r[28] || ''),
       url: String(r[32] || ''), // FareHarbor dashboard link of the booking ('' until the Reservas rebuild fills it)
@@ -413,8 +419,8 @@ function buildDeps_(inp) {
     const k = costBy[pk];
     const barco = inp.barcos[String(s[1])] || '';
     return {
-      id: pk, itemPk: String(s[1]), date: fmtDate_(s[6], 'yyyy-MM-dd'), time: fmtDate_(s[6], 'HH:mm'), end: s[7] ? fmtDate_(s[7], 'yyyy-MM-dd HH:mm') : '', item: String(s[2]), label: '',
-      gross: r2_(bookings.reduce((a, x) => a + x.gross, 0)), res: resFromText_(s[20]), resKnown: String(s[23] || '') !== 'no',
+      id: pk, itemPk: String(s[1]), date: fmtDate_(s[6], 'yyyy-MM-dd'), time: fmtDate_(s[6], 'HH:mm'), end: s[7] ? fmtDate_(s[7], 'yyyy-MM-dd HH:mm') : '', item: (inp.itemNames && inp.itemNames[String(s[1])]) || String(s[2]), label: '', // round 25: current FareHarbor item name (Tours col B)
+      gross: r2_(bookings.reduce((a, x) => a + x.gross, 0)), res: applyResNames_(resFromText_(s[20]), inp.M), // round 25: current resource names (Recursos tab) resKnown: String(s[23] || '') !== 'no',
       boat: BARCO_LABEL[barco] || '', barco: barco, tipo: String(s[3] || ''), crew: crew, bookings: bookings,
       out: hasOut ? bq.out : null, back: hasBack ? bq.back : null, extras: extrasText_(bits, inp.M, true), ca: parseCostos_(costoAdicionalText_(bits, inp.M)), hx: hx,
       rev: inp.revs[pk] || null, bit: st, alerts: String(s[15] || ''), netSource: String(s[18] || ''),
@@ -677,8 +683,10 @@ function getData(pin, desde, hasta) {
   const extRows = readTab_(ss, 'Externos', EXT_HEADERS); // read once: used by the departures and by the Eventuales list
   const ajRows = ajustesActivos_(readTab_(ss, AJS_TAB, AJS_HEADERS));
   const crewRows = readTab_(ss, 'Tripulación', CREW_HEADERS);
+  const toursRows0 = readTab_(ss, 'Tours', TOURS_HEADERS.concat(['Barco', TOURS_ESTADO_HDR, TOURS_VISTO_HDR]));
+  const itemNames = {}; toursRows0.forEach(r => { if (r[0] !== '' && String(r[1] || '').trim()) itemNames[String(r[0])] = String(r[1]).trim(); });
   const deps = buildDeps_({
-    ajs: ajRows,
+    itemNames: itemNames, ajs: ajRows,
     desde: desde, hasta: hasta, today: today, salidas: salidas, bit: bit, barcos: barcos, productos: productos, M: M,
     reservas: reservas, crew: crewRows,
     ev: readTab_(ss, 'Eventuales', EV_HEADERS), ext: extRows, costos: readTab_(ss, 'Costos salida', COSTO_HEADERS),
@@ -691,7 +699,7 @@ function getData(pin, desde, hasta) {
   const weekly = readTab_(ss, 'Resumen semanal', RESUMEN_HEADERS).map(r => ({ w: ymd_(r[0]), n: String(r[1]), s: Number(r[2]) || 0, t: Number(r[3]) || 0, paid: Number(r[4]) || 0, pend: Number(r[5]) || 0, alerts: String(r[6] || '') }));
   const externos = extRows.map(r => ({ d: ymd_(r[0]), time: String(r[1]), item: String(r[2]), pk: String(r[3]), r: String(r[4]), n: String(r[5]), note: String(r[6] || ''), alert: String(r[7] || ''), monto: r[8] === '' || r[8] === undefined ? null : r2_(r[8]) }));
   const control = readTab_(ss, 'Control días', CTRL_HEADERS).map(r => ({ d: ymd_(r[0]), dia: String(r[1]), sal: Number(r[2]) || 0, res: Number(r[3]) || 0, ex: Number(r[4]) || 0, est: Number(r[5]) || 0, estado: String(r[6]) }));
-  const toursRows = readTab_(ss, 'Tours', TOURS_HEADERS.concat(['Barco', TOURS_ESTADO_HDR, TOURS_VISTO_HDR])).filter(r => r[0] !== '');
+  const toursRows = toursRows0.filter(r => r[0] !== '');
   const tours = toursRows.map(r => ({ pk: String(r[0]), name: String(r[1]), tipo: String(r[2]), barco: norm_(r[6]) || barcos[String(r[0])] || '' }));
   const pend = buildPend_({ M: M, toursRows: toursRows, barcos: barcos,
     seen: seenFieldsFor_(ss, toursRows.filter(r => tourEstado_(r[7], r[5]) === ESTADO_NUEVO).map(r => String(r[0])), reservas) });

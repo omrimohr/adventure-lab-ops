@@ -1,7 +1,7 @@
 // Service worker of Adventure Lab Ops (installable app). Only the app shell is cached (cache-first); the Apps Script API is NEVER cached.
 // IMPORTANT: bump CACHE on EVERY change under docs/ (index.html, manifest, icons). A new CACHE string makes sw.js differ → the phone installs it,
 // downloads the fresh shell, deletes old caches, and the page reloads once.
-const CACHE = 'al-ops-v21';
+const CACHE = 'al-ops-v22';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-512-maskable.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {

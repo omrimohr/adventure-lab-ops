@@ -306,6 +306,7 @@ button.live{width:100%;background:none;border:0;font:inherit;font-size:12px;colo
 .drow .bds{display:inline-flex;gap:12px;color:var(--ink2)}
 .drow .bd{display:inline-flex;align-items:center;gap:4px}
 .drow .rt{display:inline-flex;align-items:center;gap:8px;flex:none}
+.drow .pxc{color:var(--ink2);font-variant-numeric:tabular-nums;white-space:nowrap;margin-right:-4px}.drow .pxc.q,.pq{color:var(--orange);font-weight:500}
 .drow .wn{display:inline-flex;align-items:center;gap:2px;color:var(--orange);font-weight:500;font-variant-numeric:tabular-nums}
 .drow .wn svg{width:16px;height:16px}
 .ri{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;color:var(--orange)}
@@ -550,7 +551,7 @@ const S={role:'op',realRole:'op',user:'',date:'',wk:'',
   perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},pend:[],salud:[],feedback:[],conceptos:[],staff:[],fbf:'nuevo',fbEdit:null,evp:null,users:null,usersErr:'',rebuildPending:false,fhOk:true,offline:false,dataAt:0,
   win:{from:'',to:''},fetchedAt:'',q:'',filter:'todas',fopen:false,canc:'dinero',czero:'',config:{semana_inicio:'jueves',semana_pago:'jueves'}};
 let PIN='';
-const APP_VER='v21';   // = sufijo de CACHE en docs/sw.js ('al-ops-v21'); se manda con cada reporte
+const APP_VER='v22';   // = sufijo de CACHE en docs/sw.js ('al-ops-v22'); se manda con cada reporte
 
 // ===== Servidor =====
 // Servidor: Apps Script web app (misma URL que el webhook de FareHarbor). POST text/plain = sin preflight CORS.
@@ -783,7 +784,11 @@ const wkLabel=ws=>'Semana '+fdate(ws,true)+' – '+fdate(addD(ws,6),true)+' '+pd
 const hid=id=>{const v=String(id===null||id===undefined?'':id).trim().replace(/^#+\s*/,'');return v?(v.indexOf('#')>=0?v:'#'+v):''};
 const hids=list=>String(list||'').split(',').map(x=>hid(x)).filter(Boolean).join(', ');
 // Personas y tipos de cliente: el desglose solo si hay más de un tipo distinto ("2× Adult, 1× Child" → "2 Adult · 1 Child")
-const personasTxt=n=>n+' pax';
+// round 25: pax desconocido (privado sin # de personas) → "? pax" (naranja); parcial → "5 + ? pax"
+const personasTxt=(n,q)=>q?(Number(n)>0?n+' + ? pax':'? pax'):n+' pax';
+const depPax=d=>({n:(d.bookings||[]).reduce((a,b)=>a+(Number(b.pax)||0),0),q:(d.bookings||[]).some(b=>!!b.paxQ)});
+// Pax en la última línea de la tarjeta, junto al check-in: "8 pax · ✓ 7/8" (naranja si falta el # de personas)
+const paxChip=(d,hasCi)=>{const p=depPax(d);if(!(p.n>0)&&!p.q)return '';return `<span class="pxc${p.q?' q':''}">${personasTxt(p.n,p.q)}${hasCi?'<span class="sp" aria-hidden="true"> · </span>':''}</span>`};
 const typesLine=t=>{const a=String(t||'').split(/,\s*(?=\d+×\s)/).map(x=>x.trim()).filter(Boolean);return a.length>1?a.map(x=>x.replace(/^(\d+)×\s*/,'$1 ')).join(' · '):''};
 // "hace x min / h / días" o la fecha si pasaron más de 7 días
 function relAgo(at,now){
@@ -1343,8 +1348,8 @@ dep(id){
   if(dal.length||cq)h+=`<div class="group">${gh('alert','Avisos')}<div class="list">${cq}${dal.map(a=>`<div class="cell ${/^No show/.test(a)?'w-red':'w-orange'}"><span class="main"><span class="s" style="margin:0">${esc(a)}</span></span></div>`).join('')}</div></div>`;
   const started=depStarted(d,nowKey());
   if(!isCanc(d))h+=`<div class="group">${gh('bookings','Bookings')}<div class="list dlist">${d.bookings.map(b=>{const tl=typesLine(b.types),bst=ciState(b.ci,started);
-    return `<div class="cell tap" role="button" tabindex="0" data-bk="${esc(d.id)}|${esc(b.pk)}" aria-label="Ver detalle de la reserva ${esc(hid(b.id))}"><span class="main"><span class="t">${esc(b.name||hid(b.id))}</span><div class="s">${b.url?fhA(fhBookUrl(b.url,d.date),hid(b.id),{label:'Abrir la reserva '+hid(b.id)+' en FareHarbor'}):avUrl?fhA(avUrl,hid(b.id),{gray:true,label:'Abrir la salida en FareHarbor (la reserva no tiene enlace)'}):esc(hid(b.id))} · ${personasTxt(b.pax)}${tl?' · '+esc(tl):''}</div>${bst||b.note?`<div class="s bkx">${ciChip(b.ci,bst,b.ci&&b.ci.ns?' · No show':'')}${b.note?`<span class="ni" role="img" aria-label="Tiene nota">${svgI('note',16)}</span>`:''}</div>`:''}</span><span class="v">${money2(b.gross,fut?undefined:b.net,b.est)}</span></div>`}).join('')||'<div class="empty">Sin reservas activas.</div>'}
-    ${d.bookings.length?`<div class="cell tot"><span class="main t"><b>Total · ${personasTxt(paxOf(d))}</b></span><span class="v">${money2(d.gross,fut?undefined:n,est)}</span></div>`:''}</div></div>`;
+    return `<div class="cell tap" role="button" tabindex="0" data-bk="${esc(d.id)}|${esc(b.pk)}" aria-label="Ver detalle de la reserva ${esc(hid(b.id))}"><span class="main"><span class="t">${esc(b.name||hid(b.id))}</span><div class="s">${b.url?fhA(fhBookUrl(b.url,d.date),hid(b.id),{label:'Abrir la reserva '+hid(b.id)+' en FareHarbor'}):avUrl?fhA(avUrl,hid(b.id),{gray:true,label:'Abrir la salida en FareHarbor (la reserva no tiene enlace)'}):esc(hid(b.id))} · ${b.paxQ?`<span class="pq">${personasTxt(b.pax,true)}</span>`:personasTxt(b.pax)}${tl?' · '+esc(tl):''}</div>${bst||b.note?`<div class="s bkx">${ciChip(b.ci,bst,b.ci&&b.ci.ns?' · No show':'')}${b.note?`<span class="ni" role="img" aria-label="Tiene nota">${svgI('note',16)}</span>`:''}</div>`:''}</span><span class="v">${money2(b.gross,fut?undefined:b.net,b.est)}</span></div>`}).join('')||'<div class="empty">Sin reservas activas.</div>'}
+    ${d.bookings.length?`<div class="cell tot"><span class="main t"><b>Total · ${personasTxt(paxOf(d),depPax(d).q)}</b></span><span class="v">${money2(d.gross,fut?undefined:n,est)}</span></div>`:''}</div></div>`;
   h+=cancBooks(d);
   if(!isCanc(d))h+=`<div class="group">${gh('resources','Resources')}<div class="list">${(d.res||[]).map(r=>`<div class="cell c"><span class="main t">${esc(r.name)}</span><span class="v">${num(r.n)}</span></div>`).join('')||'<div class="empty">Sin resources asignados.</div>'}</div></div>`;
   h+=bitSection(d,fut);
@@ -1969,7 +1974,8 @@ function depCard(d,sec){
   const dot=(l,k)=>`<span class="bd"><i class="bdot ${BIT_T[k][0]}"></i>${l}<span class="sr">${BIT_T[k][1]}</span></span>`;
   const bits=bp.na?'<span class="bd">No aplica</span>':`<span class="bds">${dot('Ida',bp.ida)}${dot('Regreso',bp.reg)}</span>`;
   const an=depAlertN(d,nowKey());
-  let rt=ciChip(d.ci,ciState(d.ci,depStarted(d,nowKey())));
+  const ciH=ciChip(d.ci,ciState(d.ci,depStarted(d,nowKey())));
+  let rt=paxChip(d,!!ciH)+ciH;
   if(an)rt+=`<span class="wn" aria-label="${an} ${an===1?'aviso':'avisos'}">${svgI('alert',16)}${an}</span>`;
   // Revisión: solo un ícono. Pendiente = el día ya terminó y nadie la marcó; verde = revisada. Hoy y días futuros: nada.
   if(d.rev)rt+=`<span class="ri ok" role="img" aria-label="Revisado">${svgI('check',18)}</span>`;

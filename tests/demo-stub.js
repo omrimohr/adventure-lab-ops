@@ -192,6 +192,14 @@ function init(){
     D.deps.push(mk('9103','17:00','19:30',[],{all:true,n:1,bks:[cb(393700104,'Ana Pech',0,0,null,false)],kept:0,net:0,est:false,at:addDays(-3)+'T12:00:00.000Z',min:4320,salio:false,need:false}));
     D.salud.push({nivel:'warn',tipo:'cancelada',texto:'Cancelada con tripulación: ¿se paga? '+y+' 14:00 Bacalar Lagoon Boat Tour · cancelada 40 min antes',rol:'todos',fecha:y,av:'9102'});
   }
+  // round 25: private departures — one with a people count + check-in ("8 pax · ✓ 7/8"), one whose private booking has no # de personas ("? pax")
+  {
+    const base=D.deps.find(x=>x.bookings&&x.bookings.length)||D.deps[0],bk0=base.bookings[0];
+    const pb=(id,pax,q)=>Object.assign({},bk0,{id:'#'+id,pk:String(id),name:q?'Camila Rojas':'Familia Brandt',pax:pax,paxQ:!!q,types:'1× Private Tour',gross:q?4200:5600,net:q?3900:5200,est:false,alert:q?'Falta # de personas':'',ci:q?null:{in:7,n:8,ns:0,det:[]}});
+    const pd=(id,time,end,item,b)=>Object.assign({},base,{id:id,date:T,time:time,end:T+' '+end,item:item,label:'',bookings:[b],gross:b.gross,res:[{pk:'163580',name:'Tiamat',n:1}],ci:b.ci?{in:7,n:8,ns:0}:null,alerts:b.alert,rev:null,aj:[],cn:null});
+    D.deps.push(pd('9201','06:30','09:30','Pontón Privado [HBTS]',pb(393700201,8,false)));
+    D.deps.push(pd('9202','07:00','10:00','Velero Monocasco Privado [HBTS]',pb(393700202,0,true)));
+  }
   D.perms={admin:{compras:true,revisar:true,pagar:true,inventario:true,ajuste:true,editar:true,comida:true,ajustes:true,config:true},
            op:{compras:true,revisar:true,pagar:false,inventario:false,ajuste:false,editar:false,comida:true,ajustes:true,config:false}};
   D.feedback=[

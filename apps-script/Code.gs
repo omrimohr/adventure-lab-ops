@@ -67,6 +67,9 @@ const TOURS_COLS = 9;
 const ESTADO_OK = 'OK';
 const ESTADO_NUEVO = 'Nuevo – revisar';
 const CT_TAB = 'Tipos de cliente', CF_TAB = 'Campos', ROL_TAB = 'Roles';
+// round 25: resource pk → latest FareHarbor name (display only; matching stays by pk)
+const RECURSOS_TAB = 'Recursos';
+const RECURSOS_HEADERS = ['Clave', 'Nombre (FareHarbor)', 'Visto', 'Antes'];
 const CT_HEADERS = ['Clave', 'Nombre (FareHarbor)', 'Uso', 'Estado', 'Visto primero', 'Visto en (item)', 'Notas', 'Configurado por', 'Configurado'];
 const CF_HEADERS = ['Clave', 'Nombre (FareHarbor)', 'Uso', 'Producto ID', 'Estado', 'Visto primero', 'Visto en (item)', 'Ejemplo', 'Notas',
   'Configurado por', 'Configurado'];
@@ -154,6 +157,7 @@ function doPost(e) {
         } else {
           const tours = loadTours_(ss);
           const ing = loadIngresos_(ss);
+          try { if (registerNames_(ss, observeNames_(null, b, now), tours, M)) setRebuildPending_(); } catch (errN) { logError_(ss, 'Nombres', errN, body); } // round 25: latest FareHarbor names
           upsertReserva_(ss, b, now, rawRow, tours, ing, M);
           if (av.pk) recomputeSalidas_(ss, [String(av.pk)], tours, ing, M);
           try { registerUnknowns_(ss, [b], M, ctxFor_(ss, tours), now); } catch (err2) { logError_(ss, 'Mapeos', err2, body); }
@@ -240,9 +244,10 @@ function tourEstado_(estadoCell, notas) {
 /** Pure: Tours rows (any width ≥ 6) → {itemPk: {tipo, fields, bitacora, estado}} */
 function toursFromRows_(rows) {
   const map = {};
-  rows.forEach(r => {
+  rows.forEach((r, i) => {
     if (!r[0]) return;
     map[String(r[0])] = {
+      nombre: String(r[1] || '').trim(), row: i + 2, // round 25: display name (latest FareHarbor name) + sheet row
       tipo: String(r[2] || '').toLowerCase().trim(),
       fields: String(r[3] || '').split(',').map(x => x.trim()).filter(String),
       bitacora: /^s/i.test(String(r[4] || '')),
@@ -318,13 +323,11 @@ function bookingPax_(b, tour, M) {
 
   const fields = (tour && tour.fields) || [];
   const cfvs = allCfvs_(b, M);
-  let people = null;
-  cfvs.forEach(x => {
-    const pk = cfPk_(x.v);
-    // Tours col D (field pks) first; if empty, every field whose Uso is "personas"
-    const isPeople = fields.length ? fields.indexOf(pk) >= 0 : fieldUso_(M, x.v).uso === 'personas';
-    if (isPeople) { const n = cfvNumber_(x.v); if (n !== null && n > 0) people = (people || 0) + n; }
-  });
+  // round 25: Tours col D (field pks) first when one of them has a value > 0; otherwise ANY field with Uso 'personas' and a value > 0.
+  // (A col D that lists other pks, or a 0 in the listed field, must not hide the people count of the booking.)
+  const sumOf = pred => { let t = null; cfvs.forEach(x => { if (!pred(x)) return; const n = cfvNumber_(x.v); if (n !== null && n > 0) t = (t || 0) + n; }); return t; };
+  let people = fields.length ? sumOf(x => fields.indexOf(cfPk_(x.v)) >= 0) : null;
+  if (people === null) people = sumOf(x => fieldUso_(M, x.v).uso === 'personas');
   let seats = null;
   cfvs.forEach(x => {
     if (fieldUso_(M, x.v).uso === 'seats') { const n = num_(x.v.value); if (n !== null && n > 0) seats = (seats || 0) + n; }
@@ -455,8 +458,9 @@ function bitacoraNoAplica_(tipo, barco) { return String(tipo || '').toLowerCase(
 // '5' (26 Nov 2026): check-in / no-show (Reservas + Salidas columns, alert "No show: N"), Reservas Campos / Teléfono.
 // '7' (26 Nov 2026): Bitácora Salida/Regreso per CUSTOMER type (one OPS booking with two customers); Bitácora gets column 'Customer pk'.
 // '8' (26 Nov 2026): cancelled bookings (income kept = paid − refunds, Reservas/Salidas columns, cancel time), no automatic 50% for cancelled departures (round 24).
+// '9' (27 Nov 2026): current FareHarbor names (items from Tours, resources from Recursos, customer types) in Salidas / Bitácora / Tripulación / Reservas; private pax = any 'personas' field (round 25).
 // '6' (26 Nov 2026): Ingreso neto = Net Revenue Collected + Processing Fees (exactNet_); Externos amount from the Capitán Externo crew note (externoNota_), Costos salida counts it once.
-const BITACORA_RULE_V = '8';
+const BITACORA_RULE_V = '9';
 // Items that got OPS · Salida/Regreso bitácora fields in FareHarbor on 24 Nov 2026 → Tours "Lleva bitácora" = sí (sheet record only)
 const BITACORA_SI_20261124 = [244134, 398421, 243654, 398153, 337343, 337931, 398154, 703654, 689738, 185852, 703536, 770935];
 function markBitacoraSi_(ss) {
@@ -535,6 +539,7 @@ function computeSalida_(avPk, list, tours, now, ing, M) {
   const av = first.availability || {};
   const item = av.item || {};
   const tour = tours[String(item.pk)] || { tipo: '?', fields: [], bitacora: false };
+  const itemName = tour.nombre || item.name || ''; // round 25: latest FareHarbor name (Tours col B), payload name as fallback
   const fecha = fmtDate_(av.start_at, 'yyyy-MM-dd'), hora = fmtDate_(av.start_at, 'HH:mm');
   const active = list.filter(x => x.b.status === 'booked');
   const opsBk = active.filter(x => opsType_(x.b, M));
@@ -569,7 +574,7 @@ function computeSalida_(avPk, list, tours, now, ing, M) {
   custBk.forEach(x => { const k = checkinSummary_(x.b, M); ci.in += k.in; ci.ns += k.ns; ci.n += k.n; });
   if (ci.ns > 0) alerts.push('No show: ' + ci.ns);
 
-  const resources = resourcesFrom_(custBk.map(x => x.b));
+  const resources = applyResNames_(resourcesFrom_(custBk.map(x => x.b)), M); // round 25: latest resource names
   // round 14: early short-form imports (`_source`, no resource_uses key) say nothing about resources → no false alert
   const resKnown = custBk.some(x => Array.isArray(x.b.resource_uses));
   if (custBk.length && resKnown && !resources.length) alerts.push('Sin recurso asignado');
@@ -594,7 +599,7 @@ function computeSalida_(avPk, list, tours, now, ing, M) {
       const n = cfvNumber_(c.v);
       const txt = (c.v.display_value !== undefined && c.v.display_value !== null) ? String(c.v.display_value) : String(c.v.value || '');
       if (n === null && !txt) return;
-      const row = [avPk, fecha, hora, item.name || '', x.b.pk, tipo, cfName_(c.v), cfPk_(c.v),
+      const row = [avPk, fecha, hora, itemName, x.b.pk, tipo, cfName_(c.v), cfPk_(c.v),
         n === null ? '' : n, n === null ? txt : '', c.cpk];
       // free text with digits ("Barco externo San Ángel: $2,500") must not be reduced to its first number (num_ → 2)
       if (n !== null && txt && txt.trim() !== String(n) && /^(costo adicional|extras)$/.test(bitUso_(row, M).uso)) row[9] = txt;
@@ -605,11 +610,11 @@ function computeSalida_(avPk, list, tours, now, ing, M) {
   // Crew: from the booking received last (crew lives on the departure)
   const latest = list.slice().sort((a, b) => (a.row || 0) - (b.row || 0)).pop();
   const crewList = (((latest || {}).b || {}).availability || {}).crew_members || [];
-  const crew = crewList.map(m => [avPk, fecha, hora, item.name || '',
+  const crew = crewList.map(m => [avPk, fecha, hora, itemName,
     (m.role && m.role.short_name) || '', (m.user && m.user.name) || '', (m.user && m.user.username) || '', m.note || '', roleKey_(m)]);
   crew.forEach(c => { if (!c[4]) alerts.push('Falta rol: ' + (c[5] || c[6] || '?')); });
 
-  const salida = [avPk, item.pk || '', item.name || '', tour.tipo || '?', fecha, hora, av.start_at || '', av.end_at || '',
+  const salida = [avPk, item.pk || '', itemName, tour.tipo || '?', fecha, hora, av.start_at || '', av.end_at || '',
     custBk.length, paxPend ? (pax ? pax + ' + pendiente' : 'pendiente') : pax, unidades, bitacora,
     sal.map(x => x.b.pk).join(', '), reg.map(x => x.b.pk).join(', '),
     crew.map(c => (c[4] || 'sin rol') + ': ' + (c[5] || c[6])).join(' · '),
@@ -632,11 +637,11 @@ function reservaRow_(b, eventTime, rawRow, tours, ing, M, tc) {
   return [
     b.pk, b.display_id || '', status, status === 'booked' ? 'sí' : 'no',
     b.rebooked_to || '', b.rebooked_from || '',
-    av.pk || '', item.pk || '', item.name || '',
+    av.pk || '', item.pk || '', (tour && tour.nombre) || item.name || '',
     fmtDate_(av.start_at, 'yyyy-MM-dd'), fmtDate_(av.start_at, 'HH:mm'),
     av.start_at || '', av.end_at || '',
     ops, p.pax, p.unidades,
-    typeSummary_(b),
+    typeSummary_(b, M),
     (b.contact && b.contact.name) || '',
     (b.affiliate_company && b.affiliate_company.name) || '',
     b.source_type || '',
@@ -773,6 +778,11 @@ function rebuildReservas() {
   const M = loadMapeos_(ss);
   const latest = latestFromRaw_(ss);
   Object.values(latest).forEach(x => ensureTour_(ss, tours, x.b));
+  try { // round 25: latest FareHarbor name per item / resource pk (by received time) → Tours col B + Recursos tab
+    const acc = { items: {}, res: {} };
+    Object.values(latest).forEach(x => observeNames_(acc, x.b, x.t));
+    registerNames_(ss, acc, tours, M);
+  } catch (errN) { logError_(ss, 'Nombres', errN, ''); }
   registerUnknowns_(ss, Object.values(latest).map(x => x.b), M, ctxFor_(ss, tours), new Date()); // keep unknowns, never drop data
   const rows = Object.values(latest).map(x => reservaRow_(x.b, x.t, x.row, tours, ing, M, x.tc));
   rows.sort((a, b) => String(a[11]).localeCompare(String(b[11])) || (a[0] - b[0]));
@@ -1887,8 +1897,8 @@ function ctxFor_(ss, tours) {
 }
 
 /** Pure: the three tabs' rows → M (rows are 1-based sheet rows, header = 1) */
-function mapeosFromRows_(ctRows, cfRows, rolRows) {
-  const M = { ctype: {}, field: {}, role: {} };
+function mapeosFromRows_(ctRows, cfRows, rolRows, resRows) {
+  const M = { ctype: {}, field: {}, role: {}, res: {} };
   const lc = v => String(v === null || v === undefined ? '' : v).toLowerCase().trim();
   const est = v => /nuevo/i.test(String(v || '')) ? ESTADO_NUEVO : ESTADO_OK;
   ctRows.forEach((r, i) => {
@@ -1905,12 +1915,89 @@ function mapeosFromRows_(ctRows, cfRows, rolRows) {
     if (r[0] === '' || r[0] === null) return;
     M.role[String(r[0])] = { tarifa: lc(r[3]), estado: est(r[4]), nombre: String(r[1] || ''), nombreRol: String(r[2] || ''), visto: r[5], en: String(r[6] || ''), notas: String(r[7] || ''), row: i + 2 };
   });
+  (resRows || []).forEach((r, i) => { // round 25: Recursos tab (pk | Nombre | Visto | Antes)
+    if (r[0] === '' || r[0] === null || r[0] === undefined) return;
+    M.res[String(r[0])] = { nombre: String(r[1] || ''), visto: r[2], antes: String(r[3] || ''), row: i + 2 };
+  });
   return M;
 }
 /** Sheets: M from the three tabs, or null if any tab doesn't exist yet */
 function loadMapeos_(ss) {
   if (!ss.getSheetByName(CT_TAB) || !ss.getSheetByName(CF_TAB) || !ss.getSheetByName(ROL_TAB)) return null;
-  return mapeosFromRows_(readTab_(ss, CT_TAB, CT_HEADERS), readTab_(ss, CF_TAB, CF_HEADERS), readTab_(ss, ROL_TAB, ROL_HEADERS));
+  return mapeosFromRows_(readTab_(ss, CT_TAB, CT_HEADERS), readTab_(ss, CF_TAB, CF_HEADERS), readTab_(ss, ROL_TAB, ROL_HEADERS),
+    ss.getSheetByName(RECURSOS_TAB) ? readTab_(ss, RECURSOS_TAB, RECURSOS_HEADERS) : []);
+}
+
+// ---- round 25: always show the CURRENT FareHarbor name (display only; everything still matches by pk) ----
+/** Pure: clean resource name from a resource_uses[].resource ('' when none) */
+function resName_(r) { return String((r && (r.name || r.short_name)) || '').replace(/[:|]/g, ' ').replace(/\s+/g, ' ').trim(); }
+/**
+ * Pure: the names one booking payload shows, keeping the LATEST (by received time t) per pk. acc = {items:{pk:{name,t}}, res:{pk:{name,t}}} is updated in place.
+ * t: Date | ISO text | ms (compared as ms; unknown → 0).
+ */
+function observeNames_(acc, b, t) {
+  acc = acc || { items: {}, res: {} };
+  const ms = t instanceof Date ? t.getTime() : (typeof t === 'number' ? t : Date.parse(String(t || '')));
+  const T = isNaN(ms) ? 0 : ms;
+  const put = (m, pk, name) => { if (!pk || !name) return; const o = m[pk]; if (!o || T >= o.t) m[pk] = { name: name, t: T }; };
+  const item = ((b || {}).availability || {}).item || {};
+  if (item.pk) put(acc.items, String(item.pk), String(item.name || '').trim());
+  ((b || {}).resource_uses || []).forEach(u => { const r = (u && u.resource) || {}; if (r.pk !== undefined && r.pk !== null && r.pk !== '') put(acc.res, String(r.pk), resName_(r)); });
+  return acc;
+}
+/**
+ * Pure: Recursos rows + observed names → {rows, changed}. A newer observation with another name replaces Nombre and appends the old one to Antes;
+ * an older observation never overwrites. rows keep the tab's column order [Clave, Nombre, Visto, Antes].
+ */
+function mergeResNames_(existingRows, observed) {
+  const rows = (existingRows || []).filter(r => r[0] !== '' && r[0] !== null && r[0] !== undefined).map(r => [String(r[0]), String(r[1] || ''), r[2], String(r[3] || '')]);
+  const by = {}; rows.forEach(r => { by[r[0]] = r; });
+  let changed = false;
+  Object.keys(observed || {}).forEach(pk => {
+    const o = observed[pk], iso = o.t ? new Date(o.t) : '', e = by[pk];
+    if (!e) { const r = [pk, o.name, iso, '']; rows.push(r); by[pk] = r; changed = true; return; }
+    const prevMs = e[2] instanceof Date ? e[2].getTime() : Date.parse(String(e[2] || ''));
+    if (!isNaN(prevMs) && o.t < prevMs) return; // older than what is stored
+    if (e[1] !== o.name) { e[3] = (e[3] ? e[3] + ' | ' : '') + e[1]; e[1] = o.name; changed = true; }
+    if (iso && (isNaN(prevMs) || o.t > prevMs)) { e[2] = iso; changed = true; }
+  });
+  return { rows: rows, changed: changed };
+}
+/** Pure: resources [{pk,name,n}] with the latest name of each pk (M.res); unknown pk keeps its payload name */
+function applyResNames_(resources, M) {
+  return (resources || []).map(r => { const e = M && M.res && M.res[String(r.pk)]; return e && e.nombre ? { pk: r.pk, name: e.nombre, n: r.n } : r; });
+}
+/**
+ * Sheets: remember the latest names seen. Items → Tours col B (only for known pks; "Antes: …" appended to Notas), resources → Recursos tab,
+ * customer types / roles are renamed by registerUnknowns_ (their tabs). Updates tours / M in memory. Returns true if anything changed
+ * (the caller sets REBUILD_PENDING so older Salidas / Eventuales pick the new name up).
+ */
+function registerNames_(ss, acc, tours, M) {
+  let changed = false;
+  const sh = ss.getSheetByName('Tours');
+  Object.keys(acc.items || {}).forEach(pk => {
+    const t = (tours || {})[pk], name = acc.items[pk].name;
+    if (!t || !t.row || !name || t.nombre === name || !sh) return;
+    try {
+      sh.getRange(t.row, 2).setValue(name);
+      const c = sh.getRange(t.row, 6), old = String(c.getValue() || '');
+      c.setValue((old ? old + ' | ' : '') + 'Antes: ' + (t.nombre || '?'));
+      t.nombre = name; changed = true;
+    } catch (err) { logError_(ss, 'Tours nombre', err, ''); }
+  });
+  const obs = acc.res || {};
+  if (Object.keys(obs).length) {
+    const rsh = sheet_(ss, RECURSOS_TAB, RECURSOS_HEADERS);
+    const cur = rsh.getLastRow() >= 2 ? rsh.getRange(2, 1, rsh.getLastRow() - 1, RECURSOS_HEADERS.length).getValues() : [];
+    const m = mergeResNames_(cur, obs);
+    if (m.changed) {
+      rsh.getRange(2, 1, m.rows.length, RECURSOS_HEADERS.length).setValues(m.rows);
+      if (M) { M.res = M.res || {}; m.rows.forEach(r => { M.res[r[0]] = { nombre: r[1], visto: r[2], antes: r[3] }; }); }
+      const was = {}; cur.forEach(r => { was[String(r[0])] = String(r[1] || ''); });
+      if (m.rows.some(r => was[r[0]] !== undefined && was[r[0]] !== r[1])) changed = true; // renamed (a brand-new pk needs no history refresh)
+    }
+  }
+  return changed;
 }
 
 /** Pure: item for "Visto en" */
@@ -2175,9 +2262,10 @@ function validateMapeo_(kind, valores, ctx) {
 }
 
 // ---------------- Helpers ----------------
-function typeSummary_(b) {
+function typeSummary_(b, M) {
   const m = {};
-  (b.customers || []).forEach(c => { const t = custType_(c); m[t] = (m[t] || 0) + 1; });
+  (b.customers || []).forEach(c => { // round 25: latest name of the customer type (Tipos de cliente tab) when mapped
+    const e = M && M.ctype && M.ctype[ctKey_(c)]; const t = (e && e.nombre) || custType_(c); m[t] = (m[t] || 0) + 1; });
   return Object.entries(m).map(([t, n]) => n + '× ' + t).join(', ');
 }
 function money_(cents) {
@@ -2218,4 +2306,4 @@ function sheet_(ss, name, headers) {
 if (typeof module !== 'undefined') module.exports = { ctKey_, cfKey_, roleKey_, guessCtype_, guessFieldUso_, guessRolTarifa_, camposMap_, typeUso_, fieldUso_, bitUso_, crewTarifa_,
   reportFileName_, archiveReport_, mapeosFromRows_, observe_, collectUnknowns_, seedMapeos_, validateMapeo_, toursFromRows_, tourEstado_, TOURS_SEED_ROWS: TOURS_SEED, USOS_CT, USOS_CF,
   CT_HEADERS, CF_HEADERS, ROL_HEADERS, CREW_HEADERS, BIT_HEADERS, ESTADO_NUEVO, ESTADO_OK, rawRowFor_, doPost, rebuildFinanzas, rebuildAll, ensureMapeos_, loadMapeos_,
-  registerUnknowns_, prepararMapeos, isoOf_, keptAmount_, cancelNetEstimate_, cancelIncome_, cancelAtOf_, cancelCells_, RES_KEPT, RES_CNET, RES_CSRC, RES_CTC, SAL_CANC, SAL_CCOBRO, SAL_CHORA, SAL_CMIN, parseCostos_, externoNota_, barcoNota_, exactNet_, costoAdicionalText_, EXT_HEADERS, COSTO_HEADERS, bitacoraNoAplica_, bitacoraRuleStale_, markBitacoraSi_, BITACORA_RULE_V, checkinOf_, checkinSummary_, checkinText_, parseCheckin_, camposText_, phoneOf_, reservaRow_, importReport_, horaExtraQty_, planHoraExtraMigration_, checkTicked_, trasladoWays_, trasladoRate_, planTrasladoCampos_, planTrasladoTarifas_, migrateTrasladoCampos20261126_, migrateTrasladoTarifas20261126_, TRASLADO_FIELDS, TRASLADO_TAR_SEED, migrateHoraExtra20261126_, ajustesActivos_, ajustesPorSalida_, ajusteEvRows_, AJS_HEADERS, CONC_HEADERS, CONC_SEED, EV_HEADERS, loadIngresos_, moneyCells_, pricedFields_, descuentosText_, cargosText_, pagosText_, reembolsadoTotal_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payDow_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };
+  registerUnknowns_, prepararMapeos, isoOf_, keptAmount_, cancelNetEstimate_, cancelIncome_, cancelAtOf_, cancelCells_, RES_KEPT, RES_CNET, RES_CSRC, RES_CTC, SAL_CANC, SAL_CCOBRO, SAL_CHORA, SAL_CMIN, parseCostos_, externoNota_, barcoNota_, exactNet_, costoAdicionalText_, EXT_HEADERS, COSTO_HEADERS, observeNames_, mergeResNames_, applyResNames_, registerNames_, resName_, RECURSOS_HEADERS, RECURSOS_TAB, bitacoraNoAplica_, bitacoraRuleStale_, markBitacoraSi_, BITACORA_RULE_V, checkinOf_, checkinSummary_, checkinText_, parseCheckin_, camposText_, phoneOf_, reservaRow_, importReport_, horaExtraQty_, planHoraExtraMigration_, checkTicked_, trasladoWays_, trasladoRate_, planTrasladoCampos_, planTrasladoTarifas_, migrateTrasladoCampos20261126_, migrateTrasladoTarifas20261126_, TRASLADO_FIELDS, TRASLADO_TAR_SEED, migrateHoraExtra20261126_, ajustesActivos_, ajustesPorSalida_, ajusteEvRows_, AJS_HEADERS, CONC_HEADERS, CONC_SEED, EV_HEADERS, loadIngresos_, moneyCells_, pricedFields_, descuentosText_, cargosText_, pagosText_, reembolsadoTotal_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payDow_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };
