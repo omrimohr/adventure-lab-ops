@@ -109,7 +109,7 @@ test('role short name renamed in the Roles tab → getData crew shows it (matche
   assert.ok(crew.some(c => /Capit/.test(c.r) && c.r.indexOf('barco') >= 0), JSON.stringify(crew.map(c => c.r)));
 });
 test('history rule version bumped (recalculates Salidas / Bitácora / Reservas from Raw once)', () => {
-  assert.strictEqual(E.BITACORA_RULE_V, '9');
+  assert.ok(Number(E.BITACORA_RULE_V) >= 9);
 });
 
 // ---- UI ----

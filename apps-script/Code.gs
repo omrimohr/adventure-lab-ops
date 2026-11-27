@@ -337,7 +337,7 @@ function bookingPax_(b, tour, M) {
   // privado
   if (people === null && seats === null) return { pax: '', unidades: unidades, alerta: 'Falta # de personas' };
   if (people === null) return { pax: seats, unidades: unidades, alerta: 'Solo Seats (falta campo personas)' };
-  if (seats !== null && seats !== people) return { pax: people, unidades: unidades, alerta: 'Personas (' + people + ') ≠ Seats (' + seats + ')' };
+  // round 29: no "Personas ≠ Seats" alert (Omri); pax = people
   return { pax: people, unidades: unidades, alerta: '' };
 }
 
@@ -460,7 +460,7 @@ function bitacoraNoAplica_(tipo, barco) { return String(tipo || '').toLowerCase(
 // '8' (26 Nov 2026): cancelled bookings (income kept = paid − refunds, Reservas/Salidas columns, cancel time), no automatic 50% for cancelled departures (round 24).
 // '9' (27 Nov 2026): current FareHarbor names (items from Tours, resources from Recursos, customer types) in Salidas / Bitácora / Tripulación / Reservas; private pax = any 'personas' field (round 25).
 // '6' (26 Nov 2026): Ingreso neto = Net Revenue Collected + Processing Fees (exactNet_); Externos amount from the Capitán Externo crew note (externoNota_), Costos salida counts it once.
-const BITACORA_RULE_V = '9';
+const BITACORA_RULE_V = '10';
 // Items that got OPS · Salida/Regreso bitácora fields in FareHarbor on 24 Nov 2026 → Tours "Lleva bitácora" = sí (sheet record only)
 const BITACORA_SI_20261124 = [244134, 398421, 243654, 398153, 337343, 337931, 398154, 703654, 689738, 185852, 703536, 770935];
 function markBitacoraSi_(ss) {
@@ -612,7 +612,8 @@ function computeSalida_(avPk, list, tours, now, ing, M) {
   const crewList = (((latest || {}).b || {}).availability || {}).crew_members || [];
   const crew = crewList.map(m => [avPk, fecha, hora, itemName,
     (m.role && m.role.short_name) || '', (m.user && m.user.name) || '', (m.user && m.user.username) || '', m.note || '', roleKey_(m)]);
-  crew.forEach(c => { if (!c[4]) alerts.push('Falta rol: ' + (c[5] || c[6] || '?')); });
+  // round 29: externals (name/username contains "extern") are never paid as staff, so a missing role is irrelevant
+  crew.forEach(c => { if (!c[4] && !/extern/i.test(c[5] + ' ' + c[6])) alerts.push('Falta rol: ' + (c[5] || c[6] || '?')); });
 
   const salida = [avPk, item.pk || '', itemName, tour.tipo || '?', fecha, hora, av.start_at || '', av.end_at || '',
     custBk.length, paxPend ? (pax ? pax + ' + pendiente' : 'pendiente') : pax, unidades, bitacora,

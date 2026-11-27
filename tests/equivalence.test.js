@@ -14,7 +14,10 @@ const M = N.ex.mapeosFromRows_(seed.ctype, seed.field, seed.role);
 const same = (a, b, msg) => assert.deepStrictEqual(J(a), J(b), msg);
 // Round 4 changed two things on purpose (not an equivalence break): bitácora applies to every tipo except renta, and
 // departures with customers but no resource carry the alert 'Sin recurso asignado'. Normalise those two before comparing.
-const legacy = (n, o) => { const r = J(n.salida).slice(0, o.salida.length);
+// Round 29 also removed two alerts on purpose: "Personas (X) ≠ Seats (Y)" and "Falta rol" for externals (name/username with "extern").
+const r29 = a => String(a).split(' | ').filter(x => !/Personas \(.*≠ Seats/.test(x) && !/^Falta rol: .*extern/i.test(x)).join(' | ');
+const oldFix = o => { const s = o.salida.slice(); s[15] = r29(s[15]); return Object.assign({}, o, { salida: s }); };
+const legacy = (n, o0) => { const o = oldFix(o0); const r = J(n.salida).slice(0, o.salida.length);
   r[15] = String(r[15]).split(' | ').filter(a => a !== 'Sin recurso asignado').join(' | ');
   if (r[11] === 'Sin bitácora' && o.salida[11] === 'No aplica' && r[3] !== 'renta') r[11] = 'No aplica';
   return r; };
@@ -46,21 +49,22 @@ test('opsType_ / bookingPax_ / reservaRow_ identical for every booking', () => {
   F.ALL.forEach(p => {
     const b = p.booking, tour = tours[String(b.availability.item.pk)];
     same(N.ex.opsType_(b, M), O.ex.opsType_(b), 'opsType ' + b.pk);
-    same(N.ex.bookingPax_(b, tour, M), O.ex.bookingPax_(b, tour), 'pax ' + b.pk);
+    const po = J(O.ex.bookingPax_(b, tour)); if (/≠ Seats/.test(po.alerta)) po.alerta = '';
+    same(N.ex.bookingPax_(b, tour, M), po, 'pax ' + b.pk);
     const nr = N.get('reservaRow_')(b, NOW, 7, tours, {}, M), or = O.get('reservaRow_')(b, NOW, 7, tours, {});
-    same(nr.slice(0, or.length), or, 'reservaRow ' + b.pk); // new columns (Link FareHarbor) are appended at the end
+    same(nr.slice(0, or.length).map(c => typeof c === 'string' ? r29(c) : c), or.map(c => typeof c === 'string' ? r29(c) : c), 'reservaRow ' + b.pk); // new columns (Link FareHarbor) are appended at the end
     n++;
   });
   assert.strictEqual(n, F.ALL.length);
   // sanity: the scenarios really exercise the rules
   const px = k => J(N.ex.bookingPax_(F.ALL.find(p => p.booking.pk === k).booking, tours['244132'], M));
-  assert.strictEqual(px(5010).pax, 6); assert.ok(/Seats/.test(px(5011).alerta)); assert.ok(/Solo Seats/.test(px(5012).alerta)); assert.ok(/Falta/.test(px(5013).alerta));
+  assert.strictEqual(px(5010).pax, 6); assert.strictEqual(px(5011).alerta, ''); assert.strictEqual(px(5011).pax, 4); assert.ok(/Solo Seats/.test(px(5012).alerta)); assert.ok(/Falta/.test(px(5013).alerta));
 });
 
 test('computeSalida_ identical (salida row, bitácora lines, tripulación incl. role with no short_name)', () => {
   departures.forEach(d => {
     const n = N.ex.computeSalida_(d.av, d.list, tours, NOW, {}, M), o = O.ex.computeSalida_(d.av, d.list, tours, NOW, {});
-    same(legacy(n, o), o.salida, 'salida ' + d.av); same(n.bit.map(r => r.slice(0, 10)), o.bit, 'bit ' + d.av);
+    same(legacy(n, o), oldFix(o).salida, 'salida ' + d.av); same(n.bit.map(r => r.slice(0, 10)), o.bit, 'bit ' + d.av);
     same(n.crew.map(r => r.slice(0, 8)), o.crew, 'crew ' + d.av); assert.strictEqual(n.hasCustomers, o.hasCustomers);
     n.crew.forEach(r => assert.strictEqual(r.length, 9)); // + Rol clave
   });
@@ -105,6 +109,6 @@ test('payForSalida_ identical (rates, hora extra, externos, role without short_n
 test('with M = null the old name rules still apply (safe defaults)', () => {
   departures.forEach(d => {
     const n = N.ex.computeSalida_(d.av, d.list, tours, NOW, {}), o = O.ex.computeSalida_(d.av, d.list, tours, NOW, {});
-    same(legacy(n, o), o.salida); same(n.bit.map(r => r.slice(0, 10)), o.bit);
+    same(legacy(n, o), oldFix(o).salida); same(n.bit.map(r => r.slice(0, 10)), o.bit);
   });
 });
