@@ -464,10 +464,11 @@ function bitacoraNoAplica_(tipo, barco) { return String(tipo || '').toLowerCase(
 // '5' (26 Nov 2026): check-in / no-show (Reservas + Salidas columns, alert "No show: N"), Reservas Campos / Teléfono.
 // '7' (26 Nov 2026): Bitácora Salida/Regreso per CUSTOMER type (one OPS booking with two customers); Bitácora gets column 'Customer pk'.
 // '12' (27 Nov 2026): gasoline cost per departure = allocation of refuels (round 31); Costos salida gets 'Gasolina (L)' / 'Gasolina fuente'.
+// '13' (28 Nov 2026): Monday fuel estimate starts on 16 Nov (GAS_EST_DESDE).
 // '8' (26 Nov 2026): cancelled bookings (income kept = paid − refunds, Reservas/Salidas columns, cancel time), no automatic 50% for cancelled departures (round 24).
 // '9' (27 Nov 2026): current FareHarbor names (items from Tours, resources from Recursos, customer types) in Salidas / Bitácora / Tripulación / Reservas; private pax = any 'personas' field (round 25).
 // '6' (26 Nov 2026): Ingreso neto = Net Revenue Collected + Processing Fees (exactNet_); Externos amount from the Capitán Externo crew note (externoNota_), Costos salida counts it once.
-const BITACORA_RULE_V = '12';
+const BITACORA_RULE_V = '13';
 // Items that got OPS · Salida/Regreso bitácora fields in FareHarbor on 24 Nov 2026 → Tours "Lleva bitácora" = sí (sheet record only)
 const BITACORA_SI_20261124 = [244134, 398421, 243654, 398153, 337343, 337931, 398154, 703654, 689738, 185852, 703536, 770935];
 function markBitacoraSi_(ss) {
@@ -1292,17 +1293,18 @@ function gasPrecio_(compras, fecha, dflt) {
  *    no known boat → all on D → 'bitacora'. c) price = latest purchase on/before the date, else placeholder (pe true).
  * → {pk: {l, mxn, src, pe, h}} for eligible departures only.
  */
+const GAS_EST_DESDE = '2026-11-16'; // first complete day of departures in the DB (Monday estimate starts here)
 function allocateGasolina_(inp) {
   const cut = String(inp.desde || GAS_DESDE_DEFAULT), dflt = Number(inp.precio) > 0 ? Number(inp.precio) : GAS_PRECIO_DEFAULT;
-  const all = inp.deps || [], dates = all.filter(d => Number(d.activas) > 0).map(d => d.fecha).sort(), first = dates[0] || '';
+  const all = inp.deps || [], dates0 = all.filter(d => Number(d.activas) > 0).map(d => d.fecha).sort(), dates = dates0.filter(f => f >= GAS_EST_DESDE), first = (dates.length ? dates : dates0)[0] || ''; // Monday estimate only from the first complete day of tours in the DB (16 Nov): older stray departures would concentrate a whole month of litres on a few tours
   const el = all.filter(d => Number(d.activas) > 0 && GAS_GRUPOS_.indexOf(d.barco) >= 0 && !d.ext).map(d => Object.assign({}, d));
   gasHoras_(el);
   const lit = {}; el.forEach(d => { lit[d.pk] = 0; });
   // a) Monday, before the cutover
   const pool = {}, hrs = {};
   (inp.cargas || []).forEach(c => { if (c.fecha < cut && first && c.fecha >= first && GAS_GRUPOS_.indexOf(c.grupo) >= 0) { const k = c.fecha.slice(0, 7) + '|' + c.grupo; pool[k] = (pool[k] || 0) + Number(c.litros); } });
-  el.forEach(d => { if (d.fecha < cut) { const k = d.fecha.slice(0, 7) + '|' + d.barco; hrs[k] = (hrs[k] || 0) + d.h; } });
-  el.forEach(d => { if (d.fecha < cut) { const k = d.fecha.slice(0, 7) + '|' + d.barco; if (hrs[k] && pool[k]) lit[d.pk] = pool[k] / hrs[k] * d.h; } });
+  el.forEach(d => { if (d.fecha < cut && first && d.fecha >= first) { const k = d.fecha.slice(0, 7) + '|' + d.barco; hrs[k] = (hrs[k] || 0) + d.h; } });
+  el.forEach(d => { if (d.fecha < cut && first && d.fecha >= first) { const k = d.fecha.slice(0, 7) + '|' + d.barco; if (hrs[k] && pool[k]) lit[d.pk] = pool[k] / hrs[k] * d.h; } });
   // b) bitácora, from the cutover
   const post = el.filter(d => d.fecha >= cut).sort((a, b) => (a.ini || 0) - (b.ini || 0) || (a.fecha + a.pk).localeCompare(b.fecha + b.pk));
   post.forEach(d => {
