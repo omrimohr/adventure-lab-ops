@@ -106,7 +106,7 @@ test('cfgAvGet: items, campos, tipos, roles (with Estado), conceptos, config, hi
   assert.deepStrictEqual(d.campos.map(x => [x.clave, x.uso, x.estado]), [['1889802', 'personas', 'OK'], ['2024634', 'ignorar', 'Nuevo – revisar']]);
   assert.deepStrictEqual(d.tipos.map(x => [x.clave, x.uso]), [['1105001', 'pax'], ['1331886', 'ops salida']]);
   assert.deepStrictEqual(d.roles.map(x => [x.clave, x.tarifa, x.estado]), [['11', 'capitan', 'OK'], ['13', '', 'Nuevo – revisar']]);
-  assert.deepStrictEqual(d.config, [{ key: 'semana_pago', label: 'Semana de pago de eventuales', valor: 'jueves' }, { key: 'semana_inicio', label: 'Semana del reporte de stock', valor: 'jueves' }]);
+  assert.deepStrictEqual(d.config, [{ key: 'semana_pago', label: 'Semana de pago de eventuales', valor: 'jueves' }, { key: 'semana_inicio', label: 'Semana del reporte de stock', valor: 'jueves' }, { key: 'gasolina_desde', label: 'Gasolina real desde (bitácora)', valor: '2026-11-28' }, { key: 'gasolina_precio', label: 'Precio de gasolina (MXN por litro)', valor: '25' }]);
   assert.ok(d.conceptos.length >= 5 && d.opciones.tarifas.indexOf('capitan') >= 0 && d.opciones.prods.length >= 1 && Array.isArray(d.historial));
 });
 

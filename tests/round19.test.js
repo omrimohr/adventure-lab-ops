@@ -45,7 +45,7 @@ test('Externos: fallback to bitácora "barco externo" lines when the note has no
 
 test('Costos salida counts the external cost once (note wins; bitácora non-external items kept)', () => {
   const src = fs.readFileSync(path.join(ROOT, 'apps-script/Code.gs'), 'utf8');
-  assert.ok(/costoAd = Math\.round\(\(otros \+ \(p\.extMonto/.test(src) && /\+ trip \+ costoAd/.test(src) && /alerts\.join\(' \| '\), costoAd, r2_\(aj\)\]/.test(src));
+  assert.ok(/costoAd = Math\.round\(\(otros \+ \(p\.extMonto/.test(src) && /\+ trip \+ costoAd/.test(src) && /alerts\.join\(' \| '\), costoAd, r2_\(aj\), '', ''\]/.test(src));
   assert.ok(!/trip \+ cos\.total/.test(src), 'cos.total (which includes the external lines) is no longer added');
 });
 

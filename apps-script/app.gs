@@ -17,7 +17,7 @@ const REV_HEADERS = ['Availability pk', 'Por', 'Fecha/hora', 'ID cliente'];
 const CID_HDR = 'ID cliente';
 const CONFIG_HEADERS = ['Clave', 'Valor', 'Actualizado', 'Por'];
 // App settings kept in tab "Config" (Clave | Valor). Add a key here + in validateConfig_ and it is validated, stored and returned by getData.
-const CONFIG_DEFAULTS_ = { semana_inicio: 'jueves', semana_pago: 'jueves' };
+const CONFIG_DEFAULTS_ = { semana_inicio: 'jueves', semana_pago: 'jueves', gasolina_desde: '2026-11-28', gasolina_precio: '25' }; // round 31: gasolina_desde = cutover Monday estimate → bitácora; gasolina_precio = placeholder MXN/L
 const PERM_SEED = [
   ['compras', 'Agregar compras', 'sí', 'sí'],
   ['revisar', 'Marcar revisado', 'sí', 'sí'],
@@ -43,7 +43,7 @@ const FB_MAX_IMG = 3500000; // characters of the base64 data URL (≈2.5 MB of i
 function apiResponse_(p) {
   const map = { login: login, getData: getData, addCompra: addCompra, anularCompra: anularCompra, editCompra: editCompra,
     addAjuste: addAjuste, addConteo: addConteo, addComida: addComida, markPaid: markPaid, markRev: markRev,
-    saveProducto: saveProducto, saveTarifa: saveTarifa, savePerm: savePerm, saveTourBarco: saveTourBarco, setMapeo: setMapeo, refreshFin: refreshFin, stockReport: stockReport,
+    saveProducto: saveProducto, saveTarifa: saveTarifa, savePerm: savePerm, saveTourBarco: saveTourBarco, setMapeo: setMapeo, refreshFin: refreshFin, stockReport: stockReport, gasolinaReport: gasolinaReport,
     addFeedback: addFeedback, setFeedbackEstado: setFeedbackEstado, eventualesReport: eventualesReport, listUsers: listUsers, saveUser: saveUser,
     addAjusteSalida: addAjusteSalida, anularAjusteSalida: anularAjusteSalida, saveConcepto: saveConcepto,
     cfgAvEstado: cfgAvEstado, cfgAvUnlock: cfgAvUnlock, cfgAvChangeCode: cfgAvChangeCode, cfgAvGet: cfgAvGet, cfgAvItemCampos: cfgAvItemCampos, setConfigAvanzada: setConfigAvanzada, cfgAvRevertir: cfgAvRevertir };
@@ -425,7 +425,7 @@ function buildDeps_(inp) {
       boat: BARCO_LABEL[barco] || '', barco: barco, tipo: String(s[3] || ''), crew: crew, bookings: bookings,
       out: hasOut ? bq.out : null, back: hasBack ? bq.back : null, extras: extrasText_(bits, inp.M, true), ca: parseCostos_(costoAdicionalText_(bits, inp.M)), hx: hx,
       rev: inp.revs[pk] || null, bit: st, alerts: String(s[15] || ''), netSource: String(s[18] || ''),
-      costs: k ? { b: r2_(k[8]), g: r2_(k[10]), h: r2_(k[9]), f: r2_(k[11]), des: r2_(k[12]), ev: r2_(k[13]), tot: r2_(k[14]), pct: k[15] === '' ? null : Number(k[15]), ca: r2_(k[18]), aj: r2_(k[19]),
+      costs: k ? { b: r2_(k[8]), g: r2_(k[10]), h: r2_(k[9]), f: r2_(k[11]), des: r2_(k[12]), ev: r2_(k[13]), tot: r2_(k[14]), gas: gasFrom_(k), pct: k[15] === '' ? null : Number(k[15]), ca: r2_(k[18]), aj: r2_(k[19]),
         ext: crew.filter(c => c.ext).map(c => ({ barco: c.bc || '', persona: c.who || '', monto: c.monto === undefined ? null : c.monto })), // Renta de barco: one per external (amount from the crew note)
         adic: r2_(k[18] - crew.filter(c => c.ext).reduce((a, c) => a + (Number(c.monto) || 0), 0)) } : null, // Costos adicionales without the external boat cost
       cn: cn,
@@ -623,6 +623,16 @@ function validateConfig_(key, value) {
   if (k === 'semana_pago') {
     if (!Object.prototype.hasOwnProperty.call(PAY_DOW_, v)) throw new Error('Día de semana de pago inválido (lunes … domingo)');
     return { key: k, value: v };
+  }
+  if (k === 'gasolina_desde') {
+    const t = String(value === null || value === undefined ? '' : value).trim(), m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t), d = m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])) : null;
+    if (!d || d.getUTCFullYear() !== +m[1] || d.getUTCMonth() !== +m[2] - 1 || d.getUTCDate() !== +m[3]) throw new Error('Fecha inválida (aaaa-mm-dd)');
+    return { key: k, value: t };
+  }
+  if (k === 'gasolina_precio') {
+    const n = Number(String(value === null || value === undefined ? '' : value).trim().replace(',', '.'));
+    if (!isFinite(n) || n <= 0 || n > 200) throw new Error('Precio inválido (MXN por litro, mayor que 0)');
+    return { key: k, value: String(Math.round(n * 100) / 100) };
   }
   throw new Error('Ajuste desconocido');
 }
@@ -954,6 +964,56 @@ function loadMoves_(ss) {
   return { items: items, moves: moves };
 }
 /** Admin only. One date for both = "balance al día". */
+/** Pure (round 31): Costos salida row → fuel detail {l, mxn, src, pe} or null (external boat / no allocation) */
+function gasFrom_(k) {
+  const src = String(k[21] || ''); if (!src) return null;
+  const f = gasFuenteParse_(src);
+  return { l: r2_(k[20]), mxn: r2_(k[10]), src: f.src, pe: f.pe };
+}
+/**
+ * Pure (round 31): fuel report over a period (day-inclusive). cargas = [{fecha, emb, grupo, litros}] (Monday), deps = [{pk, fecha, grupo (Tours Barco), boat (first boat label or ''), activas, ext}],
+ * costos = {pk: {l, mxn, src, pe}} (from Costos salida); deps also carry item, ini, fin (hours = gasHoras_, same rule as the allocation). Per boat: refuels (L, count), departures, hours, L/h = refuelled litres / hours.
+ * Per group: allocated litres + MXN of its departures. 'general' (camioneta …) is shown apart and is never a tour cost.
+ */
+function gasolinaReport_(inp) {
+  let desde = inp.desde, hasta = inp.hasta; if (hasta < desde) { const t = desde; desde = hasta; hasta = t; }
+  const R = n => Math.round(n * 100) / 100, inR = d => d >= desde && d <= hasta, boats = {}, grupos = {}, gen = { litros: 0, cargas: 0 };
+  const B = (b, g) => (boats[b] = boats[b] || { barco: b, grupo: g, litros: 0, cargas: 0, deps: 0, horas: 0 });
+  const G = g => (grupos[g] = grupos[g] || { grupo: g, litros: 0, mxn: 0, deps: 0, horas: 0, cargas: 0, pe: false });
+  (inp.cargas || []).forEach(c => {
+    if (!inR(c.fecha)) return;
+    const b = gasBarco_(c.emb);
+    if (!b || GAS_GRUPOS_.indexOf(b.grupo) < 0) { gen.litros += Number(c.litros) || 0; gen.cargas++; return; }
+    const o = B(b.barco, b.grupo); o.litros += Number(c.litros) || 0; o.cargas++; const g = G(b.grupo); g.cargas++;
+  });
+  const el = gasHoras_((inp.deps || []).filter(d => Number(d.activas) > 0 && !d.ext && GAS_GRUPOS_.indexOf(d.grupo) >= 0).map(d => Object.assign({}, d)));
+  el.forEach(d => {
+    if (!inR(d.fecha)) return;
+    const c = (inp.costos || {})[d.pk] || { l: 0, mxn: 0 }, g = G(d.grupo);
+    g.litros += Number(c.l) || 0; g.mxn += Number(c.mxn) || 0; g.deps++; g.horas += d.h; if (c.pe) g.pe = true;
+    if (d.boat) { const o = B(d.boat, d.grupo); o.deps++; o.horas += d.h; }
+  });
+  const bo = Object.keys(boats).map(k => boats[k]).sort((a, b) => GAS_GRUPOS_.indexOf(a.grupo) - GAS_GRUPOS_.indexOf(b.grupo) || a.barco.localeCompare(b.barco))
+    .map(o => ({ barco: o.barco, grupo: o.grupo, litros: R(o.litros), cargas: o.cargas, deps: o.deps, horas: R(o.horas), lph: o.horas > 0 && o.litros > 0 ? R(o.litros / o.horas) : null }));
+  const gr = GAS_GRUPOS_.filter(g => grupos[g]).map(g => ({ grupo: g, litros: R(grupos[g].litros), mxn: R(grupos[g].mxn), deps: grupos[g].deps, horas: R(grupos[g].horas), cargas: grupos[g].cargas, pe: grupos[g].pe }));
+  return { desde: desde, hasta: hasta, boats: bo, grupos: gr, general: { litros: R(gen.litros), cargas: gen.cargas },
+    totals: { litros: R(gr.reduce((a, x) => a + x.litros, 0)), mxn: R(gr.reduce((a, x) => a + x.mxn, 0)) } };
+}
+/** Admin only: fuel report for [desde, hasta] (Gasolina cargas + Costos salida + Salidas). */
+function gasolinaReport(pin, desde, hasta) {
+  const u = auth_(pin);
+  if (u.rol !== 'admin') throw new Error('Solo admin puede ver el reporte');
+  const d = validYmd_(desde), h = validYmd_(hasta) || d;
+  if (!d) throw new Error('Elige el mes del reporte');
+  const ss = ss_(), M = loadMapeos_(ss), cfg = readConfig_(ss), barcos = ensureBarco_(ss);
+  const externos = {}; readTab_(ss, 'Externos', EXT_HEADERS).forEach(r => { externos[String(r[3])] = true; });
+  const deps = readTab_(ss, 'Salidas', SAL_HEADERS).filter(r => r[0] !== '').map(s => ({ pk: String(s[0]), fecha: fmtDate_(s[6], 'yyyy-MM-dd'), grupo: barcos[String(s[1])] || '', activas: Number(s[8]) || 0, item: String(s[1]), ini: s[6] ? new Date(s[6]).getTime() : null, fin: s[7] ? new Date(s[7]).getTime() : null,
+    boat: gasBoatsOf_(applyResNames_(resFromText_(s[20]), M).map(r => r.name))[0] || '', ext: !!externos[String(s[0])] }));
+  const costos = {}; readTab_(ss, 'Costos salida', COSTO_HEADERS).forEach(k => { const g = gasFrom_(k); if (g) costos[String(k[0])] = g; });
+  const rep = gasolinaReport_({ desde: d, hasta: h, cargas: loadGasCargas_(ss), deps: deps, costos: costos });
+  rep.ok = true; rep.cfg = { desde: cfg.gasolina_desde, precio: Number(cfg.gasolina_precio) };
+  return rep;
+}
 function stockReport(pin, desde, hasta) {
   const u = auth_(pin);
   if (u.rol !== 'admin') throw new Error('Solo admin puede ver el reporte');
@@ -1377,7 +1437,7 @@ function cfgWrite_(ss, u, x) {
   if (k >= 0) sh.getRange(k + 2, 1, 1, 4).setValues([row]); else sh.appendRow(row);
   return before;
 }
-const CFG_LABELS_ = { semana_pago: 'Semana de pago de eventuales', semana_inicio: 'Semana del reporte de stock' };
+const CFG_LABELS_ = { semana_pago: 'Semana de pago de eventuales', semana_inicio: 'Semana del reporte de stock', gasolina_desde: 'Gasolina real desde (bitácora)', gasolina_precio: 'Precio de gasolina (MXN por litro)' };
 /**
  * Applies one change of the advanced screen (also used by the revert). → {changed, antes, despues}.
  * items: tipo | barco | fields | estado · campos: uso ("producto:<id>" or plain; valor may be {uso, prod}) · tipos: uso · roles: tarifa · config: valor (clave = key) · every mapping row also: estado.
@@ -1701,7 +1761,7 @@ function setFeedbackEstado(pin, id, estado, nota) {
 if (typeof module !== 'undefined') module.exports = {
   pinStr_, findUser_, permsFromRows_, permOk_, guessIcon_, buildItems_, groupCompras_, lastCostFrom_, priceLogFrom_, buildMoves_, stockMap_, countDiffs_,
   cleanLines_, slugId_, rateLabel_, buildRates_, latestRevs_, roleLabel_, bitQty_, extrasText_, ciFrom_, buildDeps_, trFrom_, moneyFrom_, buildPend_, fieldsFromBookings_, saludAlerts_, setMapeo, planTarifasMigration_, pluralEs_, appendNote_,
-  login, getData, refreshFin, windowTest_, staleFin_, addCompra, anularCompra, editCompra, addAjuste, addConteo, addComida, markPaid, markRev, saveProducto, saveTarifa, savePerm, saveTourBarco, setConfig, validateConfig_, configFromRows_, migrate20261124, stockReport_, stockReport, loadMoves_, cidRow_, cidOf_, ensureCidCol_,
+  gasolinaReport_, gasolinaReport, gasFrom_, login, getData, refreshFin, windowTest_, staleFin_, addCompra, anularCompra, editCompra, addAjuste, addConteo, addComida, markPaid, markRev, saveProducto, saveTarifa, savePerm, saveTourBarco, setConfig, validateConfig_, configFromRows_, migrate20261124, stockReport_, stockReport, loadMoves_, cidRow_, cidOf_, ensureCidCol_,
   eventualesReport_, eventualesReport, usersFromRows_, validateUser_, listUsers, saveUser, normFeedback_, feedbackFileName_, feedbackFromRows_, validEstado_, addFeedback, setFeedbackEstado, FEEDBACK_HEADERS,
   normAjusteSalida_, conceptosFromRows_, validateConcepto_, staffFromCrew_, addAjusteSalida, anularAjusteSalida, saveConcepto, cfgAvEstado, cfgAvUnlock, cfgAvChangeCode, cfgAvGet, cfgAvItemCampos, setConfigAvanzada, cfgAvRevertir, cfgHash_, cfgOwner_, isCfgOwner_, cambiosFromRows_, mapeoDiff_, CAMBIOS_HEADERS, cancelAntesTxt_, cancDecision_, cancelAlerts_
 };

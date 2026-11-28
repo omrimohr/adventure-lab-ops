@@ -13,7 +13,7 @@ test('validateConfig_: semana_pago accepts lunes…domingo (case/accents ignored
   ['lunes', 'martes', 'jueves', 'viernes', 'domingo'].forEach(d => assert.strictEqual(E.validateConfig_('semana_pago', d).value, d));
   assert.throws(() => E.validateConfig_('semana_pago', 'hoy'), /inválido/);
   assert.throws(() => E.validateConfig_('semana_pago', ''), /inválido/);
-  assert.deepStrictEqual(J(E.configFromRows_([])), { semana_inicio: 'jueves', semana_pago: 'jueves' });
+  assert.deepStrictEqual(J(E.configFromRows_([])), { semana_inicio: 'jueves', semana_pago: 'jueves', gasolina_desde: '2026-11-28', gasolina_precio: '25' });
   assert.strictEqual(E.configFromRows_([['semana_pago', 'lunes']]).semana_pago, 'lunes');
   assert.strictEqual(E.configFromRows_([['semana_pago', 'xx']]).semana_pago, 'jueves');
   assert.throws(() => E.validateConfig_('semana_inicio', 'martes'), /inválido/);

@@ -553,7 +553,7 @@ const S={role:'op',realRole:'op',user:'',date:'',wk:'',
   perms:{admin:{},op:{}},items:[],purchases:[],moves:[],priceLog:{},deps:[],paid:{},rates:[],weekly:[],externos:[],control:[],tours:[],comidas:[],fh:{},pend:[],salud:[],feedback:[],conceptos:[],staff:[],cfgAv:false,cfg:{tok:'',exp:0,est:null,d:null,next:null},fbf:'nuevo',fbEdit:null,evp:null,users:null,usersErr:'',rebuildPending:false,fhOk:true,offline:false,dataAt:0,
   win:{from:'',to:''},fetchedAt:'',q:'',filter:'todas',fopen:false,canc:'dinero',czero:'',config:{semana_inicio:'jueves',semana_pago:'jueves'}};
 let PIN='';
-const APP_VER='v26';   // = sufijo de CACHE en docs/sw.js ('al-ops-v26'); se manda con cada reporte
+const APP_VER='v27';   // = sufijo de CACHE en docs/sw.js ('al-ops-v27'); se manda con cada reporte
 
 // ===== Servidor =====
 // Servidor: Apps Script web app (misma URL que el webhook de FareHarbor). POST text/plain = sin preflight CORS.
@@ -740,6 +740,7 @@ const IC={
  logout:'<path d="M10 4H6a2 2 0 00-2 2v12a2 2 0 002 2h4"/><path d="M15 8l4 4-4 4M19 12H9"/>',
  okc:'<circle cx="12" cy="12" r="8.5"/><path d="M8 12.5l3 3 5-6"/>',
  kayak:'<path d="M3 15.5c4-3.2 14-3.2 18 0-4 3.2-14 3.2-18 0z"/><path d="M6.5 5.5l11 11"/><path d="M4.8 8.2l3-3M16.2 18.8l3-3"/>',
+ fuel:'<path d="M5 20V5.5A1.5 1.5 0 016.5 4h6A1.5 1.5 0 0114 5.5V20"/><path d="M4 20h11"/><path d="M7.5 8h4"/><path d="M14 9h2.2A1.8 1.8 0 0118 10.8V16a1.5 1.5 0 003 0V9l-2.5-2.5"/>',
  sailboat:'<path d="M12 3.5v11"/><path d="M12 4.5c3 2 5 5.5 5.5 9.5H12"/><path d="M10.5 7.5C8.5 9 7 11.5 6.5 14h4"/><path d="M4 17.5h16l-2.5 3h-11z"/>',
  boat:'<path d="M12 3v12"/><path d="M12 4.5l6 9.5h-6"/><path d="M12 8L7 14h5"/><path d="M4 17.5h16l-2.2 3.2H6.2z"/>',
  report:'<path d="M4 5.5A1.5 1.5 0 015.5 4h13A1.5 1.5 0 0120 5.5v9a1.5 1.5 0 01-1.5 1.5H10l-4.5 4v-4h0A1.5 1.5 0 014 14.5z"/><path d="M12 7.5v4M12 13.6v.1"/>',
@@ -1174,7 +1175,7 @@ function extCompact(note){
   const parts=String(note||'').split(/\r?\n|\s*[–—]\s*|\s+-\s+|\s*-\s*(?=\$)/).map(x=>x.replace(/\(\s*extern[oa]\s*\)/ig,'').replace(/\s+/g,' ').trim()).filter(Boolean);
   return parts.filter(x=>!(/\$|pesos|mxn/i.test(x)||/^[\d.,\s]+$/.test(x))).join(' · ');
 }
-const SCREENS={cfgav:'Configuración avanzada',cfgsec:'Configuración avanzada',conceptos:'Conceptos',usuarios:'Usuarios',dep:'Detalle de salida',pend:'Por configurar',fh:'Conexión FareHarbor',feedback:'Feedback',fbd:'Reporte',productos:'Productos',tarifas:'Tarifas eventuales',tours:'Items',permisos:'Permisos',ajustes:'Ajustes',item:'Producto',purchase:'Compra',movs:'Movimientos',person:'Eventual',role:'Permisos'};
+const SCREENS={gasolina:'Gasolina',cfgav:'Configuración avanzada',cfgsec:'Configuración avanzada',conceptos:'Conceptos',usuarios:'Usuarios',dep:'Detalle de salida',pend:'Por configurar',fh:'Conexión FareHarbor',feedback:'Feedback',fbd:'Reporte',productos:'Productos',tarifas:'Tarifas eventuales',tours:'Items',permisos:'Permisos',ajustes:'Ajustes',item:'Producto',purchase:'Compra',movs:'Movimientos',person:'Eventual',role:'Permisos'};
 const screenName=(tab,view,tabs)=>view?(SCREENS[view]||view):((tabs||{})[tab]||tab);
 const fbContext=(screen,date,user,ver)=>'Se envía con: pantalla '+screen+' · '+date+' · '+user+' · versión '+ver;
 function fbPayload(f,ctx){return {cid:ctx.cid,tipo:f.tipo==='Sugerencia'?'Sugerencia':'Error',texto:String(f.texto||'').trim(),pantalla:ctx.screen,fecha:ctx.date,version:ctx.ver,img:f.img||''}}
@@ -1198,6 +1199,23 @@ function cfgChanges(sec,o,v){
   return r;
 }
 const cfgSecOf=kind=>({tipo:'tipos',campo:'campos',rol:'roles',item:'items'}[kind]||'');
+// --- Gasolina por salida (ronda 31) ---
+const gasEst=g=>!!(g&&(g.src==='monday-est'||g.pe));   // estimado: reparto de cargas de Monday o precio de referencia
+const GAS_MES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+// meses para los chips del reporte: el actual primero (default) y los n-1 anteriores → [{k:'2026-11', l, desde, hasta}]
+function gasMonths(today,n){
+  const y0=Number(today.slice(0,4)),m0=Number(today.slice(5,7))-1,out=[];
+  for(let i=0;i<n;i++){const t=y0*12+m0-i,y=Math.floor(t/12),m=t%12,k=y+'-'+String(m+1).padStart(2,'0'),last=new Date(y,m+1,0).getDate();
+    out.push({k:k,l:i===0?'Este mes':GAS_MES[m]+(y!==y0?' '+y:''),desde:k+'-01',hasta:k+'-'+String(last).padStart(2,'0')})}
+  return out;
+}
+const gasDay=ymd=>{const d=String(ymd||'');return d.length>=10?Number(d.slice(8,10))+' '+GAS_MES[Number(d.slice(5,7))-1]:d};
+// nota de fuentes: «Monday (estimado) hasta 27 nov · Bitácora desde 28 nov»
+function gasNote(desde){
+  if(!desde)return '';const p=new Date(Number(desde.slice(0,4)),Number(desde.slice(5,7))-1,Number(desde.slice(8,10)));p.setDate(p.getDate()-1);
+  const pv=p.getFullYear()+'-'+String(p.getMonth()+1).padStart(2,'0')+'-'+String(p.getDate()).padStart(2,'0');
+  return 'Monday (estimado) hasta '+gasDay(pv)+' · Bitácora desde '+gasDay(desde);
+}
 // ==PURE-END==
 try{S.filter=depFilter(localStorage.getItem('adv_ops_depfilter')||'todas').key}catch(e){} // último filtro usado
 try{S.canc=cancMode(localStorage.getItem('adv_ops_canc'))}catch(e){} // Ajustes › Canceladas (por dispositivo)
@@ -1388,7 +1406,7 @@ dep(id){
   const costoLink=ajOk?`<button type="button" class="tlink" data-ajnew="${esc(d.id)}|costo|" aria-label="Agregar un costo a la salida">+ Agregar</button>`:'',cAj=ajCosto(d).map(a=>ajRow(d,a,false)).join(''),pAj=ajSum(ajPago(d));
   if(c)h+=`<div class="group">${gh('costos','Costos',costoLink)}<div class="list dlist">
     <div class="cell"><span class="main t">Bebidas</span><span class="v">${fmt(c.b)}</span></div>
-    <div class="cell"><span class="main t">Gasolina</span><span class="v">${fmt(c.g)}</span></div>
+    <div class="cell"><span class="main t">Gasolina${c.gas&&c.gas.l?' · '+num(c.gas.l)+' L':''}</span><span class="v">${fmt(c.g)}${gasEst(c.gas)?' <span class="est">est.</span>':''}</span></div>
     <div class="cell"><span class="main t">Hielo</span><span class="v">${fmt(c.h)}</span></div>
     ${c.f?`<div class="cell"><span class="main t">Fruta</span><span class="v">${fmt(c.f)}</span></div>`:''}${c.des?`<div class="cell"><span class="main t">Desayuno</span><span class="v">${fmt(c.des)}</span></div>`:''}
     <div class="cell"><span class="main"><span class="t">Eventuales</span>${pAj?`<div class="sn">incluye ajustes ${ajMoney(pAj)}</div>`:''}</span><span class="v">${fmt(c.ev+pAj)}</span></div>
@@ -1458,6 +1476,20 @@ movs(){
   const all=sortedMoves(),days=[...new Set(all.map(m=>m.d))];
   return topBar('Movimientos',{back:'Stock',backTo:'stock'})+(days.map(d=>`<div class="group"><div class="ghead">${esc(dayName(d))}</div><div class="list">${all.filter(m=>m.d===d).map(mvRow2).join('')}</div></div>`).join('')||'<div class="empty">Sin movimientos.</div>');
 },
+gasolina(){
+  const g=S.gas,ms=gasMonths(TODAY,6),cur=ms.find(m=>m.k===g.mes)||ms[0];
+  let h=topBar('Gasolina',{back:'Más',backTo:'mas'})+`<div class="chips sm" role="group" aria-label="Mes">${ms.map(m=>`<button type="button" class="chip" data-gasmes="${m.k}" aria-pressed="${m.k===cur.k}">${m.l}</button>`).join('')}</div>`;
+  if(g.err)return h+`<div class="warn">${esc(g.err)} <button class="link" data-gasgo>Reintentar</button></div>`;
+  if(!g.data)return h+'<div class="empty">Calculando…</div>';
+  const d=g.data,tl=Object.fromEntries(TYPES),z=g.data.boats.length||d.grupos.length||d.general.cargas;
+  const gr=d.grupos.map(x=>{const bs=d.boats.filter(b=>b.grupo===x.grupo);
+    return `<div class="group"><div class="ghead">${esc(tl[x.grupo]||x.grupo)}</div><div class="list dlist">${bs.map(b=>`<div class="cell"><span class="main"><span class="t">${esc(b.barco)}</span><div class="s">${pl(b.cargas,'carga','cargas')} · ${pl(b.deps,'salida','salidas')} · ${num(b.horas)} h${b.lph!==null?' · '+num(b.lph)+' L/h':''}</div></span><span class="v">${num(b.litros)} L</span></div>`).join('')}
+      <div class="cell tot"><span class="main"><span class="t"><b>Costo · ${pl(x.deps,'salida','salidas')}</b></span><div class="s">${num(x.litros)} L repartidos${x.pe?' · precio de referencia':''}</div></span><span class="v">${fmt0(x.mxn)}</span></div></div></div>`}).join('');
+  h+=z?`<div class="group"><div class="list dlist"><div class="cell tot"><span class="main"><span class="t"><b>Total tours</b></span><div class="s">${num(d.totals.litros)} L</div></span><span class="big">${fmt0(d.totals.mxn)}</span></div></div></div>`+gr
+    +(d.general.cargas?`<div class="group"><div class="ghead">General (camioneta)</div><div class="list dlist"><div class="cell"><span class="main"><span class="t">Cargas generales</span><div class="s">${pl(d.general.cargas,'carga','cargas')} · nunca es costo de un tour</div></span><span class="v">${num(d.general.litros)} L</span></div></div></div>`:'')
+    :'<div class="group"><div class="list"><div class="empty">Sin cargas ni salidas en este mes.</div></div></div>';
+  return h+`<div class="gfoot">${esc(gasNote(d.cfg&&d.cfg.desde))}. «Costo» reparte las cargas entre las salidas del mismo barco por horas.</div>`;
+},
 sreport(){
   const r=S.sr,one=r.desde===r.hasta,pre=[['hoy','Hoy'],['sem','Esta semana'],['sempas','Semana pasada'],['mes','Este mes'],['mespas','Mes pasado']];
   let h=topBar('Reporte de stock',{back:'Stock',backTo:'stock'})+`
@@ -1518,6 +1550,7 @@ mas(){
     ${row('permisos','shield','Permisos',`${ROLES.length} roles`)}
     ${adm?row('usuarios','users','Usuarios',S.users?`${S.users.filter(u=>u.activo).length} activos`:'Agregar y editar quién entra'):''}
     ${adm&&S.cfgAv?row('cfgav','lock','Configuración avanzada','Con código · items, campos, roles, conceptos y reglas'):''}
+    ${adm?row('gasolina','fuel','Gasolina','Cargas, litros por hora y costo por barco'):''}
     ${adm?row('ajustes','sliders','Ajustes',`Apariencia · semana de pago: ${payDayName(S.config.semana_pago)}`):''}
   </div></div>
   <div class="group"><div class="list">
@@ -1567,9 +1600,9 @@ cfgsec(sec){
   else if(sec==='tipos')body=d.tipos.map(x=>rowE(x.clave,x.nombre,x.clave.indexOf('n:')===0?'':'pk '+x.clave,cfgLbl(USO_T,x.uso),x.estado)).join('');
   else if(sec==='roles')body=d.roles.map(x=>rowE(x.clave,x.nombre||x.clave,(x.nombreRol&&x.nombreRol!==x.nombre?x.nombreRol+' · ':'')+(x.clave.indexOf('n:')===0?'':'pk '+x.clave),x.tarifa?cfgLbl(ROL_O,x.tarifa):'Sin rol',x.estado)).join('');
   else if(sec==='config'){
-    body=d.config.map(c=>rowE(c.key,c.label,c.key,payDayLbl(c.valor),'')).join('')
+    body=d.config.map(c=>rowE(c.key,c.label,c.key,c.key==='gasolina_precio'?'$'+c.valor+'/L':c.key==='gasolina_desde'?gasDay(c.valor):payDayLbl(c.valor),'')).join('')
       +d.configExtra.map(c=>`<div class="cell"><span class="main"><span class="t">${esc(c.key)}</span><div class="s">Sin validador: solo se puede cambiar en la hoja Config</div></span><span class="v">${esc(c.valor)}</span></div>`).join('');
-    return bar+live+`<div class="group"><div class="list">${body}</div><div class="gfoot">Semana de pago de eventuales: día en que empieza la semana en Eventuales y Pagos. Los pagos ya hechos se quedan con su fecha. Semana del reporte de stock: solo para «Esta semana» y «Semana pasada» en el reporte.</div></div>`;
+    return bar+live+`<div class="group"><div class="list">${body}</div><div class="gfoot">Semana de pago de eventuales: día en que empieza la semana en Eventuales y Pagos. Los pagos ya hechos se quedan con su fecha. Semana del reporte de stock: solo para «Esta semana» y «Semana pasada» en el reporte. Gasolina real desde: antes de esa fecha el costo se estima con las cargas de Monday; desde ahí usa la bitácora. Precio de gasolina: se usa cuando no hay una compra de gasolina anterior.</div></div>`;
   }
   else if(sec==='hist'){
     return bar+live+(d.historial.length?`<div class="group"><div class="list">${d.historial.map(h=>`<div class="cell"><span class="main"><span class="t">${esc(h.nombre||h.clave)} · ${esc(cfgCampoLbl(h.campo))}</span><div class="s">${esc(cfgVal(h,h.antes)||'—')} → ${esc(cfgVal(h,h.despues)||'—')}</div><div class="s">${esc(fixDates(h.fecha))} · ${esc(h.por)} · ${esc((CFG_SECS.find(x=>x[0]===h.sec)||[0,h.sec])[1])}</div></span>${h.rev?`<button type="button" class="link" data-cfgrev="${h.id}">Revertir</button>`:''}</div>`).join('')}</div>
@@ -2288,6 +2321,12 @@ function cfgEdit(sec,clave){
   let r,title,info='',body='';
   if(sec==='config'){const c=d.config.find(x=>x.key===clave);if(!c)return;r=c;title=c.label;ce={sec,clave,o:{valor:c.valor},v:{valor:c.valor},fld:[]};
     const opts=clave==='semana_pago'?PAYD:[['jueves','Jueves'],['lunes','Lunes']];
+    if(/^gasolina_/.test(clave)){
+      const dt=clave==='gasolina_desde';
+      body=`<div class="group"><div class="list"><div class="field"><label for="ceVal">${dt?'Fecha':'MXN por litro'}</label><input id="ceVal" ${dt?'type="date"':'type="text" inputmode="decimal" autocomplete="off"'} value="${esc(c.valor)}"></div></div><div class="gfoot">${dt?'Antes de esta fecha la gasolina de cada salida es un estimado con las cargas de Monday; desde esta fecha usa la gasolina de la bitácora. Recalcula el historial.':'Precio de referencia cuando no hay una compra de gasolina anterior a la fecha de la salida (se marca «est.»). Recalcula el historial.'}</div></div>`;
+      sheet(title,body+'<div id="ceErr" class="ferr" role="alert" hidden></div>',{ok:cfgSave,okLabel:'Guardar',disabled:true,input:()=>{ce.v.valor=$('ceVal').value.trim();ceDirty()}});
+      ceDirty();return;
+    }
     body=`<div class="group"><div class="ghead">${clave==='semana_pago'?'La semana empieza el':'La semana del reporte empieza el'}</div>${ceChips('valor',opts,c.valor,clave==='semana_pago'?'chips':'chips')}</div>
       <div class="gfoot">${clave==='semana_pago'?'Cambia cómo se agrupan Eventuales, Resumen semanal y Pagos. Recalcula el historial.':'Solo cambia «Esta semana» y «Semana pasada» del reporte de stock.'}</div>`;
   }else{
@@ -2479,6 +2518,13 @@ async function evFetch(){
   try{const d=await srv('eventualesReport',r.desde,r.hasta);if(tk!==r.tk)return;r.data=d}
   catch(e){if(tk!==r.tk)return;r.err=errMsg(e)}
   if(S.evp===r&&tab==='ev'&&!stackView){const y=window.scrollY;render();window.scrollTo(0,y)}
+}
+// ===== Gasolina (solo admin) =====
+async function gasFetch(){
+  const g=S.gas,tk=++g.tk,m=gasMonths(TODAY,6).find(x=>x.k===g.mes)||gasMonths(TODAY,6)[0];g.err='';g.data=null;render();
+  try{const d=await srv('gasolinaReport',m.desde,m.hasta);if(tk!==g.tk)return;g.data=d}
+  catch(e){if(tk!==g.tk)return;g.err=errMsg(e)}
+  if(stackView&&stackView.name==='gasolina'){const y=window.scrollY;render();window.scrollTo(0,y)}
 }
 // ===== Usuarios (solo admin) =====
 let uu=null;
@@ -2749,6 +2795,8 @@ document.addEventListener('click',e=>{
   if(on('[data-usersgo]')){usersFetch();return}
   if(on('[data-useradd]')){userSheet(null);return}
   const usr=on('[data-user]');if(usr){userSheet((S.users||[]).find(x=>x.nombre===usr.dataset.user)||null);return}
+  const gm=on('[data-gasmes]');if(gm&&S.gas){S.gas.mes=gm.dataset.gasmes;gasFetch();return}
+  if(on('[data-gasgo]')&&S.gas){gasFetch();return}
   const sp=on('[data-srp]');if(sp&&S.sr){const [a,b]=srPreset(sp.dataset.srp);S.sr.desde=a;S.sr.hasta=b;srFetch();return}
   if(on('[data-srgo]')){srFetch();return}
   if(on('[data-srshare]')){srShare();return}
@@ -2758,7 +2806,7 @@ document.addEventListener('click',e=>{
   const mja=on('[data-mvaj]');if(mja){openAjDetail(mja.dataset.mvaj);return}
   const b=on('[data-tab]');if(b){tab=b.dataset.tab;stackView=null;S.depFrom='';render();goTop();if(tab==='ev'&&S.evp)evFetch();return}
   const bk=on('[data-back]');if(bk){if(hd>0)history.back();else goBack(bk);return}
-  const vw=on('[data-view]');if(vw){stackView={name:vw.dataset.view};render();goTop();if(vw.dataset.view==='usuarios')usersFetch();if(/^(cfgav|conceptos)$/.test(vw.dataset.view))cfgEnter();return}
+  const vw=on('[data-view]');if(vw){stackView={name:vw.dataset.view};render();goTop();if(vw.dataset.view==='usuarios')usersFetch();if(/^(cfgav|conceptos)$/.test(vw.dataset.view))cfgEnter();if(vw.dataset.view==='gasolina'){S.gas=S.gas||{mes:gasMonths(TODAY,6)[0].k,data:null,err:'',tk:0};gasFetch()}return}
   const mv=on('[data-movs]');if(mv){stackView={name:'movs'};render();goTop();return}
   const ed=on('[data-edit]');if(ed){openProducto(ed.dataset.edit);return}
   const go=on('[data-go]');if(go){tab=go.dataset.go;stackView=null;render();goTop();return}

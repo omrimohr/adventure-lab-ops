@@ -55,9 +55,11 @@ test('costoAdicionalText_: only fields with Uso costo adicional; text first, num
 });
 
 test('headers: new columns are appended at the END; BITACORA_RULE_V is 6 (general history version; one-time rebuild)', () => {
-  assert.strictEqual(E.COSTO_HEADERS[E.COSTO_HEADERS.length - 1], 'Ajustes (MXN)'); // round 20
-  assert.strictEqual(E.COSTO_HEADERS[E.COSTO_HEADERS.length - 2], 'Costos adicionales (MXN)');
-  assert.strictEqual(E.COSTO_HEADERS[E.COSTO_HEADERS.length - 3], 'Alertas');
+  assert.strictEqual(E.COSTO_HEADERS[E.COSTO_HEADERS.length - 1], 'Gasolina fuente'); // round 31
+  assert.strictEqual(E.COSTO_HEADERS[E.COSTO_HEADERS.length - 2], 'Gasolina (L)');
+  assert.strictEqual(E.COSTO_HEADERS[E.COSTO_HEADERS.length - 3], 'Ajustes (MXN)'); // round 20
+  assert.strictEqual(E.COSTO_HEADERS[E.COSTO_HEADERS.length - 4], 'Costos adicionales (MXN)');
+  assert.strictEqual(E.COSTO_HEADERS[E.COSTO_HEADERS.length - 5], 'Alertas');
   assert.strictEqual(E.EXT_HEADERS[E.EXT_HEADERS.length - 3], 'Monto (MXN)');
   assert.strictEqual(E.EXT_HEADERS[E.EXT_HEADERS.length - 4], 'Alerta');
   assert.ok(/^\d+$/.test(E.BITACORA_RULE_V));

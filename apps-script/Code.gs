@@ -142,6 +142,12 @@ function doPost(e) {
       const res = importReport_(ss, String(parsed.csv || ''), String(parsed.archivo || 'app'));
       return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
     }
+    if (parsed.type === 'gasolina') { // round 31: fuel loads exported from Monday (never goes to Raw, never touches the webhook path)
+      const key = PropertiesService.getScriptProperties().getProperty('APP_KEY');
+      if (key && parsed.key !== key) return ContentService.createTextOutput('{"ok":false,"error":"clave"}');
+      let res; try { res = appendGasolina_(ss, parsed.rows); } catch (errG) { logError_(ss, 'gasolina', errG, body); res = { ok: false, error: String((errG && errG.message) || errG) }; }
+      return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
+    }
     const b = parsed.booking || {};
     const av = b.availability || {};
 
@@ -457,10 +463,11 @@ function bitacoraNoAplica_(tipo, barco) { return String(tipo || '').toLowerCase(
 // '4' (25 Nov 2026): Costos adicionales amounts (Costos salida col S, Externos col I) and the Bitácora text of costo adicional/extras fields.
 // '5' (26 Nov 2026): check-in / no-show (Reservas + Salidas columns, alert "No show: N"), Reservas Campos / Teléfono.
 // '7' (26 Nov 2026): Bitácora Salida/Regreso per CUSTOMER type (one OPS booking with two customers); Bitácora gets column 'Customer pk'.
+// '12' (27 Nov 2026): gasoline cost per departure = allocation of refuels (round 31); Costos salida gets 'Gasolina (L)' / 'Gasolina fuente'.
 // '8' (26 Nov 2026): cancelled bookings (income kept = paid − refunds, Reservas/Salidas columns, cancel time), no automatic 50% for cancelled departures (round 24).
 // '9' (27 Nov 2026): current FareHarbor names (items from Tours, resources from Recursos, customer types) in Salidas / Bitácora / Tripulación / Reservas; private pax = any 'personas' field (round 25).
 // '6' (26 Nov 2026): Ingreso neto = Net Revenue Collected + Processing Fees (exactNet_); Externos amount from the Capitán Externo crew note (externoNota_), Costos salida counts it once.
-const BITACORA_RULE_V = '11';
+const BITACORA_RULE_V = '12';
 // Items that got OPS · Salida/Regreso bitácora fields in FareHarbor on 24 Nov 2026 → Tours "Lleva bitácora" = sí (sheet record only)
 const BITACORA_SI_20261124 = [244134, 398421, 243654, 398153, 337343, 337931, 398154, 703654, 689738, 185852, 703536, 770935];
 function markBitacoraSi_(ss) {
@@ -1193,7 +1200,8 @@ const RESUMEN_HEADERS = ['Semana (inicio)', 'Nombre', 'Salidas', 'Total (MXN)', 
 const EXT_HEADERS = ['Fecha', 'Hora', 'Item', 'Availability pk', 'Rol', 'Nombre', 'A quién se debe (nota)', 'Alerta', 'Monto (MXN)', 'Barco', 'Persona'];
 const COSTO_HEADERS = ['Availability pk', 'Fecha', 'Hora', 'Item', 'Barco', 'Pax', 'Ingreso neto (MXN)', 'Fuente ingreso',
   'Bebidas (MXN)', 'Hielo (MXN)', 'Gasolina (MXN)', 'Fruta (MXN)', 'Desayuno (MXN)', 'Tripulación (MXN)', 'Costo total (MXN)',
-  'Costo %', 'Detalle consumo', 'Alertas', 'Costos adicionales (MXN)', 'Ajustes (MXN)']; // round 20: last = manual pay adjustments + extra costs of the departure (signed total)
+  'Costo %', 'Detalle consumo', 'Alertas', 'Costos adicionales (MXN)', 'Ajustes (MXN)', // round 20: manual pay adjustments + extra costs of the departure (signed total)
+  'Gasolina (L)', 'Gasolina fuente']; // round 31: allocated litres; 'monday-est' | 'bitacora' (+ ' · precio est.' when the price is the placeholder); '' = external boat / not applicable
 // Round 20: manual pay adjustments and extra departure costs (append-only; annulled with a reason, never deleted)
 const AJS_TAB = 'Ajustes salida', CONC_TAB = 'Conceptos';
 const AJS_HEADERS = ['ID', 'Creado', 'Availability pk', 'Fecha salida', 'Item', 'Tipo (pago/costo)', 'Persona', 'Concepto', 'Monto (MXN)', 'Motivo', 'Por',
@@ -1207,6 +1215,115 @@ const MIG_R20_PROP = 'MIG_R20_HX';
 const TRASLADO_FIELDS = [['2026466', 'Traslado ida'], ['2026467', 'Traslado regreso']];
 const MIG_R21_CF = 'MIG_R21_TR_CF', MIG_R21_TAR = 'MIG_R21_TR_TAR';
 const TRASLADO_TAR_SEED = [['traslado', 'catamaran', 100], ['traslado', 'monocasco', 100], ['traslado', 'hobie', 100], ['traslado', 'ponton', 50], ['traslado', 'sup', 0]];
+
+// ---------------- Round 31: gasolina por salida (cargas de Monday + bitácora, repartidas por horas) ----------------
+const GAS_TAB = 'Gasolina cargas';
+const GAS_HEADERS = ['Fecha', 'Embarcación', 'Grupo', 'Litros', 'Fuente', 'Registrado', 'Clave'];
+const GAS_GRUPOS_ = ['ponton', 'catamaran', 'monocasco', 'hobie']; // Tours Barco values that carry fuel cost
+const GAS_DESDE_DEFAULT = '2026-11-28', GAS_PRECIO_DEFAULT = 25, GAS_HORAS_DEFAULT = 3;
+// [label, grupo, regex over the normalized name]. Anything else (camioneta almacén …) is 'general' = never a tour cost.
+const GAS_BARCOS_ = [
+  ['La Flaca', 'ponton', /\bflaca\b/], ['El Rey', 'ponton', /\bel rey\b/], ['El Cormorán', 'ponton', /\b(cormoran|conmoran)\b/],
+  ['Huracán', 'catamaran', /\bhuracan\b/], ['Barracuda', 'catamaran', /\bbarracuda\b/], ['La Ramona', 'catamaran', /\bramona\b/], ['Katana', 'catamaran', /\bkatana\b/],
+  ['Tiamat', 'monocasco', /\btiamat\b/], ['GMI', 'monocasco', /\bgmi\b/],
+  ['Hobie Cat', 'hobie', /\bhobb?ie ?cat\b/]];
+/** Pure: accents / case / punctuation ignored ("Ponton _ La Flaca" → "ponton la flaca") */
+function gasNorm_(s) { return norm_(s).replace(/[^a-z0-9]+/g, ' ').trim(); }
+/** Pure: Monday vessel name or FareHarbor resource name → {barco, grupo} or null when it is not one of our boats */
+function gasBarco_(name) {
+  const n = gasNorm_(name); if (!n) return null;
+  for (let i = 0; i < GAS_BARCOS_.length; i++) if (GAS_BARCOS_[i][2].test(n)) return { barco: GAS_BARCOS_[i][0], grupo: GAS_BARCOS_[i][1] };
+  return null;
+}
+function gasGrupo_(emb) { const b = gasBarco_(emb); return b ? b.grupo : 'general'; }
+/** Pure: [[fechaISO, embarcacion, litros, registrado]] → {rows: [GAS_HEADERS row], added, dup, bad}. existing = {clave: true}. Dedupe by sha1 of the incoming row. */
+function gasolinaPlan_(rows, existing) {
+  const seen = Object.assign({}, existing || {}), out = { rows: [], added: 0, dup: 0, bad: 0 };
+  const t = v => String(v === undefined || v === null ? '' : v);
+  (rows || []).forEach(r => {
+    if (!Array.isArray(r)) { out.bad++; return; }
+    const fecha = t(r[0]).slice(0, 10), emb = t(r[1]).trim();
+    const l = Number(t(r[2]).replace(',', '.'));
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !emb || !isFinite(l) || l <= 0) { out.bad++; return; }
+    const clave = sha1_(JSON.stringify([t(r[0]), emb, t(r[2]), t(r[3])]));
+    if (seen[clave]) { out.dup++; return; }
+    seen[clave] = true;
+    out.rows.push([fecha, emb, gasGrupo_(emb), l, 'monday', t(r[3]), clave]); out.added++;
+  });
+  return out;
+}
+/** Sheets: appends new Monday cargas (type 'gasolina' of doPost). Never touches Raw / the webhook path. */
+function appendGasolina_(ss, rows) {
+  const sh = sheet_(ss, GAS_TAB, GAS_HEADERS);
+  const ex = {}; if (sh.getLastRow() >= 2) sh.getRange(2, GAS_HEADERS.length, sh.getLastRow() - 1, 1).getValues().forEach(r => { if (r[0] !== '') ex[String(r[0])] = true; });
+  const plan = gasolinaPlan_(rows, ex);
+  plan.rows.forEach(r => sh.appendRow(r));
+  return { ok: true, added: plan.added, dup: plan.dup, bad: plan.bad };
+}
+function loadGasCargas_(ss) {
+  return readTab_(ss, GAS_TAB, GAS_HEADERS).filter(r => r[0] !== '' && Number(r[3]) > 0)
+    .map(r => ({ fecha: ymd_(r[0]), emb: String(r[1] || ''), grupo: gasGrupo_(r[1]), litros: Number(r[3]) }));
+}
+/** Pure: boat labels of a departure from its resource names (first-seen order, no duplicates) */
+function gasBoatsOf_(names) {
+  const out = []; (names || []).forEach(n => { const b = gasBarco_(n); if (b && out.indexOf(b.barco) < 0) out.push(b.barco); }); return out;
+}
+function gasMedian_(a) { if (!a.length) return 0; const s = a.slice().sort((x, y) => x - y), m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
+/** Pure: sets d.h (hours) on every departure: fin − ini when positive, else the median of that item's positive durations, else 3 h */
+function gasHoras_(deps) {
+  const durs = {};
+  deps.forEach(d => { const h = d.ini && d.fin ? (d.fin - d.ini) / 3600000 : 0; d.h0 = h > 0 ? h : 0; if (d.h0 > 0) (durs[d.item] = durs[d.item] || []).push(d.h0); });
+  deps.forEach(d => { d.h = d.h0 > 0 ? d.h0 : (gasMedian_(durs[d.item] || []) || GAS_HORAS_DEFAULT); });
+  return deps;
+}
+/** Pure: latest gasoline purchase on or before `fecha` → {p, est}; none → the placeholder price (est true). compras = [{fecha, precio}] */
+function gasPrecio_(compras, fecha, dflt) {
+  let best = null;
+  (compras || []).forEach(c => { if (c.fecha && c.fecha <= fecha && c.precio > 0 && (!best || c.fecha >= best.fecha)) best = c; });
+  return best ? { p: best.precio, est: false } : { p: dflt, est: true };
+}
+/**
+ * Pure (round 31): fuel cost per departure.
+ * inp = {desde (cutover ymd), precio (placeholder MXN/L), compras [{fecha,precio}], cargas [{fecha, grupo, litros}] (Monday),
+ *        deps [{pk, fecha, ini, fin (ms or null), item, barco (Tours Barco), activas, boats [labels], ext (bool), bit (litres in bitácora)}]}
+ * Eligible = activas > 0, barco in ponton/catamaran/monocasco/hobie, not run by an external boat. Hours = fin − ini, else median of that item's positive durations, else 3 h.
+ * a) before the cutover: Monday cargas of (month ∩ before cutover ∩ from the DB's first departure) per grupo ÷ group hours × departure hours → 'monday-est'.
+ * b) from the cutover: bitácora refuel at D goes to that boat's departures from D until the next one of the same boat with its own refuel (exclusive), weighted by hours;
+ *    no known boat → all on D → 'bitacora'. c) price = latest purchase on/before the date, else placeholder (pe true).
+ * → {pk: {l, mxn, src, pe, h}} for eligible departures only.
+ */
+function allocateGasolina_(inp) {
+  const cut = String(inp.desde || GAS_DESDE_DEFAULT), dflt = Number(inp.precio) > 0 ? Number(inp.precio) : GAS_PRECIO_DEFAULT;
+  const all = inp.deps || [], dates = all.filter(d => Number(d.activas) > 0).map(d => d.fecha).sort(), first = dates[0] || '';
+  const el = all.filter(d => Number(d.activas) > 0 && GAS_GRUPOS_.indexOf(d.barco) >= 0 && !d.ext).map(d => Object.assign({}, d));
+  gasHoras_(el);
+  const lit = {}; el.forEach(d => { lit[d.pk] = 0; });
+  // a) Monday, before the cutover
+  const pool = {}, hrs = {};
+  (inp.cargas || []).forEach(c => { if (c.fecha < cut && first && c.fecha >= first && GAS_GRUPOS_.indexOf(c.grupo) >= 0) { const k = c.fecha.slice(0, 7) + '|' + c.grupo; pool[k] = (pool[k] || 0) + Number(c.litros); } });
+  el.forEach(d => { if (d.fecha < cut) { const k = d.fecha.slice(0, 7) + '|' + d.barco; hrs[k] = (hrs[k] || 0) + d.h; } });
+  el.forEach(d => { if (d.fecha < cut) { const k = d.fecha.slice(0, 7) + '|' + d.barco; if (hrs[k] && pool[k]) lit[d.pk] = pool[k] / hrs[k] * d.h; } });
+  // b) bitácora, from the cutover
+  const post = el.filter(d => d.fecha >= cut).sort((a, b) => (a.ini || 0) - (b.ini || 0) || (a.fecha + a.pk).localeCompare(b.fecha + b.pk));
+  post.forEach(d => {
+    const q = Number(d.bit) || 0; if (!(q > 0)) return;
+    const boat = (d.boats || [])[0];
+    if (!boat) { lit[d.pk] += q; return; }
+    const seq = post.filter(x => (x.boats || []).indexOf(boat) >= 0), at = seq.indexOf(d);
+    let end = seq.length; for (let j = at + 1; j < seq.length; j++) if ((Number(seq[j].bit) || 0) > 0) { end = j; break; }
+    const grp = seq.slice(at, end), tot = grp.reduce((a, x) => a + x.h, 0);
+    grp.forEach(x => { lit[x.pk] += q * x.h / tot; });
+  });
+  const out = {};
+  el.forEach(d => {
+    const pr = gasPrecio_(inp.compras, d.fecha, dflt), l = lit[d.pk] || 0;
+    out[d.pk] = { l: Math.round(l * 100) / 100, mxn: Math.round(l * pr.p * 100) / 100, src: d.fecha < cut ? 'monday-est' : 'bitacora', pe: pr.est, h: Math.round(d.h * 100) / 100 };
+  });
+  return out;
+}
+/** Pure: Costos salida 'Gasolina fuente' text <-> parts */
+function gasFuenteText_(g) { return g ? g.src + (g.pe && g.mxn ? ' · precio est.' : '') : ''; }
+function gasFuenteParse_(t) { const s = String(t || ''); return { src: s.split(' · ')[0], pe: /precio est/.test(s) }; }
 
 // ----- pure helpers -----
 function norm_(s) {
@@ -1758,6 +1875,8 @@ function rebuildFinanzas_() {
   const crewBy = byAv(crew, 0), bitBy = byAv(bit, 0);
 
   const ev = [], ext = [], costos = [], consumoTot = {};
+  const gasAux = [], gasDeps = [], cfgG = readConfig_(ss), gasCompras = compras.filter(c => String(c[3]) === 'gas' && c[1] !== '')
+    .map(c => ({ fecha: ymd_(c[1]), precio: c[5] !== '' ? Number(c[5]) : ((Number(c[4]) > 0 && c[6] !== '') ? Number(c[6]) / Number(c[4]) : 0) }));
   const frutaSal = [];
   const done = salidas.filter(s => fmtDate_(s[6], 'yyyy-MM-dd') <= today);
   done.forEach(s => {
@@ -1776,13 +1895,17 @@ function rebuildFinanzas_() {
     const barco = barcos[String(s[1])] || '';
     const b = bitBy[pk] || [];
     const p = payForSalida_(s, crewBy[pk] || [], b, rules, barco, M, new Date(), payDow);
+    let gasBit = 0; // round 31: litres of product 'gas' in the bitácora (refuels) — only used to ALLOCATE the cost; stock consumption below is unchanged
+    b.forEach(x => { const u = bitUso_(x, M, productos); if (u.uso === 'producto' && u.prod === 'gas' && Number(x[8]) > 0) gasBit += Number(x[8]); });
+    gasDeps.push({ pk: pk, fecha: fmtDate_(s[6], 'yyyy-MM-dd'), ini: s[6] ? new Date(s[6]).getTime() : null, fin: s[7] ? new Date(s[7]).getTime() : null, item: String(s[1]), barco: barco,
+      activas: Number(s[8]) || 0, boats: gasBoatsOf_(applyResNames_(resFromText_(s[20]), M).map(r => r.name)), ext: p.ext.length > 0, bit: gasBit });
     p.pay.forEach(x => { x.length = EV_HEADERS.length; x[17] = ''; ev.push(x); }); p.ext.forEach(x => ext.push(x));
     const cons = consumoSalida_(b, productos, M);
     Object.keys(cons).forEach(id => { consumoTot[id] = (consumoTot[id] || 0) + cons[id]; });
     let beb = 0, hie = 0, gas = 0; const det = [];
     Object.keys(cons).forEach(id => {
       const v = cons[id] * cost(id);
-      if (id === 'hie') hie += v; else if (id === 'gas') gas += v; else beb += v;
+      if (id === 'hie') hie += v; else if (id === 'gas') { /* round 31: fuel cost comes from allocateGasolina_ (below), not from this departure's own litres */ } else beb += v;
       det.push(cons[id] + ' ' + id);
     });
     const paxN = Number(String(s[9]).replace(/[^\d.]/g, '')) || 0;
@@ -1801,8 +1924,16 @@ function rebuildFinanzas_() {
     if (/sin bit/i.test(String(s[11])) || /falta/i.test(String(s[11]))) alerts.push('Bitácora: ' + s[11]);
     p.pay.forEach(x => { if (x[16]) alerts.push(x[5] + ': ' + x[16]); });
     if (cos.unparsed) alerts.push('Costo adicional sin monto: ' + cos.rest.join(' · '));
-    costos.push([pk, fmtDate_(s[6], 'yyyy-MM-dd'), fmtDate_(s[6], 'HH:mm'), s[2], barco, s[9], ingreso, s[18] || '', r2_(beb), r2_(hie), r2_(gas), r2_(fru), r2_(desayuno),
-      r2_(trip), r2_(total), ingreso ? Math.round(total / ingreso * 1000) / 10 : '', det.join(', '), alerts.join(' | '), costoAd, r2_(aj)]);
+    const row = [pk, fmtDate_(s[6], 'yyyy-MM-dd'), fmtDate_(s[6], 'HH:mm'), s[2], barco, s[9], ingreso, s[18] || '', r2_(beb), r2_(hie), r2_(gas), r2_(fru), r2_(desayuno),
+      r2_(trip), r2_(total), ingreso ? Math.round(total / ingreso * 1000) / 10 : '', det.join(', '), alerts.join(' | '), costoAd, r2_(aj), '', ''];
+    costos.push(row); gasAux.push({ row: row, total: total, ingreso: ingreso, pk: pk });
+  });
+  // Round 31: fuel cost = allocation of refuels (Monday estimate before the cutover, bitácora after), not the departure's own litres
+  const gasAlloc = allocateGasolina_({ desde: cfgG.gasolina_desde, precio: cfgG.gasolina_precio, compras: gasCompras, cargas: loadGasCargas_(ss), deps: gasDeps });
+  gasAux.forEach(x => {
+    const g = gasAlloc[x.pk], mx = g ? g.mxn : 0, tot = x.total + mx;
+    x.row[10] = r2_(mx); x.row[14] = r2_(tot); x.row[15] = x.ingreso ? Math.round(tot / x.ingreso * 1000) / 10 : '';
+    x.row[20] = g ? g.l : ''; x.row[21] = gasFuenteText_(g);
   });
 
   // Stock
@@ -2345,7 +2476,7 @@ function sheet_(ss, name, headers) {
   return s;
 }
 
-if (typeof module !== 'undefined') module.exports = { ctKey_, cfKey_, roleKey_, guessCtype_, guessFieldUso_, guessRolTarifa_, camposMap_, typeUso_, fieldUso_, bitUso_, crewTarifa_,
+if (typeof module !== 'undefined') module.exports = { GAS_TAB, GAS_HEADERS, GAS_BARCOS_, gasNorm_, gasBarco_, gasGrupo_, gasolinaPlan_, appendGasolina_, loadGasCargas_, gasBoatsOf_, gasPrecio_, allocateGasolina_, gasHoras_, gasFuenteText_, gasFuenteParse_, ctKey_, cfKey_, roleKey_, guessCtype_, guessFieldUso_, guessRolTarifa_, camposMap_, typeUso_, fieldUso_, bitUso_, crewTarifa_,
   reportFileName_, archiveReport_, mapeosFromRows_, observe_, collectUnknowns_, seedMapeos_, validateMapeo_, toursFromRows_, tourEstado_, TOURS_SEED_ROWS: TOURS_SEED, USOS_CT, USOS_CF,
   CT_HEADERS, CF_HEADERS, ROL_HEADERS, CREW_HEADERS, BIT_HEADERS, ESTADO_NUEVO, ESTADO_OK, rawRowFor_, doPost, rebuildFinanzas, rebuildAll, ensureMapeos_, loadMapeos_,
   registerUnknowns_, prepararMapeos, isoOf_, keptAmount_, cancelNetEstimate_, cancelIncome_, cancelAtOf_, cancelCells_, RES_KEPT, RES_CNET, RES_CSRC, RES_CTC, SAL_CANC, SAL_CCOBRO, SAL_CHORA, SAL_CMIN, parseCostos_, externoNota_, barcoNota_, exactNet_, costoAdicionalText_, EXT_HEADERS, COSTO_HEADERS, observeNames_, mergeResNames_, applyResNames_, registerNames_, resName_, RECURSOS_HEADERS, RECURSOS_TAB, bitacoraNoAplica_, bitacoraRuleStale_, markBitacoraSi_, BITACORA_RULE_V, checkinOf_, checkinSummary_, checkinText_, parseCheckin_, camposText_, phoneOf_, reservaRow_, importReport_, horaExtraQty_, planHoraExtraMigration_, checkTicked_, trasladoWays_, trasladoRate_, planTrasladoCampos_, planTrasladoTarifas_, migrateTrasladoCampos20261126_, migrateTrasladoTarifas20261126_, TRASLADO_FIELDS, TRASLADO_TAR_SEED, migrateHoraExtra20261126_, migratePersonasPrivado20261127_, planPersonasPrivado_, PERSONAS_PRIVADO_PKS, ajustesActivos_, ajustesPorSalida_, ajusteEvRows_, AJS_HEADERS, CONC_HEADERS, CONC_SEED, EV_HEADERS, loadIngresos_, moneyCells_, pricedFields_, descuentosText_, cargosText_, pagosText_, reembolsadoTotal_, frutaSalida_, bookingPax_, computeSalida_, opsType_, cfvNumber_, parseCsv_, parseReport_, parseMoney_, controlRows_, incomeCells_, findRate_, weekStart_, payDow_, payForSalida_, consumoSalida_, allocateFruta_, TAR_SEED, PROD_SEED, hoursBetween_, resourcesFrom_, resFromText_, salHeaderStale_, resHeaderStale_, planStaffMeals_, ensureStaffMeals_, RES_HEADERS, SAL_HEADERS };
