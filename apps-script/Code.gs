@@ -194,7 +194,7 @@ function rawOnly_(body) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     let parsed = {};
     try { parsed = JSON.parse(body) || {}; } catch (err) {}
-    if (parsed.type === 'reporte') return ContentService.createTextOutput('{"ok":false,"error":"ocupado, intenta de nuevo"}').setMimeType(ContentService.MimeType.JSON);
+    if (parsed.type === 'reporte' || parsed.type === 'gasolina') return ContentService.createTextOutput('{"ok":false,"error":"ocupado, intenta de nuevo"}').setMimeType(ContentService.MimeType.JSON);
     const raw = sheet_(ss, 'Raw', RAW_HEADERS);
     const hash = sha1_(body);
     raw.appendRow(rawRowFor_(new Date(), hash, isDuplicate_(raw, hash), parsed.booking || {}, body));
